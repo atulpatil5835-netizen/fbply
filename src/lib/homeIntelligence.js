@@ -304,45 +304,87 @@ export function buildFinancialHealthScore({
   moneyBookSummary = {},
 } = {}) {
   const spending = aggregateExpenses(expenses)
-  const goals = goalProgressList(savingsBuckets, recommendation)
-  const totalSaved = goals.reduce((total, goal) => total + goal.saved, 0)
-  const totalTarget = goals.reduce((total, goal) => total + goal.target, 0)
-  const averageGoalProgress = goals.length > 0
-    ? goals.reduce((total, goal) => total + goal.progress, 0) / goals.length
-    : 0
-  const usagePercent = safeAmount(financialState.usagePercent)
-  const reserveTarget = safeAmount(financialState.reserveTarget)
+  const bucketGoals = savingsBuckets
+    .map((bucket) => ({
+      saved: safeAmount(bucket.saved),
+      target: safeAmount(bucket.target),
+    }))
+    .filter((bucket) => bucket.target > 0)
+  const bucketSaved = bucketGoals.reduce((total, goal) => total + goal.saved, 0)
+  const bucketTarget = bucketGoals.reduce((total, goal) => total + goal.target, 0)
+  const plannerTarget = safeAmount(recommendation?.targetAmount)
+  const plannerSaved = safeAmount(recommendation?.currentSavings)
+  const usagePercent = Number(financialState.usagePercent)
   const breathingRoom = safeAmount(financialState.breathingRoom)
   const topShare = spending.categories[0]?.share || 0
-  const diversityScore = spending.categories.length > 0 ? Math.min((spending.categories.length / 4) * 100, 100) : 52
+  const diversityScore = spending.categories.length > 0 ? Math.min((spending.categories.length / 4) * 100, 100) : 0
   const pendingReceivable = safeAmount(moneyBookSummary.needToReceive)
   const pendingPayable = safeAmount(moneyBookSummary.needToPay)
   const pendingDebt = pendingReceivable + pendingPayable
   const settledThisMonth = safeAmount(moneyBookSummary.settledThisMonth)
+  const moneyBookActivity = pendingDebt > 0 ||
+    settledThisMonth > 0 ||
+    safeAmount(moneyBookSummary.totalGiven) > 0 ||
+    safeAmount(moneyBookSummary.totalBorrowed) > 0
   const income = safeAmount(financialState.income)
   const pendingDebtRatio = income > 0 ? (pendingDebt / income) * 100 : pendingDebt > 0 ? 45 : 0
 
-  const savingsConsistency = goals.length > 0
-    ? clamp((totalTarget > 0 ? (totalSaved / totalTarget) * 82 : 0) + Math.min(goals.length, 3) * 6)
-    : clamp(reserveTarget > 0 ? (breathingRoom / reserveTarget) * 80 + 18 : 56)
-  const expenseBalance = spending.count >= 3
-    ? clamp(100 - topShare * 48 + diversityScore * 0.28)
-    : 62
-  const goalCompletion = goals.length > 0
-    ? clamp(averageGoalProgress * 0.88 + (goals.some((goal) => goal.progress >= 75) ? 10 : 0))
-    : 58
-  const spendingControl = safeAmount(financialState.income) > 0
-    ? clamp(100 - usagePercent * 0.72 + (breathingRoom > 0 ? 8 : 0))
-    : 60
-  const repaymentBehavior = pendingDebt > 0
-    ? clamp(84 - pendingDebtRatio * 0.9 + (settledThisMonth > 0 ? 12 : 0) + (pendingReceivable >= pendingPayable ? 4 : 0))
-    : 82
+  const factors = []
+
+  if (bucketTarget > 0) {
+    factors.push({
+      label: 'Savings',
+      score: clamp((bucketSaved / bucketTarget) * 100),
+      weight: 0.24,
+    })
+  }
+
+  if (spending.count >= 3) {
+    factors.push({
+      label: 'Stability',
+      score: clamp(100 - topShare * 52 + diversityScore * 0.24),
+      weight: 0.2,
+    })
+  }
+
+  if (plannerTarget > 0) {
+    factors.push({
+      label: 'Goals',
+      score: clamp((Math.min(plannerSaved, plannerTarget) / plannerTarget) * 100),
+      weight: 0.18,
+    })
+  }
+
+  if (moneyBookActivity) {
+    factors.push({
+      label: 'Repay',
+      score: clamp(100 - pendingDebtRatio * 1.1 + (settledThisMonth > 0 ? 10 : 0) - (pendingPayable > pendingReceivable ? 6 : 0)),
+      weight: 0.16,
+    })
+  }
+
+  if (income > 0 && Number.isFinite(usagePercent) && safeAmount(financialState.committed) > 0) {
+    factors.push({
+      label: 'Control',
+      score: clamp(100 - usagePercent * 0.72 + (breathingRoom > 0 ? 8 : 0)),
+      weight: 0.22,
+    })
+  }
+
+  if (factors.length < 2) {
+    return {
+      score: null,
+      label: 'Learning',
+      tone: 'balanced',
+      status: 'insufficient',
+      message: 'Not enough real activity yet. Add expenses, savings goals, or settlements to build a trustworthy score.',
+      factors: [],
+    }
+  }
+
+  const totalWeight = factors.reduce((total, factor) => total + factor.weight, 0)
   const score = clamp(
-    savingsConsistency * 0.23 +
-    expenseBalance * 0.2 +
-    goalCompletion * 0.19 +
-    spendingControl * 0.24 +
-    repaymentBehavior * 0.14,
+    factors.reduce((total, factor) => total + factor.score * factor.weight, 0) / Math.max(totalWeight, 0.01),
   )
   const tone = score >= 82 ? 'good' : score >= 68 ? 'balanced' : score >= 52 ? 'steady' : 'warm'
   const label = score >= 82 ? 'Strong' : score >= 68 ? 'Steady' : score >= 52 ? 'Building' : 'Needs space'
@@ -359,13 +401,8 @@ export function buildFinancialHealthScore({
     score,
     label,
     tone,
+    status: 'ready',
     message,
-    factors: [
-      { label: 'Savings', score: savingsConsistency },
-      { label: 'Stability', score: expenseBalance },
-      { label: 'Goals', score: goalCompletion },
-      { label: 'Repay', score: repaymentBehavior },
-      { label: 'Control', score: spendingControl },
-    ],
+    factors: factors.map(({ label, score }) => ({ label, score })),
   }
 }

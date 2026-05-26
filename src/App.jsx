@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Component, lazy, memo, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -18,6 +18,7 @@ import {
   Mail,
   Mic,
   Moon,
+  MoreVertical,
   Pencil,
   PiggyBank,
   Plane,
@@ -45,7 +46,7 @@ import {
   shortRupees,
 } from './lib/ruleEngine'
 import { aggregateExpenses, categoryColor, getCategoryTotal, normalizeSpendCategory } from './lib/categoryIntelligence'
-import { hasSupabaseAnonKey, isSupabaseReady, supabase, supabaseUrl } from './lib/supabaseClient'
+import { hasSupabaseAnonKey, isSupabaseReady, supabase } from './lib/supabaseClient'
 import { buildAdvancedReport } from './lib/reportInsights'
 import {
   buildFixedExpenseDistribution,
@@ -69,7 +70,7 @@ import {
   reconcileSharedGroup,
   resolveCurrentUserName,
 } from './lib/financialActivity'
-import { safeStorageGet, safeStorageSet } from './lib/storage'
+import { flushStorageQueue, safeStorageGet, safeStorageSet, safeStorageSetQueued } from './lib/storage'
 import {
   learnVoiceExpense,
   parseVoiceExpense as parseSpokenExpense,
@@ -88,6 +89,8 @@ const fadeUp = {
   exit: { opacity: 0, y: -14 },
   transition: { duration: 0.22, ease: 'easeOut' },
 }
+
+const HISTORY_GROUP_BATCH_SIZE = 12
 
 const expenseCategories = [
   { label: 'Food', icon: Utensils, tone: 'cyan' },
@@ -122,6 +125,8 @@ const timelineOptions = [
   { key: 'flexible', label: 'Flexible' },
 ]
 
+const supportEmail = 'contact@fbply.com'
+
 const navItems = [
   { key: 'home', label: 'Home', icon: House },
   { key: 'history', label: 'History', icon: CalendarDays },
@@ -144,7 +149,7 @@ const legalPages = {
         title: 'Data FBPly Uses',
         body: [
           'FBPly uses the information you enter, such as income, expenses, commitments, savings buckets, shared expenses, planner inputs, and reviewed statement data.',
-          'Example placeholder data may look like Jon Doe, jon.doe@gmail.com, and 0000. These are examples only.',
+          'Demo or sample entries are treated as user-controlled local data and can be edited or removed at any time.',
         ],
       },
       {
@@ -172,7 +177,7 @@ const legalPages = {
         title: 'User Rights And Contact',
         body: [
           'Users may choose not to upload statements, may edit reviewed data, and may clear local browser data from their device.',
-          'For privacy questions, contact jon.doe@gmail.com.',
+          `For privacy questions, contact ${supportEmail}.`,
         ],
       },
     ],
@@ -200,7 +205,7 @@ const legalPages = {
         title: 'User Responsibility',
         body: [
           'You are responsible for checking data accuracy before making financial decisions.',
-          'Example values such as 0000 are placeholders only and do not represent actual financial guidance.',
+          'Any estimate is calculated only from saved or reviewed data available inside the app.',
         ],
       },
       {
@@ -246,9 +251,9 @@ const legalPages = {
         ],
       },
       {
-        title: 'Contact Placeholder',
+        title: 'Contact',
         body: [
-          'For product questions, use jon.doe@gmail.com as the placeholder contact email.',
+          `For product, support, or privacy questions, contact ${supportEmail}.`,
         ],
       },
     ],
@@ -259,9 +264,9 @@ const legalPages = {
     summary: 'Use the email below for support, privacy, product, or general questions.',
     sections: [
       {
-        title: 'Email',
+        title: 'Contact',
         body: [
-          'Contact placeholder: jon.doe@gmail.com.',
+          `Email ${supportEmail} for product, support, privacy, or general questions.`,
           'Please avoid sending sensitive bank passwords or full statement files by email.',
         ],
       },
@@ -771,6 +776,23 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        flushStorageQueue()
+      }
+    }
+
+    window.addEventListener('pagehide', flushStorageQueue)
+    document.addEventListener('visibilitychange', flushWhenHidden)
+
+    return () => {
+      flushStorageQueue()
+      window.removeEventListener('pagehide', flushStorageQueue)
+      document.removeEventListener('visibilitychange', flushWhenHidden)
+    }
+  }, [])
+
+  useEffect(() => {
     safeStorageSet('fbply-onboarding-complete', String(hasSeenOnboarding))
   }, [hasSeenOnboarding])
 
@@ -779,23 +801,23 @@ function App() {
   }, [hasCompletedSetup])
 
   useEffect(() => {
-    safeStorageSet('fbply-profile', JSON.stringify(profile))
+    safeStorageSetQueued('fbply-profile', JSON.stringify(profile))
   }, [profile])
 
   useEffect(() => {
-    safeStorageSet('fbply-expenses', JSON.stringify(expenses))
+    safeStorageSetQueued('fbply-expenses', JSON.stringify(expenses))
   }, [expenses])
 
   useEffect(() => {
-    safeStorageSet('fbply-savings-buckets', JSON.stringify(savingsBuckets))
+    safeStorageSetQueued('fbply-savings-buckets', JSON.stringify(savingsBuckets))
   }, [savingsBuckets])
 
   useEffect(() => {
-    safeStorageSet('fbply-shared-groups', JSON.stringify(sharedGroups))
+    safeStorageSetQueued('fbply-shared-groups', JSON.stringify(sharedGroups))
   }, [sharedGroups])
 
   useEffect(() => {
-    safeStorageSet('fbply-money-book', JSON.stringify(moneyBookEntries))
+    safeStorageSetQueued('fbply-money-book', JSON.stringify(moneyBookEntries))
   }, [moneyBookEntries])
 
   useEffect(() => {
@@ -803,7 +825,7 @@ function App() {
   }, [quickSaveMode])
 
   useEffect(() => {
-    safeStorageSet('fbply-voice-memory', JSON.stringify(voiceMemory))
+    safeStorageSetQueued('fbply-voice-memory', JSON.stringify(voiceMemory))
   }, [voiceMemory])
 
   useEffect(() => {
@@ -1109,8 +1131,8 @@ function App() {
     if (!isSupabaseReady) {
       setAuthMessage(
         hasSupabaseAnonKey
-          ? 'Supabase could not start. Please check the project URL and anon key.'
-          : 'Supabase project URL is set. Add VITE_SUPABASE_ANON_KEY to enable real login.',
+          ? 'Secure sign-in could not start. Please try again in a moment.'
+          : 'Secure cloud sign-in is not active here, so FBPly will continue locally on this device.',
       )
       setProfile((current) => ({
         ...current,
@@ -1807,101 +1829,105 @@ function App() {
           />
         )}
         {phase === 'app' && (
-          <MainApp
-            key="app"
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            profile={profile}
-            setProfile={setProfile}
-            authUser={authUser}
-            onSignOut={handleSignOut}
-            financialState={financialState}
-            insights={insights}
-            smartHomeInsights={smartHomeInsights}
-            smartReminders={smartReminders}
-            financialHealth={financialHealth}
-            safeToSpend={safeToSpend}
-            fixedDistribution={fixedDistribution}
-            flexibleDistribution={flexibleDistribution}
-            calmSummaries={calmSummaries}
-            whatChangedInsights={whatChangedInsights}
-            emergencyCushion={emergencyCushion}
-            savingsBuckets={savingsBuckets}
-            lowEnergyMode={lowEnergyMode}
-            advancedReport={selectedAdvancedReport}
-            reportExpenseBreakdown={selectedExpenseBreakdown}
-            reportFinancialState={selectedFinancialState}
-            monthlyComparison={selectedMonthlyComparison}
-            expenses={expenses}
-            historyGroups={historyGroups}
-            transactionSummary={transactionSummary}
-            cashflowTimeline={selectedCashflowTimeline}
-            moneyBookEntries={moneyBookEntries}
-            moneyBookSummary={moneyBookSummary}
-            saveMoneyBookEntry={saveMoneyBookEntry}
-            toggleMoneyBookSettlement={toggleMoneyBookSettlement}
-            deleteMoneyBookEntry={deleteMoneyBookEntry}
-            selectedMonthKey={selectedMonthKey}
-            setSelectedMonthKey={setSelectedMonthKey}
-            monthOptions={monthOptions}
-            sharedSummary={sharedSummary}
-            selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
-            customExpenseName={customExpenseName}
-            setCustomExpenseName={setCustomExpenseName}
-            expenseAmount={expenseAmount}
-            setExpenseAmount={setExpenseAmount}
-            expenseNote={expenseNote}
-            setExpenseNote={setExpenseNote}
-            expenseError={expenseError}
-            expenseFieldErrors={expenseFieldErrors}
-            clearExpenseFieldError={clearExpenseFieldError}
-            addExpense={addExpense}
-            voiceDraft={voiceDraft}
-            voiceStatus={voiceStatus}
-            isListening={isListening}
-            voiceLanguage={voiceLanguage}
-            setVoiceLanguage={setVoiceLanguage}
-            quickSaveMode={quickSaveMode}
-            setQuickSaveMode={setQuickSaveMode}
-            startVoiceExpense={startVoiceExpense}
-            stopVoiceExpense={stopVoiceExpense}
-            confirmVoiceExpense={confirmVoiceExpense}
-            updateVoiceDraft={updateVoiceDraft}
-            clearVoiceDraft={clearVoiceDraft}
-            useVoiceDraftInForm={useVoiceDraftInForm}
-            undoVoiceSave={undoVoiceSave}
-            lastVoiceSave={lastVoiceSave}
-            quickExpenseChips={quickExpenseChips}
-            applyQuickExpense={applyQuickExpense}
-            editExpense={editExpense}
-            sharedGroups={sharedGroups}
-            addSharedGroup={addSharedGroup}
-            addSharedPayment={addSharedPayment}
-            markSharedSettlementReceived={markSharedSettlementReceived}
-            removeSharedGroup={removeSharedGroup}
-            plannerInput={plannerInput}
-            setPlannerInput={setPlannerInput}
-            selectedPlan={selectedPlan}
-            setSelectedPlan={setSelectedPlan}
-            plannerTargetAmount={plannerTargetAmount}
-            setPlannerTargetAmount={setPlannerTargetAmount}
-            plannerCurrentSavings={plannerCurrentSavings}
-            setPlannerCurrentSavings={setPlannerCurrentSavings}
-            plannerTimeline={plannerTimeline}
-            setPlannerTimeline={setPlannerTimeline}
-            recommendation={recommendation}
-            downloadPdf={requestPdfExport}
-            exportCsv={exportCsv}
-            isExportingPdf={isExportingPdf}
-            pdfError={pdfError}
-            updateCommitment={updateCommitment}
-            addCommitment={addCommitment}
-            removeCommitment={removeCommitment}
-            addSavingsBucket={addSavingsBucket}
-            updateSavingsBucket={updateSavingsBucket}
-            removeSavingsBucket={removeSavingsBucket}
-          />
+          <AppErrorBoundary resetKey={`${activeTab}-${selectedMonthKey}`}>
+            <MainApp
+              key="app"
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              profile={profile}
+              setProfile={setProfile}
+              authUser={authUser}
+              onSignOut={handleSignOut}
+              financialState={financialState}
+              insights={insights}
+              smartHomeInsights={smartHomeInsights}
+              smartReminders={smartReminders}
+              financialHealth={financialHealth}
+              safeToSpend={safeToSpend}
+              fixedDistribution={fixedDistribution}
+              flexibleDistribution={flexibleDistribution}
+              calmSummaries={calmSummaries}
+              whatChangedInsights={whatChangedInsights}
+              emergencyCushion={emergencyCushion}
+              savingsBuckets={savingsBuckets}
+              lowEnergyMode={lowEnergyMode}
+              advancedReport={selectedAdvancedReport}
+              reportExpenseBreakdown={selectedExpenseBreakdown}
+              reportFinancialState={selectedFinancialState}
+              reportTransactions={selectedMonthActivity.transactions}
+              reportTransactionSummary={selectedMonthActivity.transactionSummary}
+              monthlyComparison={selectedMonthlyComparison}
+              expenses={expenses}
+              historyGroups={historyGroups}
+              transactionSummary={transactionSummary}
+              cashflowTimeline={selectedCashflowTimeline}
+              moneyBookEntries={moneyBookEntries}
+              moneyBookSummary={moneyBookSummary}
+              saveMoneyBookEntry={saveMoneyBookEntry}
+              toggleMoneyBookSettlement={toggleMoneyBookSettlement}
+              deleteMoneyBookEntry={deleteMoneyBookEntry}
+              selectedMonthKey={selectedMonthKey}
+              setSelectedMonthKey={setSelectedMonthKey}
+              monthOptions={monthOptions}
+              sharedSummary={sharedSummary}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+              customExpenseName={customExpenseName}
+              setCustomExpenseName={setCustomExpenseName}
+              expenseAmount={expenseAmount}
+              setExpenseAmount={setExpenseAmount}
+              expenseNote={expenseNote}
+              setExpenseNote={setExpenseNote}
+              expenseError={expenseError}
+              expenseFieldErrors={expenseFieldErrors}
+              clearExpenseFieldError={clearExpenseFieldError}
+              addExpense={addExpense}
+              voiceDraft={voiceDraft}
+              voiceStatus={voiceStatus}
+              isListening={isListening}
+              voiceLanguage={voiceLanguage}
+              setVoiceLanguage={setVoiceLanguage}
+              quickSaveMode={quickSaveMode}
+              setQuickSaveMode={setQuickSaveMode}
+              startVoiceExpense={startVoiceExpense}
+              stopVoiceExpense={stopVoiceExpense}
+              confirmVoiceExpense={confirmVoiceExpense}
+              updateVoiceDraft={updateVoiceDraft}
+              clearVoiceDraft={clearVoiceDraft}
+              useVoiceDraftInForm={useVoiceDraftInForm}
+              undoVoiceSave={undoVoiceSave}
+              lastVoiceSave={lastVoiceSave}
+              quickExpenseChips={quickExpenseChips}
+              applyQuickExpense={applyQuickExpense}
+              editExpense={editExpense}
+              sharedGroups={sharedGroups}
+              addSharedGroup={addSharedGroup}
+              addSharedPayment={addSharedPayment}
+              markSharedSettlementReceived={markSharedSettlementReceived}
+              removeSharedGroup={removeSharedGroup}
+              plannerInput={plannerInput}
+              setPlannerInput={setPlannerInput}
+              selectedPlan={selectedPlan}
+              setSelectedPlan={setSelectedPlan}
+              plannerTargetAmount={plannerTargetAmount}
+              setPlannerTargetAmount={setPlannerTargetAmount}
+              plannerCurrentSavings={plannerCurrentSavings}
+              setPlannerCurrentSavings={setPlannerCurrentSavings}
+              plannerTimeline={plannerTimeline}
+              setPlannerTimeline={setPlannerTimeline}
+              recommendation={recommendation}
+              downloadPdf={requestPdfExport}
+              exportCsv={exportCsv}
+              isExportingPdf={isExportingPdf}
+              pdfError={pdfError}
+              updateCommitment={updateCommitment}
+              addCommitment={addCommitment}
+              removeCommitment={removeCommitment}
+              addSavingsBucket={addSavingsBucket}
+              updateSavingsBucket={updateSavingsBucket}
+              removeSavingsBucket={removeSavingsBucket}
+            />
+          </AppErrorBoundary>
         )}
       </AnimatePresence>
       {phase === 'app' && hasCompletedSetup && walkthroughStep >= 0 && (
@@ -1947,6 +1973,21 @@ function OfflineBanner({ isOnline }) {
 }
 
 function LegalPage({ page }) {
+  const legalContactItems = [
+    {
+      title: 'Contact',
+      body: 'Product and general inquiries.',
+    },
+    {
+      title: 'Support',
+      body: 'Help with app access, saved data, reports, or account questions.',
+    },
+    {
+      title: 'Privacy inquiries',
+      body: 'Questions about data handling, local storage, or statement review.',
+    },
+  ]
+
   return (
     <main className="legal-page-shell">
       <section className="legal-page-card">
@@ -1966,11 +2007,17 @@ function LegalPage({ page }) {
             </article>
           ))}
         </div>
-        {page.contact && (
-          <a className="legal-contact-link" href="mailto:jon.doe@gmail.com">
-            Email jon.doe@gmail.com
+        <section className="legal-contact-panel" aria-label="Official FBPly contact">
+          {legalContactItems.map((item) => (
+            <article key={item.title}>
+              <span>{item.title}</span>
+              <p>{item.body}</p>
+            </article>
+          ))}
+          <a className="legal-contact-link" href={`mailto:${supportEmail}`}>
+            {supportEmail}
           </a>
-        )}
+        </section>
         <a className="legal-back-link" href="/">
           Back to FBPly
         </a>
@@ -2014,7 +2061,8 @@ function SplashScreen({ onDone }) {
         <span />
       </div>
       <div className="splash-brand-card">
-        <img src="/fbply-logo.png" alt="FBPly logo" />
+        <BrandMark size="hero" />
+        <strong>FBPly</strong>
       </div>
       <div className="coin-loader" role="status" aria-label="Loading FBPly">
         <div className="coin" aria-hidden="true">
@@ -2136,7 +2184,7 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
                   id="name"
                   type="text"
                   value={name}
-                  placeholder="Jon Doe"
+                  placeholder="Your name"
                   autoComplete="name"
                   onChange={(event) => setName(event.target.value)}
                 />
@@ -2152,7 +2200,7 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
               id="email"
               type="email"
               value={email}
-              placeholder="jon.doe@gmail.com"
+              placeholder="you@example.com"
               autoComplete="email"
               onChange={(event) => setEmail(event.target.value)}
             />
@@ -2172,11 +2220,7 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
           <button className="primary-button full" type="submit" disabled={isAuthBusy}>
             {isAuthBusy ? 'Please wait...' : isSignup ? 'Create account' : 'Email login'}
           </button>
-          <p className="subtle-note">
-            {isSupabaseReady
-              ? `Connected to Supabase: ${supabaseUrl.replace('https://', '')}`
-              : 'Supabase URL is set. Add the public anon key to enable real auth.'}
-          </p>
+          <p className="subtle-note auth-trust-note">Private by design. Your finance data stays yours.</p>
           {authMessage && <p className="form-message">{authMessage}</p>}
         </form>
       </div>
@@ -2596,6 +2640,8 @@ function MainApp(props) {
     advancedReport,
     reportExpenseBreakdown,
     reportFinancialState,
+    reportTransactions,
+    reportTransactionSummary,
     monthlyComparison,
     expenses,
     historyGroups,
@@ -2670,6 +2716,10 @@ function MainApp(props) {
 
   return (
     <motion.div className="app-shell" {...fadeUp}>
+      <div className="app-brand-chip" aria-label="FBPly">
+        <BrandMark size="tiny" />
+        <span>FBPly</span>
+      </div>
       <main className="screen-panel">
         {activeTab === 'home' && (
           <HomeScreen
@@ -2744,6 +2794,8 @@ function MainApp(props) {
               advancedReport={advancedReport}
               expenseBreakdown={reportExpenseBreakdown}
               financialState={reportFinancialState}
+              reportTransactions={reportTransactions}
+              transactionSummary={reportTransactionSummary}
               monthlyComparison={monthlyComparison}
               downloadPdf={downloadPdf}
               exportCsv={exportCsv}
@@ -2809,27 +2861,23 @@ function MainApp(props) {
 }
 
 function ThemeChoice({ theme, setTheme }) {
+  const isDark = theme === 'dark'
+
   return (
-    <div className="theme-choice" aria-label="Theme choice">
-      <button
-        className={theme === 'dark' ? 'active' : ''}
-        type="button"
-        onClick={() => setTheme('dark')}
-        aria-pressed={theme === 'dark'}
-      >
-        <Moon size={14} />
-        Dark
-      </button>
-      <button
-        className={theme === 'light' ? 'active' : ''}
-        type="button"
-        onClick={() => setTheme('light')}
-        aria-pressed={theme === 'light'}
-      >
-        <Sun size={14} />
-        Normal
-      </button>
-    </div>
+    <button
+      className={`theme-choice ${isDark ? 'dark' : 'light'}`}
+      type="button"
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-pressed={isDark}
+      title={isDark ? 'Light mode' : 'Dark mode'}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+    >
+      <span className="theme-toggle-track" aria-hidden="true">
+        <span className="theme-toggle-thumb">
+          {isDark ? <Moon size={13} /> : <Sun size={13} />}
+        </span>
+      </span>
+    </button>
   )
 }
 
@@ -2866,6 +2914,48 @@ function EmptyState({ title, detail, actionLabel, onAction, icon: Icon = Sparkle
       </div>
     </div>
   )
+}
+
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidUpdate(previousProps) {
+    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false })
+    }
+  }
+
+  render() {
+    if (!this.state.hasError) {
+      return this.props.children
+    }
+
+    return (
+      <main className="screen-panel">
+        <section className="screen-content">
+          <div className="empty-state app-error-state" role="alert">
+            <span className="empty-visual" aria-hidden="true">
+              <Sparkles size={20} />
+            </span>
+            <div>
+              <strong>This view needs a quick refresh</strong>
+              <p>Your saved finance data is still intact. Switch tabs or reload if this view does not recover.</p>
+              <button className="ghost-button small-button empty-state-action" type="button" onClick={() => window.location.reload()}>
+                Refresh FBPly
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+    )
+  }
 }
 
 function AppModal({ children, onClose, labelledBy, sheetClassName = 'editor-sheet', backdropClassName = 'editor-sheet-backdrop' }) {
@@ -3126,27 +3216,38 @@ function HomeTrustFooter() {
 }
 
 function FinancialHealthCard({ health }) {
-  const score = Math.min(Math.max(Number(health?.score || 0), 0), 100)
+  const hasScore = health?.status !== 'insufficient' && Number.isFinite(Number(health?.score))
+  const score = hasScore ? Math.min(Math.max(Number(health.score), 0), 100) : null
   const factors = health?.factors || []
 
   return (
-    <article className={`health-score-card ${health?.tone || 'balanced'}`}>
+    <article className={`health-score-card ${health?.tone || 'balanced'} ${hasScore ? '' : 'learning'}`}>
       <div className="health-score-top">
         <span>Financial Health</span>
-        <strong>{score}/100</strong>
+        <strong>{hasScore ? `${score}/100` : 'Learning'}</strong>
       </div>
-      <div className="health-score-bar" aria-label={`Financial health ${score} out of 100`}>
-        <span style={{ width: `${score}%` }} />
-      </div>
+      {hasScore ? (
+        <div className="health-score-bar" aria-label={`Financial health ${score} out of 100`}>
+          <span style={{ width: `${score}%` }} />
+        </div>
+      ) : (
+        <div className="health-score-empty" aria-label="Financial health score needs more activity">
+          <span />
+          <span />
+          <span />
+        </div>
+      )}
       <p>{health?.message || 'Your money system will get clearer as entries build.'}</p>
-      <div className="health-factor-row">
-        {factors.map((factor) => (
-          <span key={factor.label}>
-            <small>{factor.label}</small>
-            <b>{factor.score}</b>
-          </span>
-        ))}
-      </div>
+      {factors.length > 0 && (
+        <div className="health-factor-row">
+          {factors.map((factor) => (
+            <span key={factor.label}>
+              <small>{factor.label}</small>
+              <b>{factor.score}</b>
+            </span>
+          ))}
+        </div>
+      )}
     </article>
   )
 }
@@ -3369,15 +3470,25 @@ function HistoryScreen({
 }) {
   const [moneyBookModalEntry, setMoneyBookModalEntry] = useState(null)
   const [expandedGroups, setExpandedGroups] = useState({})
-  const hasHistory = groups.some((group) => group.items.length > 0)
+  const [historyWindow, setHistoryWindow] = useState({ key: '', count: HISTORY_GROUP_BATCH_SIZE })
+  const deferredGroups = useDeferredValue(groups)
+  const historyWindowKey = `${selectedMonthKey}-${deferredGroups.length}`
+  const visibleGroupCount = historyWindow.key === historyWindowKey ? historyWindow.count : HISTORY_GROUP_BATCH_SIZE
+  const visibleGroups = useMemo(
+    () => deferredGroups.slice(0, visibleGroupCount),
+    [deferredGroups, visibleGroupCount],
+  )
+  const hasMoreHistory = visibleGroupCount < deferredGroups.length
+  const hasHistory = deferredGroups.some((group) => group.items.length > 0)
   const expensesById = useMemo(
     () => new Map(expenses.map((expense) => [String(expense.id), expense])),
     [expenses],
   )
   const relatedGroupsByDate = useMemo(
-    () => new Map(groups.map((group) => [group.date, buildRelatedTransactionGroups(group.items)])),
-    [groups],
+    () => new Map(visibleGroups.map((group) => [group.date, buildRelatedTransactionGroups(group.items)])),
+    [visibleGroups],
   )
+
   const getExpenseEditHandler = useCallback((transaction) => {
     if (!transaction.meta?.expenseId || !onEditExpense) {
       return null
@@ -3447,7 +3558,7 @@ function HistoryScreen({
             onAction={() => setActiveTab('profile')}
             icon={CalendarDays}
           />
-        ) : groups.map((group) => {
+        ) : visibleGroups.map((group) => {
           const relatedNodes = relatedGroupsByDate.get(group.date) || []
 
           return (
@@ -3462,7 +3573,7 @@ function HistoryScreen({
               <div className="history-item-list">
                 {relatedNodes.map((node) => (
                   node.kind === 'group' ? (
-                    <HistoryRelatedGroup
+                    <MemoHistoryRelatedGroup
                       group={node}
                       isOpen={Boolean(expandedGroups[node.key])}
                       key={node.key}
@@ -3470,7 +3581,7 @@ function HistoryScreen({
                       getExpenseEditHandler={getExpenseEditHandler}
                     />
                   ) : (
-                    <HistoryItem
+                    <MemoHistoryItem
                       transaction={node.transaction}
                       key={node.key}
                       onEditExpense={getExpenseEditHandler(node.transaction)}
@@ -3481,6 +3592,24 @@ function HistoryScreen({
             </article>
           )
         })}
+        {hasMoreHistory && (
+          <button
+            className="history-load-more"
+            type="button"
+            onClick={() => {
+              setHistoryWindow((current) => {
+                const currentCount = current.key === historyWindowKey ? current.count : HISTORY_GROUP_BATCH_SIZE
+                return {
+                  key: historyWindowKey,
+                  count: currentCount + HISTORY_GROUP_BATCH_SIZE,
+                }
+              })
+            }}
+          >
+            Show more activity
+            <span>{Math.max(deferredGroups.length - visibleGroupCount, 0)} date groups left</span>
+          </button>
+        )}
       </section>
 
       {moneyBookModalEntry && (
@@ -3548,7 +3677,7 @@ function HistoryRelatedGroup({ group, isOpen, onToggle, getExpenseEditHandler })
       {isOpen && (
         <div className="history-related-items">
           {group.items.map((transaction) => (
-            <HistoryItem
+            <MemoHistoryItem
               transaction={transaction}
               key={transaction.id}
               onEditExpense={getExpenseEditHandler(transaction)}
@@ -3744,7 +3873,7 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
               className={`plain-input ${errors.person ? 'field-invalid' : ''}`}
               type="text"
               value={person}
-              placeholder="Jon, Sam, Priya"
+              placeholder="Rahul, Priya, Sam"
               onChange={(event) => {
                 setPerson(event.target.value)
                 clearError('person')
@@ -3890,6 +4019,9 @@ function HistoryItem({ transaction, onEditExpense }) {
     </div>
   )
 }
+
+const MemoHistoryRelatedGroup = memo(HistoryRelatedGroup)
+const MemoHistoryItem = memo(HistoryItem)
 
 function VoiceExpenseBox({
   voiceDraft,
@@ -4132,7 +4264,7 @@ function SharedExpensesPanel({
         </label>
         <label>
           <span className="input-label">Participants</span>
-          <input className="plain-input" value={people} onChange={(event) => setPeople(event.target.value)} placeholder="Jon, Sam, Priya" />
+          <input className="plain-input" value={people} onChange={(event) => setPeople(event.target.value)} placeholder="Rahul, Priya, Sam" />
         </label>
         <button className="primary-button full" type="submit">
           Create shared group
@@ -4641,6 +4773,7 @@ function ProfileScreen({
   const greeting = getGreeting(profile.name)
   const balanceMessage = getProfileBalanceMessage(financialState)
   const [isCommitmentEditorOpen, setIsCommitmentEditorOpen] = useState(false)
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
 
   return (
     <section className="screen-content">
@@ -4649,11 +4782,19 @@ function ProfileScreen({
           <p className="eyebrow">Profile</p>
           <h1>Your financial context</h1>
         </div>
+        <button
+          className="profile-menu-trigger"
+          type="button"
+          aria-label="Open profile menu"
+          onClick={() => setIsProfileMenuOpen(true)}
+        >
+          <MoreVertical size={18} />
+        </button>
       </div>
 
       <article className="profile-hero-card">
         <div>
-          <span className="mini-label">{authUser?.email || profile.email || 'Local profile'}</span>
+          <span className="mini-label">Finance profile</span>
           <h2>{greeting}</h2>
           <p>{balanceMessage}</p>
         </div>
@@ -4714,48 +4855,6 @@ function ProfileScreen({
         applyQuickExpense={applyQuickExpense}
       />
 
-      <article className="profile-card">
-        <div className="profile-auth-row account-summary-row">
-          <div>
-            <span className="mini-label">Account</span>
-            <strong>{authUser?.email || profile.email || 'Local profile'}</strong>
-          </div>
-        </div>
-        <label className="input-label" htmlFor="profile-name">
-          Name
-        </label>
-        <input
-          className="plain-input"
-          id="profile-name"
-          type="text"
-          value={profile.name}
-          placeholder="Your name"
-          onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))}
-        />
-        <CurrencyInput
-          label="Income"
-          value={profile.income}
-          onChange={(value) => setProfile((current) => ({ ...current, income: Number(value) }))}
-        />
-        <div className="preference-grid">
-          {['safe', 'balanced', 'flexible'].map((preference) => (
-            <button
-              className={`preference-card ${profile.savingsPreference === preference ? 'active' : ''}`}
-              key={preference}
-              type="button"
-              onClick={() => setProfile((current) => ({ ...current, savingsPreference: preference }))}
-            >
-              <CheckCircle2 size={18} />
-              <span>{titleCase(preference)}</span>
-            </button>
-          ))}
-        </div>
-        <button className="sign-out-button" type="button" onClick={onSignOut}>
-          <LogOut size={17} />
-          Sign out
-        </button>
-      </article>
-
       <SavingsBucketsManager
         buckets={savingsBuckets}
         addSavingsBucket={addSavingsBucket}
@@ -4772,7 +4871,87 @@ function ProfileScreen({
           onClose={() => setIsCommitmentEditorOpen(false)}
         />
       )}
+      {isProfileMenuOpen && (
+        <ProfileMenuSheet
+          authUser={authUser}
+          profile={profile}
+          setProfile={setProfile}
+          onClose={() => setIsProfileMenuOpen(false)}
+          onSignOut={onSignOut}
+        />
+      )}
     </section>
+  )
+}
+
+function ProfileMenuSheet({ authUser, profile, setProfile, onClose, onSignOut }) {
+  return (
+    <AppModal onClose={onClose} labelledBy="profile-menu-title" sheetClassName="editor-sheet profile-menu-sheet">
+      <div className="editor-sheet-header">
+        <div>
+          <p className="eyebrow">Account</p>
+          <h2 id="profile-menu-title">Profile menu</h2>
+        </div>
+        <button className="icon-button" type="button" aria-label="Close profile menu" onClick={onClose}>
+          <X size={17} />
+        </button>
+      </div>
+      <div className="profile-menu-account">
+        <BrandMark size="small" />
+        <div>
+          <span className="mini-label">Signed in as</span>
+          <strong>{authUser?.email || profile.email || 'Local profile'}</strong>
+        </div>
+      </div>
+      <div className="editor-sheet-body profile-menu-body">
+        <label className="input-label" htmlFor="profile-menu-name">
+          Name
+        </label>
+        <input
+          className="plain-input"
+          id="profile-menu-name"
+          type="text"
+          value={profile.name}
+          placeholder="Your name"
+          onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))}
+        />
+        <CurrencyInput
+          label="Income"
+          id="profile-menu-income"
+          value={profile.income}
+          onChange={(value) => setProfile((current) => ({ ...current, income: Number(value) }))}
+        />
+        <div className="profile-menu-section">
+          <span className="input-label">Planner style</span>
+          <div className="preference-grid compact-preference-grid">
+            {['safe', 'balanced', 'flexible'].map((preference) => (
+              <button
+                className={`preference-card ${profile.savingsPreference === preference ? 'active' : ''}`}
+                key={preference}
+                type="button"
+                onClick={() => setProfile((current) => ({ ...current, savingsPreference: preference }))}
+              >
+                <CheckCircle2 size={16} />
+                <span>{titleCase(preference)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="editor-sheet-footer profile-menu-footer">
+        <button
+          className="sign-out-button"
+          type="button"
+          onClick={() => {
+            onClose()
+            onSignOut()
+          }}
+        >
+          <LogOut size={17} />
+          Sign out
+        </button>
+      </div>
+    </AppModal>
   )
 }
 
@@ -5030,10 +5209,18 @@ function SavingsBucketCard({ bucket, compact = false }) {
   )
 }
 
+function BrandMark({ size = 'default' }) {
+  return (
+    <span className={`brand-mark ${size}`} aria-hidden="true">
+      F
+    </span>
+  )
+}
+
 function HeaderLogo() {
   return (
     <div className="header-logo">
-      <img className="header-logo-image" src="/fbply-logo.png" alt="" />
+      <BrandMark />
       <span>FBPly</span>
     </div>
   )

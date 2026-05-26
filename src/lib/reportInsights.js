@@ -65,6 +65,14 @@ function savingsConsistency(financialState, savingsBuckets = []) {
   const target = savingsBucketTarget(savingsBuckets)
   const progress = target > 0 ? Math.round((saved / target) * 100) : 0
 
+  if (target <= 0 && saved <= 0) {
+    return 'No bucket yet'
+  }
+
+  if (target <= 0) {
+    return 'Saved, no target'
+  }
+
   if (financialState.breathingRoom > 0 && progress >= 25) {
     return 'Stable'
   }
@@ -73,7 +81,7 @@ function savingsConsistency(financialState, savingsBuckets = []) {
     return 'Forming'
   }
 
-  return 'Early'
+  return 'Under 25%'
 }
 
 function pressureReading(financialState) {

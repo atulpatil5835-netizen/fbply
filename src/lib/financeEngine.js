@@ -412,7 +412,9 @@ function isMoneyBookRelevantForMonth(entry, monthKey) {
     isMoneyBookPendingAt(entry, monthKey)
 }
 
-function buildMoneyBookTransactions(moneyBookEntries = []) {
+function buildMoneyBookTransactions(moneyBookEntries = [], monthKey) {
+  const selectedMonthKey = monthKey ? activeMonthKey(monthKey) : ''
+
   return moneyBookEntries.flatMap((rawEntry, index) => {
     const entry = normalizeMoneyBookEntry(rawEntry, index)
     const due = moneyBookDue(entry)
@@ -421,8 +423,17 @@ function buildMoneyBookTransactions(moneyBookEntries = []) {
       return []
     }
 
-    const transactions = [
-      makeTransaction({
+    const entryIsInMonth = !selectedMonthKey || monthKeyFor(entry.date) === selectedMonthKey
+    const settlementIsInMonth = entry.settledAt && (!selectedMonthKey || monthKeyFor(entry.settledAt) === selectedMonthKey)
+
+    if (!entryIsInMonth && !settlementIsInMonth) {
+      return []
+    }
+
+    const transactions = []
+
+    if (entryIsInMonth) {
+      transactions.push(makeTransaction({
         id: `money-book-${entry.kind}-${entry.id}`,
         title: entry.kind === 'given' ? `Given to ${entry.person}` : `Taken from ${entry.person}`,
         amount: entry.amount,
@@ -440,10 +451,10 @@ function buildMoneyBookTransactions(moneyBookEntries = []) {
           interest: entry.interest,
           dueDate: entry.dueDate,
         },
-      }),
-    ]
+      }))
+    }
 
-    if (entry.status === 'settled' && entry.settledAt && due > 0) {
+    if (entry.status === 'settled' && settlementIsInMonth && due > 0) {
       const settledDate = String(entry.settledAt).slice(0, 10)
       transactions.push(makeTransaction({
         id: `money-book-settlement-${entry.id}`,
@@ -508,14 +519,25 @@ function buildMoneyBookCalculationEntries(moneyBookEntries = [], monthKey) {
 }
 
 function buildMoneyBookSummary(moneyBookEntries = [], monthKey) {
+  const summary = {
+    totalGiven: 0,
+    needToReceive: 0,
+    totalBorrowed: 0,
+    needToPay: 0,
+    pendingSettlements: 0,
+    pendingCount: 0,
+    settledThisMonth: 0,
+    visibleEntries: [],
+  }
   const normalized = moneyBookEntries.map(normalizeMoneyBookEntry)
-  const visibleEntries = normalized
-    .filter((entry) => entry.amount > 0 && entry.person && isMoneyBookRelevantForMonth(entry, monthKey))
-    .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))
 
-  return normalized.reduce((summary, entry) => {
+  normalized.forEach((entry) => {
     if (!entry.amount || !entry.person) {
-      return summary
+      return
+    }
+
+    if (isMoneyBookRelevantForMonth(entry, monthKey)) {
+      summary.visibleEntries.push(entry)
     }
 
     const due = moneyBookDue(entry)
@@ -543,18 +565,11 @@ function buildMoneyBookSummary(moneyBookEntries = [], monthKey) {
         summary.needToPay += due
       }
     }
-
-    return summary
-  }, {
-    totalGiven: 0,
-    needToReceive: 0,
-    totalBorrowed: 0,
-    needToPay: 0,
-    pendingSettlements: 0,
-    pendingCount: 0,
-    settledThisMonth: 0,
-    visibleEntries,
   })
+
+  summary.visibleEntries.sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))
+
+  return summary
 }
 
 function dedupeTransactions(transactions) {
@@ -636,7 +651,8 @@ export function buildUnifiedFinanceEngine({
   monthKey,
 } = {}) {
   const selectedMonthKey = activeMonthKey(monthKey)
-  const monthExpenses = expenses.filter((expense) => isInMonth(expense.date || expense.createdAt, selectedMonthKey))
+  const isSelectedMonth = (date) => monthKeyFor(date) === selectedMonthKey
+  const monthExpenses = expenses.filter((expense) => isSelectedMonth(expense.date || expense.createdAt))
   const activity = buildFinancialActivity({ expenses: monthExpenses, sharedGroups, profile })
   const moneyBookCalculationEntries = buildMoneyBookCalculationEntries(moneyBookEntries, selectedMonthKey)
   const calculationEntries = [...activity.entries, ...moneyBookCalculationEntries]
@@ -647,9 +663,9 @@ export function buildUnifiedFinanceEngine({
     ...buildSharedTransactions(activity.sharedGroups, profile),
     ...buildSavingsTransactions(savingsBuckets, selectedMonthKey),
     ...buildPlannerTransactions(planner),
-    ...buildMoneyBookTransactions(moneyBookEntries),
+    ...buildMoneyBookTransactions(moneyBookEntries, selectedMonthKey),
   ])
-    .filter((transaction) => isInMonth(transaction.date, selectedMonthKey))
+    .filter((transaction) => isSelectedMonth(transaction.date))
     .sort((a, b) => String(b.dateTime).localeCompare(String(a.dateTime)))
   const historyGroups = groupTransactionsByDate(transactions)
   const transactionSummary = buildTransactionSummary(transactions)

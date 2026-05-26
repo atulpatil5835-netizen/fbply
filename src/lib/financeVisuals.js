@@ -77,7 +77,7 @@ export function buildFlexibleSpendingDistribution(expenses = [], financialState 
   }
 }
 
-export function getGreeting(name = 'Jon Doe') {
+export function getGreeting(name = '') {
   const hour = new Date().getHours()
   const period = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const firstName = String(name || 'there').trim().split(/\s+/)[0] || 'there'
