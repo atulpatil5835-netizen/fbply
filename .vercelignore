@@ -1,0 +1,13 @@
+node_modules
+dist
+android
+docs
+resources
+.env
+.env.*
+*.log
+*.pid
+.vite-*
+vite-dev-*
+vite-preview-*
+*.local

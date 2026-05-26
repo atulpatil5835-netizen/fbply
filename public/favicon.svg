@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FBPly">
+  <rect width="64" height="64" rx="20" fill="#0B1020"/>
+  <rect x="7" y="7" width="50" height="50" rx="17" fill="#131A2E" stroke="#38BDF8" stroke-opacity=".34"/>
+  <path fill="#38BDF8" d="M24 17h20v5H32.5c2.9 1.5 4.8 4 5.2 7H44v5h-6.5c-.8 5.4-5.2 8.9-12.5 9.5L38.5 53h-8.2L18 41.7V38h5.3c4.3 0 7-1.4 7.9-4H18v-5h13c-.9-4.1-4-6-9.5-6H18v-6h6Z"/>
+</svg>
