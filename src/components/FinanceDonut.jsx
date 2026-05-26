@@ -10,11 +10,20 @@ function buildConicGradient(entries) {
     return 'conic-gradient(rgba(148, 163, 184, 0.24) 0deg 360deg)'
   }
 
-  const stops = entries.map((entry) => {
+  const stops = entries.flatMap((entry) => {
     const start = cursor
     const end = cursor + (Number(entry.value || 0) / total) * 360
+    const separatorStart = Math.max(end - 0.8, start)
     cursor = end
-    return `${entry.color} ${start.toFixed(2)}deg ${end.toFixed(2)}deg`
+
+    if (entries.length < 2 || end - start < 3) {
+      return [`${entry.color} ${start.toFixed(2)}deg ${end.toFixed(2)}deg`]
+    }
+
+    return [
+      `${entry.color} ${start.toFixed(2)}deg ${separatorStart.toFixed(2)}deg`,
+      `rgba(248, 250, 252, 0.72) ${separatorStart.toFixed(2)}deg ${end.toFixed(2)}deg`,
+    ]
   })
 
   return `conic-gradient(${stops.join(', ')})`
@@ -30,7 +39,7 @@ export default function FinanceDonut({ chart, action = null }) {
   const hasEntries = entries.length > 0
 
   return (
-    <article className="finance-donut-card">
+    <article className={`finance-donut-card ${chart?.tone === 'matte' ? 'matte' : ''}`}>
       <div className="finance-donut-heading">
         <div>
           <h2>{chart.title}</h2>

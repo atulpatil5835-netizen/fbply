@@ -1,5 +1,5 @@
 import { aggregateExpenses, categoryColor, normalizeSpendCategory } from './categoryIntelligence.js'
-import { getFinanceColor } from './financeColors.js'
+import { getFinanceColor, getFinanceMatteColor } from './financeColors.js'
 import { normalizeCommitments, shortRupees } from './ruleEngine.js'
 
 function safeAmount(value) {
@@ -7,14 +7,16 @@ function safeAmount(value) {
   return Number.isFinite(amount) && amount > 0 ? amount : 0
 }
 
-function groupedEntriesFromTotals(totals = {}) {
+function groupedEntriesFromTotals(totals = {}, { matte = false } = {}) {
   return Object.entries(totals)
     .filter(([, value]) => safeAmount(value) > 0)
     .sort((a, b) => safeAmount(b[1]) - safeAmount(a[1]))
     .map(([name, value], index) => ({
       name,
       value: safeAmount(value),
-      color: categoryColor(name) || getFinanceColor(name, index),
+      color: matte
+        ? getFinanceMatteColor(name, index)
+        : categoryColor(name) || getFinanceColor(name, index),
     }))
 }
 
@@ -30,7 +32,7 @@ export function buildFixedExpenseDistribution(profile = {}) {
     totals[category] = (totals[category] || 0) + safeAmount(commitment.amount)
   })
 
-  const entries = groupedEntriesFromTotals(totals)
+  const entries = groupedEntriesFromTotals(totals, { matte: true })
   const total = entries.reduce((sum, entry) => sum + entry.value, 0)
 
   return {
@@ -39,6 +41,7 @@ export function buildFixedExpenseDistribution(profile = {}) {
     entries,
     total,
     totalLabel: shortRupees(total),
+    tone: 'matte',
   }
 }
 

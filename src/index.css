@@ -3604,6 +3604,13 @@ img {
     var(--surface-bg);
 }
 
+.finance-donut-card.matte {
+  background:
+    linear-gradient(135deg, rgba(78, 115, 168, 0.1), transparent 66%),
+    linear-gradient(165deg, rgba(76, 154, 120, 0.07), transparent 72%),
+    var(--surface-bg);
+}
+
 .finance-donut-heading {
   display: flex;
   align-items: flex-start;
@@ -3659,6 +3666,14 @@ img {
     0 12px 28px rgba(2, 6, 23, 0.12);
 }
 
+.finance-donut-card.matte .finance-donut {
+  filter: saturate(0.96) contrast(1.03);
+  box-shadow:
+    inset 0 0 0 1px rgba(148, 163, 184, 0.24),
+    inset 0 -14px 24px rgba(15, 23, 42, 0.1),
+    0 14px 30px rgba(2, 6, 23, 0.16);
+}
+
 .finance-donut > div {
   width: 64px;
   aspect-ratio: 1;
@@ -3697,10 +3712,21 @@ img {
 }
 
 .finance-donut-legend i {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   flex: none;
   border-radius: 50%;
+}
+
+.finance-donut-card.matte .finance-donut-legend span {
+  color: var(--text);
+  opacity: 0.82;
+}
+
+.finance-donut-card.matte .finance-donut-legend i {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 2px 7px rgba(15, 23, 42, 0.14);
 }
 
 .finance-donut-legend p {
