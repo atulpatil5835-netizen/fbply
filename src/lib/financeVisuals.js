@@ -36,7 +36,7 @@ export function buildFixedExpenseDistribution(profile = {}) {
   const total = sumMoney(entries, (entry) => entry.value)
 
   return {
-    title: 'Fixed payments',
+    title: 'Monthly bills',
     subtitle: 'Regular payments that shape the month.',
     entries,
     total,
@@ -85,7 +85,7 @@ export function getGreeting(name = '') {
 
 export function getProfileBalanceMessage(financialState = {}) {
   if (financialState.pressureTone === 'slight-pressure') {
-    return 'This month is carrying a lot. Keeping new commitments light may help.'
+    return 'This month is carrying a lot. Keeping new monthly bills light may help.'
   }
 
   if (financialState.pressureTone === 'warm') {

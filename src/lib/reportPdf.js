@@ -287,7 +287,7 @@ function commitmentItems(profile = {}) {
   const commitments = Array.isArray(profile.commitments) ? profile.commitments : profile.fixedExpenses || []
   return commitments
     .map((item) => ({
-      name: item.name || item.label || 'Monthly commitment',
+      name: item.name || item.label || 'Monthly bill',
       value: safeAmount(item.amount),
       type: /\b(emi|loan|installment|instalment|finance|bnpl)\b/i.test(item.name || item.label || '')
         ? 'EMI / loan'
@@ -587,7 +587,7 @@ function drawSpendingBalance(doc, y, mixItems, financialState) {
 
   drawTextBlock(
     doc,
-    `Regular commitments and tracked spending used ${financialState.usagePercent || 0}% of income. The useful question is not perfection; it is whether the remaining room feels workable.`,
+    `Monthly bills and tracked spending used ${financialState.usagePercent || 0}% of income. The useful question is not perfection; it is whether the remaining room feels workable.`,
     PAGE.margin,
     y + 76,
     PAGE.width - PAGE.margin * 2,
@@ -602,8 +602,8 @@ function drawCommitments(doc, y, commitments) {
     return y
   }
 
-  y = addPageIfNeeded(doc, y, 58, 'Commitment Overview')
-  y = drawSectionLabel(doc, 'Commitment Overview', y, 'Fixed costs stay visible because they quietly shape monthly comfort.')
+  y = addPageIfNeeded(doc, y, 58, 'Monthly Bills')
+  y = drawSectionLabel(doc, 'Monthly Bills', y, 'Regular payments stay visible because they quietly shape monthly comfort.')
 
   const width = (PAGE.width - PAGE.margin * 2 - 6) / 2
   commitments.slice(0, 4).forEach((item, index) => {
@@ -777,7 +777,7 @@ function drawClosingReflection(doc, y, report) {
   setText(doc, COLORS.muted)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
-  doc.text('This report uses saved income, commitments, expense entries, planner state, and savings goals only.', PAGE.margin, PAGE.height - 9)
+  doc.text('This report uses saved income, monthly bills, expense entries, planner state, and savings goals only.', PAGE.margin, PAGE.height - 9)
 
   return y + 50
 }

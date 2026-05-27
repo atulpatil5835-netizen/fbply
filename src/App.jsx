@@ -75,7 +75,6 @@ import {
   learnVoiceExpense,
   parseVoiceExpense as parseSpokenExpense,
   voiceCategoryOptions,
-  voiceLanguageOptions,
 } from './lib/voiceExpense'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import CategoryPicker from './components/CategoryPicker.jsx'
@@ -148,7 +147,7 @@ const legalPages = {
       {
         title: 'Data FBPly Uses',
         body: [
-          'FBPly uses the information you enter, such as income, expenses, commitments, savings goals, shared expenses, planner inputs, and reviewed statement data.',
+          'FBPly uses the information you enter, such as income, expenses, monthly bills, savings goals, shared expenses, planner inputs, and reviewed statement data.',
           'Demo or sample entries are treated as user-controlled local data and can be edited or removed at any time.',
         ],
       },
@@ -241,7 +240,7 @@ const legalPages = {
   '/about': {
     eyebrow: 'About',
     title: 'About FBPly',
-    summary: 'FBPly helps users understand monthly spending, commitments, shared expenses, and purchase planning in a simple way.',
+    summary: 'FBPly helps users understand monthly spending, monthly bills, shared expenses, and purchase planning in a simple way.',
     sections: [
       {
         title: 'Purpose',
@@ -312,11 +311,11 @@ const walkthroughSteps = [
   {
     tab: 'home',
     title: 'Settings moved up top.',
-    detail: 'Use the avatar/settings button for income, fixed payments, preferences, and sign out.',
+    detail: 'Use the avatar/settings button for income, monthly bills, preferences, and sign out.',
   },
 ]
 
-function createCommitment(name = 'New commitment', amount = 0) {
+function createCommitment(name = 'New bill', amount = 0) {
   return {
     id: `commitment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name,
@@ -324,6 +323,22 @@ function createCommitment(name = 'New commitment', amount = 0) {
     dueDay: 1,
     recurrence: 'monthly',
   }
+}
+
+function normalizeMonthlyBillsForEdit(profile = {}) {
+  const source = Array.isArray(profile.commitments) && profile.commitments.length > 0
+    ? profile.commitments
+    : profile.fixedExpenses || []
+
+  return source
+    .map((item, index) => ({
+      id: item.id || item.key || `commitment-${index}`,
+      name: String(item.name ?? item.label ?? ''),
+      amount: normalizeMoney(item.amount),
+      dueDay: Number(item.dueDay || item.paymentDay || 0) || undefined,
+      recurrence: item.recurrence || 'monthly',
+    }))
+    .filter((item) => item.id || item.name || item.amount > 0)
 }
 
 function createBucket(name = 'New goal', saved = 0, target = 10000) {
@@ -522,6 +537,39 @@ function readStoredJson(key, fallback) {
 
 function parseVoiceExpense(transcript, memory) {
   return parseSpokenExpense(transcript, memory)
+}
+
+function getSpeechRecognitionLocale() {
+  if (typeof navigator === 'undefined') {
+    return 'en-IN'
+  }
+
+  const languages = [navigator.language, ...(navigator.languages || [])]
+    .filter(Boolean)
+    .map((language) => String(language))
+  const indianLocale = languages.find((language) => /^(en-IN|hi-IN|mr-IN)$/i.test(language))
+
+  return indianLocale || 'en-IN'
+}
+
+function extractSpeechTranscripts(event) {
+  return Array.from(event?.results || [])
+    .flatMap((result) => Array.from(result || []))
+    .map((alternative) => String(alternative?.transcript || '').trim())
+    .filter(Boolean)
+}
+
+function pickVoiceDraft(transcripts, memory) {
+  return transcripts
+    .map((transcript) => parseVoiceExpense(transcript, memory))
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.canQuickSave !== b.canQuickSave) {
+        return a.canQuickSave ? -1 : 1
+      }
+
+      return (b.confidenceScore || 0) - (a.confidenceScore || 0)
+    })[0] || null
 }
 
 function buildQuickExpenseChips(expenses, voiceMemory) {
@@ -804,8 +852,6 @@ function App() {
   const [voiceDraft, setVoiceDraft] = useState(null)
   const [voiceStatus, setVoiceStatus] = useState('')
   const [isListening, setIsListening] = useState(false)
-  const [voiceLanguage, setVoiceLanguage] = useState('en-IN')
-  const [quickSaveMode, setQuickSaveMode] = useState(() => safeStorageGet('fbply-voice-quick-save', 'false') === 'true')
   const [voiceMemory, setVoiceMemory] = useState(() => readStoredJson('fbply-voice-memory', {}))
   const [lastVoiceSave, setLastVoiceSave] = useState(null)
   const [addSheetMode, setAddSheetMode] = useState(null)
@@ -938,10 +984,6 @@ function App() {
   useEffect(() => {
     safeStorageSetQueued('fbply-money-book', JSON.stringify(moneyBookEntries))
   }, [moneyBookEntries])
-
-  useEffect(() => {
-    safeStorageSet('fbply-voice-quick-save', quickSaveMode)
-  }, [quickSaveMode])
 
   useEffect(() => {
     safeStorageSetQueued('fbply-voice-memory', JSON.stringify(voiceMemory))
@@ -1320,25 +1362,32 @@ function App() {
   }, [])
 
   const updateCommitment = useCallback((id, patch) => {
-    setProfile((current) => ({
-      ...current,
-      commitments: normalizeCommitments(current).map((item) =>
-        item.id === id ? { ...item, ...patch } : item,
-      ),
-    }))
+    setProfile((current) => {
+      const commitments = normalizeMonthlyBillsForEdit(current).map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...patch,
+              amount: Object.hasOwn(patch, 'amount') ? normalizeMoney(patch.amount) : item.amount,
+            }
+          : item,
+      )
+
+      return { ...current, commitments }
+    })
   }, [])
 
   const addCommitment = useCallback(() => {
     setProfile((current) => ({
       ...current,
-      commitments: [...normalizeCommitments(current), createCommitment('New commitment', 0)],
+      commitments: [...normalizeMonthlyBillsForEdit(current), createCommitment('New bill', 0)],
     }))
   }, [])
 
   const removeCommitment = useCallback((id) => {
     setProfile((current) => ({
       ...current,
-      commitments: normalizeCommitments(current).filter((item) => item.id !== id),
+      commitments: normalizeMonthlyBillsForEdit(current).filter((item) => item.id !== id),
     }))
   }, [])
 
@@ -1423,7 +1472,7 @@ function App() {
     return saved
   }, [customExpenseName, expenseAmount, expenseMode, expenseNote, saveExpenseRecord, selectedCategory])
 
-  const saveVoiceDraft = useCallback((draft, options = {}) => {
+  const saveVoiceDraft = useCallback((draft) => {
     if (!draft) {
       return false
     }
@@ -1445,11 +1494,7 @@ function App() {
     setVoiceMemory((current) => learnVoiceExpense(current, draft))
     setLastVoiceSave({ expense: saved, draft })
     setVoiceDraft(null)
-    setVoiceStatus(
-      options.auto
-        ? `Quick saved ${label || draft.category}. Undo is available below.`
-        : 'Saved. You can add another whenever you are ready.',
-    )
+    setVoiceStatus('Saved. You can add another whenever you are ready.')
     return true
   }, [saveExpenseRecord])
 
@@ -1695,35 +1740,30 @@ function App() {
     }
 
     const recognition = new SpeechRecognition()
-    recognition.lang = voiceLanguage
+    recognition.lang = getSpeechRecognitionLocale()
     recognition.interimResults = false
-    recognition.maxAlternatives = 1
+    recognition.maxAlternatives = 5
     recognitionRef.current = recognition
 
     setIsListening(true)
     setVoiceDraft(null)
-    setVoiceStatus('Listening. Review once before saving.')
+    setVoiceStatus('Listening. Speak naturally.')
 
     recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript || ''
-      const parsed = parseVoiceExpense(transcript, voiceMemory)
+      const transcripts = extractSpeechTranscripts(event)
+      const parsed = pickVoiceDraft(transcripts, voiceMemory)
 
       if (!parsed) {
         setVoiceDraft(null)
-        setVoiceStatus('I could not find a clear amount. Please try again or use quick add.')
-        return
-      }
-
-      if (quickSaveMode && parsed.canQuickSave) {
-        saveVoiceDraft(parsed, { auto: true })
+        setVoiceStatus('Could not find a clear amount. Try again or type it once.')
         return
       }
 
       setVoiceDraft(parsed)
       setVoiceStatus(
         parsed.confidence === 'high'
-          ? 'Looks clear. Review once or save directly.'
-          : 'Please review the label, amount, and category before saving.',
+          ? 'Looks clear. Save when it feels right.'
+          : 'Check the amount and category once before saving.',
       )
     }
 
@@ -1737,7 +1777,7 @@ function App() {
     }
 
     recognition.start()
-  }, [quickSaveMode, saveVoiceDraft, voiceLanguage, voiceMemory])
+  }, [voiceMemory])
 
   const stopVoiceExpense = useCallback(() => {
     if (recognitionRef.current) {
@@ -2014,10 +2054,6 @@ function App() {
               voiceDraft={voiceDraft}
               voiceStatus={voiceStatus}
               isListening={isListening}
-              voiceLanguage={voiceLanguage}
-              setVoiceLanguage={setVoiceLanguage}
-              quickSaveMode={quickSaveMode}
-              setQuickSaveMode={setQuickSaveMode}
               startVoiceExpense={startVoiceExpense}
               stopVoiceExpense={stopVoiceExpense}
               confirmVoiceExpense={confirmVoiceExpense}
@@ -2682,7 +2718,7 @@ function CommitmentsEditor({ commitments, updateCommitment, addCommitment, remov
   return (
     <div className="commitment-list">
       {commitments.length === 0 && (
-        <p className="section-note">No regular payments added yet. Add only what feels useful right now.</p>
+        <p className="section-note">No monthly bills added yet. Add only what repeats every month.</p>
       )}
 
       {commitments.map((item, index) => {
@@ -2694,7 +2730,7 @@ function CommitmentsEditor({ commitments, updateCommitment, addCommitment, remov
               <Icon size={18} />
             </span>
             <label>
-              <span>Commitment {index + 1}</span>
+              <span>Bill {index + 1}</span>
               <input
                 className="plain-input"
                 type="text"
@@ -2707,7 +2743,7 @@ function CommitmentsEditor({ commitments, updateCommitment, addCommitment, remov
               <CurrencyInput
                 label="Amount"
                 id={`commitment-amount-${slugify(item.id)}`}
-                ariaLabel={`Amount for ${item.name || `commitment ${index + 1}`}`}
+                ariaLabel={`Amount for ${item.name || `bill ${index + 1}`}`}
                 value={item.amount}
                 onChange={(value) => updateCommitment(item.id, { amount: normalizeMoney(value) })}
               />
@@ -2728,7 +2764,7 @@ function CommitmentsEditor({ commitments, updateCommitment, addCommitment, remov
             <button
               className="icon-button"
               type="button"
-              aria-label={`Remove ${item.name || 'commitment'}`}
+              aria-label={`Remove ${item.name || 'monthly bill'}`}
               onClick={() => removeCommitment(item.id)}
             >
               <Trash2 size={17} />
@@ -2739,7 +2775,7 @@ function CommitmentsEditor({ commitments, updateCommitment, addCommitment, remov
 
       <button className="ghost-button commitment-add" type="button" onClick={addCommitment}>
         <Plus size={18} />
-        Add Regular Payment
+        Add monthly bill
       </button>
     </div>
   )
@@ -2804,10 +2840,6 @@ function MainApp(props) {
     voiceDraft,
     voiceStatus,
     isListening,
-    voiceLanguage,
-    setVoiceLanguage,
-    quickSaveMode,
-    setQuickSaveMode,
     startVoiceExpense,
     stopVoiceExpense,
     confirmVoiceExpense,
@@ -2973,14 +3005,10 @@ function MainApp(props) {
             addSavingsBucket={addSavingsBucket}
             updateSavingsBucket={updateSavingsBucket}
             removeSavingsBucket={removeSavingsBucket}
-            voiceDraft={voiceDraft}
-            voiceStatus={voiceStatus}
-            isListening={isListening}
-            voiceLanguage={voiceLanguage}
-            setVoiceLanguage={setVoiceLanguage}
-            quickSaveMode={quickSaveMode}
-            setQuickSaveMode={setQuickSaveMode}
-            startVoiceExpense={startVoiceExpense}
+          voiceDraft={voiceDraft}
+          voiceStatus={voiceStatus}
+          isListening={isListening}
+          startVoiceExpense={startVoiceExpense}
             stopVoiceExpense={stopVoiceExpense}
             confirmVoiceExpense={confirmVoiceExpense}
             updateVoiceDraft={updateVoiceDraft}
@@ -3032,10 +3060,6 @@ function MainApp(props) {
           voiceDraft={voiceDraft}
           voiceStatus={voiceStatus}
           isListening={isListening}
-          voiceLanguage={voiceLanguage}
-          setVoiceLanguage={setVoiceLanguage}
-          quickSaveMode={quickSaveMode}
-          setQuickSaveMode={setQuickSaveMode}
           startVoiceExpense={startVoiceExpense}
           stopVoiceExpense={stopVoiceExpense}
           confirmVoiceExpense={confirmVoiceExpense}
@@ -3295,10 +3319,6 @@ function QuickAddSheet({
   voiceDraft,
   voiceStatus,
   isListening,
-  voiceLanguage,
-  setVoiceLanguage,
-  quickSaveMode,
-  setQuickSaveMode,
   startVoiceExpense,
   stopVoiceExpense,
   confirmVoiceExpense,
@@ -3390,10 +3410,6 @@ function QuickAddSheet({
             voiceDraft={voiceDraft}
             voiceStatus={voiceStatus}
             isListening={isListening}
-            voiceLanguage={voiceLanguage}
-            setVoiceLanguage={setVoiceLanguage}
-            quickSaveMode={quickSaveMode}
-            setQuickSaveMode={setQuickSaveMode}
             startVoiceExpense={startVoiceExpense}
             stopVoiceExpense={stopVoiceExpense}
             confirmVoiceExpense={confirmVoiceExpense}
@@ -3446,10 +3462,6 @@ function QuickExpenseEntry({
   voiceDraft,
   voiceStatus,
   isListening,
-  voiceLanguage,
-  setVoiceLanguage,
-  quickSaveMode,
-  setQuickSaveMode,
   startVoiceExpense,
   stopVoiceExpense,
   confirmVoiceExpense,
@@ -3532,10 +3544,6 @@ function QuickExpenseEntry({
         voiceDraft={voiceDraft}
         voiceStatus={voiceStatus}
         isListening={isListening}
-        voiceLanguage={voiceLanguage}
-        setVoiceLanguage={setVoiceLanguage}
-        quickSaveMode={quickSaveMode}
-        setQuickSaveMode={setQuickSaveMode}
         startVoiceExpense={startVoiceExpense}
         stopVoiceExpense={stopVoiceExpense}
         confirmVoiceExpense={confirmVoiceExpense}
@@ -3753,7 +3761,7 @@ function SettingsSheet({
   addCommitment,
   removeCommitment,
 }) {
-  const commitments = normalizeCommitments(profile)
+  const commitments = normalizeMonthlyBillsForEdit(profile)
   const balanceMessage = getProfileBalanceMessage(financialState)
 
   return (
@@ -3821,8 +3829,8 @@ function SettingsSheet({
         <section className="settings-commitments">
           <div className="section-heading-row">
             <div>
-              <p className="eyebrow">Fixed payments</p>
-              <h2>Monthly basics</h2>
+              <p className="eyebrow">Monthly bills</p>
+              <h2>Your regular payments</h2>
             </div>
           </div>
           <CommitmentsEditor
@@ -4567,10 +4575,6 @@ function VoiceExpenseBox({
   voiceDraft,
   voiceStatus,
   isListening,
-  voiceLanguage,
-  setVoiceLanguage,
-  quickSaveMode,
-  setQuickSaveMode,
   startVoiceExpense,
   stopVoiceExpense,
   confirmVoiceExpense,
@@ -4599,33 +4603,12 @@ function VoiceExpenseBox({
           aria-label={isListening ? 'Stop voice entry' : 'Start voice entry'}
         >
           {isListening ? <Square size={17} /> : <Mic size={18} />}
-          <span>{isListening ? 'Listening' : 'Voice'}</span>
-        </button>
-        <button
-          className={`quick-save-toggle ${quickSaveMode ? 'active' : ''}`}
-          type="button"
-          onClick={() => setQuickSaveMode((current) => !current)}
-          aria-pressed={quickSaveMode}
-        >
-          Quick save
-          <span />
+          <span>{isListening ? 'Listening' : 'Speak'}</span>
         </button>
       </div>
 
       {hasVoicePanel && (
         <div className="voice-mini-sheet">
-          <div className="voice-language-row" aria-label="Voice language">
-            {voiceLanguageOptions.map((option) => (
-              <button
-                className={voiceLanguage === option.code ? 'active' : ''}
-                key={option.code}
-                type="button"
-                onClick={() => setVoiceLanguage(option.code)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
           <div className="voice-state-line">
             {isListening && <span className="listening-dot" aria-label="Listening" />}
             {voiceStatus && <p className="voice-status">{voiceStatus}</p>}
@@ -5148,7 +5131,7 @@ function RecommendationPanel({ recommendation, financialState }) {
           <PiggyBank size={20} />
           <div>
             <h2>Add a price to see a safe path.</h2>
-            <p>FBPly checks your income, fixed payments, savings style, and timeline quietly.</p>
+            <p>FBPly checks your income, monthly bills, savings style, and timeline quietly.</p>
           </div>
         </article>
       </section>
@@ -5298,10 +5281,6 @@ function ProfileScreen({
   voiceDraft,
   voiceStatus,
   isListening,
-  voiceLanguage,
-  setVoiceLanguage,
-  quickSaveMode,
-  setQuickSaveMode,
   startVoiceExpense,
   stopVoiceExpense,
   confirmVoiceExpense,
@@ -5325,7 +5304,7 @@ function ProfileScreen({
   quickExpenseChips,
   applyQuickExpense,
 }) {
-  const commitments = normalizeCommitments(profile)
+  const commitments = normalizeMonthlyBillsForEdit(profile)
   const greeting = getGreeting(profile.name)
   const balanceMessage = getProfileBalanceMessage(financialState)
   const [isCommitmentEditorOpen, setIsCommitmentEditorOpen] = useState(false)
@@ -5366,7 +5345,7 @@ function ProfileScreen({
             <button
               className="icon-button compact-icon-button"
               type="button"
-              aria-label="Edit fixed expenses"
+              aria-label="Edit monthly bills"
               onClick={() => setIsCommitmentEditorOpen(true)}
             >
               <Pencil size={15} />
@@ -5380,10 +5359,6 @@ function ProfileScreen({
         voiceDraft={voiceDraft}
         voiceStatus={voiceStatus}
         isListening={isListening}
-        voiceLanguage={voiceLanguage}
-        setVoiceLanguage={setVoiceLanguage}
-        quickSaveMode={quickSaveMode}
-        setQuickSaveMode={setQuickSaveMode}
         startVoiceExpense={startVoiceExpense}
         stopVoiceExpense={stopVoiceExpense}
         confirmVoiceExpense={confirmVoiceExpense}
@@ -5623,15 +5598,15 @@ function CommitmentEditorSheet({ commitments, updateCommitment, addCommitment, r
     <AppModal onClose={onClose} labelledBy="commitment-editor-title">
       <div className="editor-sheet-header">
         <div>
-          <p className="eyebrow">Fixed expenses</p>
-          <h2 id="commitment-editor-title">Edit monthly commitments</h2>
+          <p className="eyebrow">Monthly bills</p>
+          <h2 id="commitment-editor-title">Edit monthly bills</h2>
         </div>
-        <button className="icon-button" type="button" aria-label="Close fixed expense editor" onClick={onClose}>
+        <button className="icon-button" type="button" aria-label="Close monthly bills editor" onClick={onClose}>
           <X size={17} />
         </button>
       </div>
       <p className="editor-sheet-copy">
-        These regular payments power the fixed expense chart, planner comfort range, and reports.
+        These regular payments update safe spending, reminders, insights, and purchase planning.
       </p>
       <div className="editor-sheet-body">
         <CommitmentsEditor
@@ -5847,7 +5822,7 @@ function buildExpenseBreakdown(expenses, profile) {
     })
     const name = normalized.category === 'Other' ? 'Recurring' : normalized.category
     map[name] = addMoney(map[name] || 0, commitment.amount)
-    sources[name] = sources[name] ? 'Mixed' : 'Monthly commitment'
+    sources[name] = sources[name] ? 'Mixed' : 'Monthly bill'
     return map
   }, {})
 

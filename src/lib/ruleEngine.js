@@ -193,7 +193,7 @@ export function normalizeCommitments(profile = {}) {
     return profile.commitments
       .map((item, index) => ({
         id: item.id || `commitment-${index}`,
-        name: String(item.name || item.label || 'Monthly commitment').trim() || 'Monthly commitment',
+        name: String(item.name || item.label || 'Monthly bill').trim() || 'Monthly bill',
         amount: normalizeMoney(item.amount),
         dueDay: normalizeDueDay(item.dueDay || item.paymentDay),
         recurrence: item.recurrence || 'monthly',
@@ -204,7 +204,7 @@ export function normalizeCommitments(profile = {}) {
   return (profile.fixedExpenses || [])
     .map((item, index) => ({
       id: item.key || `commitment-${index}`,
-      name: String(item.name || item.label || 'Monthly commitment').trim() || 'Monthly commitment',
+      name: String(item.name || item.label || 'Monthly bill').trim() || 'Monthly bill',
       amount: normalizeMoney(item.amount),
       dueDay: normalizeDueDay(item.dueDay || item.paymentDay),
       recurrence: item.recurrence || 'monthly',
@@ -326,16 +326,16 @@ export function buildInsights(state, expenses = []) {
       title: safeRoom > 0 ? 'Safe room is protected' : 'Safe room needs care',
       detail:
         safeRoom > 0
-          ? 'You still have space after regular commitments and safety savings.'
-          : 'Your current commitments are already handling a lot, so lighter purchase choices may feel better.',
+          ? 'You still have space after monthly bills and safety savings.'
+          : 'Your monthly bills are already handling a lot, so lighter purchase choices may feel better.',
       tone: safeRoom > 0 ? 'good' : 'warm',
     },
     {
       title: state.emiLoad > 24 ? 'EMI pressure needs space' : 'EMI pressure manageable',
       detail:
         state.emiLoad > 24
-          ? 'A new EMI may feel easier after one existing commitment reduces.'
-          : 'Current EMI-like commitments are not the main source of pressure right now.',
+          ? 'A new EMI may feel easier after one existing monthly bill reduces.'
+          : 'Current EMI-like monthly bills are not the main source of pressure right now.',
       tone: state.emiLoad > 24 ? 'warm' : 'good',
     },
     {
@@ -567,7 +567,7 @@ function buildPlannerInsight({ category, state, selectedPath, capacity, suggeste
   const lowerCategory = category.toLowerCase()
 
   if (capacity.noNewEmi) {
-    return `Your current monthly commitments are already using most of the month. Keeping this ${lowerCategory} savings-led, or waiting before adding EMI, may feel calmer right now.`
+    return `Your current monthly bills are already using most of the month. Keeping this ${lowerCategory} savings-led, or waiting before adding EMI, may feel calmer right now.`
   }
 
   if (selectedPath.projectedDownpayment < suggestedDownpaymentMin) {
@@ -587,7 +587,7 @@ function buildPlannerInsight({ category, state, selectedPath, capacity, suggeste
 
 function buildWaitSuggestion({ saferMonth, selectedMonths, selectedPath, immediatePath }) {
   if (saferMonth === null) {
-    return 'Waiting until flexibility improves, or until one regular commitment reduces, may create a safer ownership position.'
+    return 'Waiting until safe room improves, or until one monthly bill reduces, may create a safer ownership position.'
   }
 
   if (saferMonth === 0 && selectedPath.financeNeeded === 0) {
@@ -719,7 +719,7 @@ export function buildRecommendation(
     saferMonth,
     saferTimingLabel:
       saferMonth === null
-        ? 'Wait until flexibility improves'
+        ? 'Wait until safe room improves'
         : saferMonth === 0
           ? 'Ready from savings'
           : `${saferMonth} months`,
@@ -740,7 +740,7 @@ export function buildRecommendation(
       { label: 'Amount to finance', value: selectedPath.financeNeeded },
     ],
     rationale: [
-      `Fixed expenses: ${rupees(state.fixedExpensesTotal || 0)}`,
+      `Monthly bills: ${rupees(state.fixedExpensesTotal || 0)}`,
       `Existing EMIs: ${rupees(state.emiAmount || 0)}`,
       `Lifestyle spending: ${rupees(state.monthlyVariable || 0)}`,
       `Monthly space protected: ${rupees(capacity.breathingRoomToKeep)}`,

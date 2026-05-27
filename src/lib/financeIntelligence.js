@@ -146,7 +146,7 @@ function buildCommitmentReminders(profile = {}, monthKey, now) {
       return {
         id: reminderId('commitment', item.id || item.name),
         title: `${item.name} ${status.label.toLowerCase()}`,
-        detail: `Fixed payment of ${rupees(safeAmount(item.amount))}`,
+        detail: `Monthly bill of ${rupees(safeAmount(item.amount))}`,
         amount: safeAmount(item.amount),
         tone: 'outgoing',
         severity: status.severity,
@@ -252,7 +252,7 @@ export function buildSmartReminders({
 
 function flowGroupLabel(transaction) {
   if (transaction.source === 'commitment') {
-    return 'Fixed payment'
+    return 'Monthly bill'
   }
 
   if (transaction.source === 'recurring-savings') {

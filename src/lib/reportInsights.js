@@ -86,11 +86,11 @@ function savingsConsistency(financialState, savingsBuckets = []) {
 
 function pressureReading(financialState) {
   if (financialState.pressureTone === 'slight-pressure') {
-    return 'Tighter than ideal, so lighter commitments may feel better for now.'
+    return 'Tighter than ideal, so lighter monthly bills may feel better for now.'
   }
 
   if (financialState.pressureTone === 'warm') {
-    return 'Manageable, but new fixed payments should stay conservative.'
+    return 'Manageable, but new monthly bills should stay conservative.'
   }
 
   if (financialState.pressureTone === 'comfortable') {
@@ -106,7 +106,7 @@ function purchaseReadiness(financialState, recommendation) {
   }
 
   if (recommendation.noNewEmi) {
-    return `A ${recommendation.category.toLowerCase()} plan may feel calmer after more savings or one commitment reduces.`
+    return `A ${recommendation.category.toLowerCase()} plan may feel calmer after more savings or one monthly bill reduces.`
   }
 
   if (recommendation.ownershipTone === 'good') {
@@ -137,7 +137,7 @@ function buildAdvisory(financialState, topTracked, spending) {
     return `${topTracked.name} is the biggest tracked spending area this month. It is not a problem by itself, but reviewing it gently can improve clarity.`
   }
 
-  return 'The month looks readable overall. Keep regular commitments clear, protect a small buffer, and plan larger purchases with time on your side.'
+  return 'The month looks readable overall. Keep monthly bills clear, protect a small buffer, and plan larger purchases with time on your side.'
 }
 
 function categoryInsight({ spending, category, label, zeroDetail, ratioCaution = 0.08, income = 0 }) {
@@ -385,7 +385,7 @@ export function buildAdvancedReport({
         : 'Safe spending room is close to fully used, so waiting may feel better.',
       'high',
     ),
-    insight('Existing commitments', `Regular commitments and lifestyle spending total ${rupees(totalSpending)}.`, 'high'),
+    insight('Monthly bills', `Monthly bills and daily spending total ${rupees(totalSpending)}.`, 'high'),
     insight(
       'Report visibility',
       spending.dataConfidence === 'high'
@@ -422,8 +422,8 @@ export function buildAdvancedReport({
           spending.count >= 4 ? 'moderate' : 'low',
         ),
     insight(
-      recurring > financialState.income * 0.45 ? 'Recurring costs take meaningful space' : 'Recurring costs look trackable',
-      `Recurring commitments and subscription-like entries are roughly ${rupees(recurring)}.`,
+      recurring > financialState.income * 0.45 ? 'Monthly bills take meaningful space' : 'Monthly bills look trackable',
+      `Monthly bills and subscription-like entries are roughly ${rupees(recurring)}.`,
       'high',
     ),
     saved > 0

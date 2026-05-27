@@ -161,7 +161,7 @@ function buildCommitmentTransactions(profile = {}, monthKey) {
 
       return makeTransaction({
         id: `commitment-${item.id || index}-${activeMonthKey(monthKey)}`,
-        title: item.name || 'Monthly commitment',
+        title: item.name || 'Monthly bill',
         amount: item.amount,
         category,
         date: commitmentDate,
@@ -170,7 +170,7 @@ function buildCommitmentTransactions(profile = {}, monthKey) {
         impactType: 'expense',
         sourceModule: 'Profile',
         source: 'commitment',
-        note: item.dueDay ? `Recurring monthly commitment due day ${item.dueDay}` : 'Recurring monthly commitment',
+        note: item.dueDay ? `Monthly bill due day ${item.dueDay}` : 'Monthly bill',
         meta: {
           commitmentId: item.id,
           recurrence: item.recurrence || 'monthly',

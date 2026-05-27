@@ -1,11 +1,5 @@
 import { normalizeMoney } from './money.js'
 
-export const voiceLanguageOptions = [
-  { code: 'en-IN', label: 'English' },
-  { code: 'hi-IN', label: 'Hindi' },
-  { code: 'mr-IN', label: 'Marathi' },
-]
-
 export const voiceCategoryOptions = [
   'Food',
   'Grocery',
@@ -165,6 +159,13 @@ const numberWords = new Map(
     navvad: 90,
     '\u0928\u092c\u094d\u092c\u0947': 90,
     '\u0928\u0935\u094d\u0935\u0926': 90,
+    panchshe: 500,
+    paachshe: 500,
+    pachshe: 500,
+    panchso: 500,
+    paanchso: 500,
+    '\u092a\u093e\u091a\u0936\u0947': 500,
+    '\u092a\u093e\u0902\u091a\u0938\u094b': 500,
   }),
 )
 
@@ -202,6 +203,9 @@ const fillerWords = new Set([
   'pay',
   'spent',
   'expense',
+  'today',
+  'aaj',
+  'aj',
   'for',
   'on',
   'ka',
@@ -219,6 +223,10 @@ const fillerWords = new Set([
   '\u0938\u0947',
   '\u0928\u0947',
   '\u0932\u093e',
+  '\u0906\u091c',
+  '\u0906\u091c\u091a\u093e',
+  '\u0906\u091c\u091a\u0947',
+  '\u0906\u091c\u091a\u0940',
   '\u091a\u0947',
   '\u091a\u093e',
   '\u091a\u0940',
@@ -231,6 +239,19 @@ const labelAliases = new Map(
     '\u091c\u0947\u0935\u0923': 'Food',
     khana: 'Food',
     food: 'Food',
+    tea: 'Tea',
+    chai: 'Tea',
+    chaha: 'Tea',
+    '\u091a\u093e\u092f': 'Tea',
+    '\u091a\u0939\u093e': 'Tea',
+    snack: 'Snacks',
+    snacks: 'Snacks',
+    nashta: 'Snacks',
+    '\u0928\u093e\u0936\u094d\u0924\u093e': 'Snacks',
+    grocery: 'Grocery',
+    groceries: 'Grocery',
+    kirana: 'Kirana',
+    '\u0915\u093f\u0930\u093e\u0928\u093e': 'Kirana',
     zomato: 'Zomato',
     swiggy: 'Swiggy',
     milk: 'Milk',
@@ -270,7 +291,7 @@ const categoryRules = [
   },
   {
     category: 'Food',
-    keywords: ['food', 'khana', 'zomato', 'swiggy', 'restaurant', 'tea', 'coffee', '\u0916\u093e\u0928\u093e', '\u091c\u0947\u0935\u0923'],
+    keywords: ['food', 'khana', 'zomato', 'swiggy', 'restaurant', 'tea', 'chai', 'chaha', 'coffee', 'snack', 'snacks', 'nashta', '\u0916\u093e\u0928\u093e', '\u091c\u0947\u0935\u0923', '\u091a\u093e\u092f', '\u091a\u0939\u093e', '\u0928\u093e\u0936\u094d\u0924\u093e'],
   },
   {
     category: 'Grocery',
@@ -557,7 +578,7 @@ export function parseVoiceExpense(transcript, memory = {}) {
 
   return {
     transcript: cleanTranscript,
-    amount: Math.round(amountSequence.amount),
+    amount: normalizeMoney(amountSequence.amount),
     label,
     category: categoryMatch.category,
     categoryConfidence: categoryMatch.confidence,
