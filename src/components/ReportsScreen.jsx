@@ -5,8 +5,6 @@ import {
   useState,
 } from 'react'
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Line,
@@ -231,11 +229,17 @@ function buildEntryTrendData(reportTransactions = [], fallbackTimeline = []) {
 }
 
 function ReportSection({ title, items }) {
+  const visibleItems = items.slice(0, 2)
+
+  if (visibleItems.length === 0) {
+    return null
+  }
+
   return (
     <article className="report-section-card">
       <h2>{title}</h2>
       <div className="report-row-list">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <div className="report-reading-row" key={`${title}-${item.title}`}>
             <div>
               <strong>{item.title}</strong>
@@ -303,9 +307,9 @@ export default function ReportsScreen({
     <section className="screen-content reports-screen advanced-reports-screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">Reports</p>
-          <h1>Monthly report</h1>
-          <p className="reports-subtitle">Uses only saved entries and reviewed data.</p>
+          <p className="eyebrow">Insights</p>
+          <h1>Your money story</h1>
+          <p className="reports-subtitle">Short notes first. Charts only where they help.</p>
         </div>
         <div className="reports-header-actions">
           <button className="report-import-button" type="button" onClick={() => setIsImportOpen(true)}>
@@ -338,15 +342,15 @@ export default function ReportsScreen({
           <HeartHandshake size={18} />
         </span>
         <div>
-          <p className="eyebrow">Summary</p>
+          <p className="eyebrow">Money note</p>
           <h2>{report.advisory}</h2>
         </div>
       </article>
 
       <article className="report-snapshot-card">
-        <h2>Monthly Snapshot</h2>
+        <h2>This month in short</h2>
         <div className="report-snapshot-grid">
-          {report.snapshot.map((item) => (
+          {report.snapshot.slice(0, 4).map((item) => (
             <div key={item.label}>
               <span>{item.label}</span>
               <strong>{item.value}</strong>
@@ -358,7 +362,7 @@ export default function ReportsScreen({
 
       {monthlyComparison.length > 0 && (
         <article className="report-section-card monthly-comparison-card">
-          <h2>Month Comparison</h2>
+          <h2>What changed</h2>
           <div className="monthly-comparison-grid">
             {monthlyComparison.map((item) => (
               <div className={item.tone} key={item.label}>
@@ -371,46 +375,38 @@ export default function ReportsScreen({
         </article>
       )}
 
-      <article className="chart-card report-direction-card">
-        <h2>Money Direction</h2>
-        <p>Income, allocated spending, and remaining flexibility from the unified finance engine.</p>
-        {directionData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={156}>
-            <BarChart data={directionData} margin={{ left: 4, right: 8, top: 14, bottom: 0 }}>
-              <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" stroke="var(--chart-axis)" tick={{ fontSize: 11 }} />
-              <YAxis
-                stroke="var(--chart-axis)"
-                tick={{ fontSize: 11 }}
-                tickFormatter={compactRupees}
-                width={52}
-              />
-              <RechartsTooltip formatter={(value) => rupees(value)} />
-              <Bar dataKey="amount" radius={[10, 10, 4, 4]} isAnimationActive animationDuration={460}>
-                {directionData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <ChartEmptyState message="Add income or transactions to view money direction." />
-        )}
+      <ReportSection title="Spending notes" items={report.spendingPatterns} />
+      <ReportSection title="Money pressure" items={report.pressureAnalysis} />
+      <ReportSection title="Buying safely" items={report.purchaseInsights} />
+      <ReportSection title="Other notes" items={report.behaviorInsights} />
+
+      <article className="report-section-card report-direction-card">
+        <h2>Money direction</h2>
+        <div className="report-direction-list">
+          {directionData.length > 0 ? directionData.map((item) => (
+            <div key={item.name}>
+              <span>{item.name === 'Allocated' ? 'Spent or fixed' : item.name}</span>
+              <strong>{compactRupees(item.amount)}</strong>
+            </div>
+          )) : (
+            <p>Add income or transactions to see a clearer direction.</p>
+          )}
+        </div>
       </article>
 
       {report.sharedSummary?.activeGroups > 0 && (
         <article className="report-section-card shared-report-card">
-          <h2>Shared Expenses</h2>
+          <h2>Shared money</h2>
           <div className="report-snapshot-grid">
             <div>
               <span>You paid</span>
               <strong>{rupees(report.sharedSummary.totalPaidByYou)}</strong>
-              <p>Group payments paid upfront.</p>
+              <p>Paid upfront in groups.</p>
             </div>
             <div>
-              <span>Recoverable</span>
+              <span>To get back</span>
               <strong>{rupees(report.sharedSummary.pendingRecoverable)}</strong>
-              <p>Still expected back from shared expenses.</p>
+              <p>Expected back from friends.</p>
             </div>
             <div>
               <span>Received</span>
@@ -428,7 +424,7 @@ export default function ReportsScreen({
 
       {(moneyBookSummary.pendingCount > 0 || moneyBookSummary.totalGiven > 0 || moneyBookSummary.totalBorrowed > 0) && (
         <article className="report-section-card money-book-report-card">
-          <h2>Money Book</h2>
+          <h2>Borrow / lend</h2>
           <div className="report-snapshot-grid">
             <div>
               <span>You gave</span>
@@ -438,7 +434,7 @@ export default function ReportsScreen({
             <div>
               <span>To receive</span>
               <strong>{rupees(moneyBookSummary.needToReceive || 0)}</strong>
-              <p>Pending recoveries carried forward.</p>
+              <p>Still pending.</p>
             </div>
             <div>
               <span>Borrowed</span>
@@ -455,7 +451,7 @@ export default function ReportsScreen({
       )}
 
       <article className="chart-card report-mix-card">
-        <h2>Money Mix</h2>
+        <h2>Spending mix</h2>
         {visibleBreakdown.length > 0 ? (
           <>
             <ResponsiveContainer width="100%" height={150}>
@@ -515,11 +511,11 @@ export default function ReportsScreen({
       </article>
 
       <article className="chart-card report-trend-card">
-        <h2>Entry Trend</h2>
+        <h2>Spending trend</h2>
         <p>
           {trendData.length > 1
-            ? 'Built from real dated money movements this month.'
-            : 'Add more dated transactions to see a clearer trend.'}
+            ? 'Built from your dated money moves this month.'
+            : 'Add more entries to see a clearer trend.'}
         </p>
         {trendData.length > 0 ? (
           <ResponsiveContainer width="100%" height={148}>
@@ -549,17 +545,12 @@ export default function ReportsScreen({
         )}
       </article>
 
-      <ReportSection title="Spending Notes" items={report.spendingPatterns} />
-      <ReportSection title="Pressure Notes" items={report.pressureAnalysis} />
-      <ReportSection title="Purchase Planning" items={report.purchaseInsights} />
-      <ReportSection title="Other Notes" items={report.behaviorInsights} />
-
       <article className="report-section-card">
-        <h2>Current State</h2>
+        <h2>Money status</h2>
         <div className="report-comfort-strip">
           <span>{financialState.pressure}</span>
           <strong>{financialState.comfort}</strong>
-          <p>{financialState.usagePercent}% of income is allocated from saved data.</p>
+          <p>{financialState.usagePercent}% of income is already used from saved data.</p>
         </div>
       </article>
 

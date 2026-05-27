@@ -2,7 +2,6 @@ import { Component, lazy, memo, Suspense, useCallback, useDeferredValue, useEffe
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Bell,
   Bike,
   CalendarDays,
   Car,
@@ -128,11 +127,11 @@ const timelineOptions = [
 const supportEmail = 'contact@fbply.com'
 
 const navItems = [
-  { key: 'home', label: 'Home', icon: House },
-  { key: 'history', label: 'History', icon: CalendarDays },
-  { key: 'planner', label: 'Planner', icon: PiggyBank },
-  { key: 'reports', label: 'Reports', icon: ChartPie },
-  { key: 'profile', label: 'Profile', icon: User },
+  { key: 'home', label: 'Today', icon: House },
+  { key: 'history', label: 'Activity', icon: CalendarDays },
+  { key: 'add', label: 'Add', icon: Plus, isAdd: true },
+  { key: 'planner', label: 'Goals', icon: Target },
+  { key: 'reports', label: 'Insights', icon: ChartPie },
 ]
 
 const fixedExpenseSuggestions = ['Rent', 'Electricity', 'Internet', 'Petrol', 'Shopping', 'Food', 'Subscription']
@@ -286,33 +285,33 @@ const emptyProfile = {
 const walkthroughSteps = [
   {
     tab: 'home',
-    title: 'Home keeps the month readable.',
-    detail: 'This is your monthly snapshot. It updates from the setup and expenses you add.',
+    title: 'Today keeps money simple.',
+    detail: 'Check safe spending, add a money move, and see today activity in one place.',
   },
   {
-    tab: 'profile',
-    title: 'Add expenses from Profile.',
-    detail: 'Use quick chips, category search, or voice entry from one consistent place.',
+    tab: 'home',
+    title: 'Add from the plus button.',
+    detail: 'Expense, income, transfer, and borrow/lend actions now open from the centre button.',
   },
   {
     tab: 'planner',
-    title: 'Planner protects monthly space.',
-    detail: 'Enter a target purchase and FBPly estimates a safer path from your saved numbers.',
+    title: 'Goals help you buy safely.',
+    detail: 'Enter a target purchase and FBPly estimates a calmer path from your saved numbers.',
   },
   {
     tab: 'reports',
-    title: 'Reports stay evidence-based.',
-    detail: 'Notes appear only from saved data. If data is low, FBPly says that clearly.',
+    title: 'Insights stay simple.',
+    detail: 'Short money notes appear first, with charts only where they help.',
   },
   {
     tab: 'history',
-    title: 'Shared expenses stay simple.',
-    detail: 'History shows trip payments, settlements, goals, income, and spending together.',
+    title: 'Activity is your timeline.',
+    detail: 'Spent, earned, shifted, and borrow/lend entries stay readable together.',
   },
   {
-    tab: 'profile',
-    title: 'Profile is your financial context.',
-    detail: 'Update income, commitments, savings goals, and sign out from one clear place.',
+    tab: 'home',
+    title: 'Settings moved up top.',
+    detail: 'Use the avatar/settings button for income, fixed payments, preferences, and sign out.',
   },
 ]
 
@@ -658,6 +657,121 @@ function buildEmergencyCushion(buckets, state) {
   }
 }
 
+function buildDailyMoneyStatus(state, safeToSpend) {
+  const safeAmount = Number(safeToSpend?.comfortablyUsable || 0)
+
+  if (!Number(state.income || 0)) {
+    return {
+      title: 'Add income to see your safe spending.',
+      detail: 'Once income is added, FBPly can guide the month more clearly.',
+      tone: 'learning',
+    }
+  }
+
+  if (state.pressureTone === 'slight-pressure') {
+    return {
+      title: 'This month feels slightly tight.',
+      detail: safeAmount > 0
+        ? `${rupees(safeAmount)} still looks usable with care.`
+        : 'Keep today light and protect the basics first.',
+      tone: 'tight',
+    }
+  }
+
+  if (state.pressureTone === 'warm') {
+    return {
+      title: 'Go a little easy this week.',
+      detail: safeAmount > 0
+        ? `${rupees(safeAmount)} is safer for flexible spends right now.`
+        : 'A small pause can keep the month comfortable.',
+      tone: 'careful',
+    }
+  }
+
+  if (state.pressureTone === 'balanced') {
+    return {
+      title: "You're still in a safe zone.",
+      detail: 'Normal spending looks okay, just keep tracking small spends.',
+      tone: 'steady',
+    }
+  }
+
+  return {
+    title: "You're doing good this month.",
+    detail: 'You have healthy spending room today.',
+    tone: 'good',
+  }
+}
+
+function buildSingleTodayInsight({ smartHomeInsights = [], whatChangedInsights = [], calmSummaries = [], financialState }) {
+  const firstSmart = smartHomeInsights.find((insight) => insight?.title || insight?.detail)
+
+  if (firstSmart) {
+    return {
+      title: firstSmart.title || 'Money note',
+      detail: firstSmart.detail || firstSmart.kicker || 'Your money picture is getting clearer.',
+      tone: firstSmart.tone || 'balanced',
+    }
+  }
+
+  const simpleDetail = whatChangedInsights[0] || calmSummaries[0]
+
+  if (simpleDetail) {
+    return {
+      title: 'Small money note',
+      detail: simpleDetail,
+      tone: financialState?.pressureTone || 'balanced',
+    }
+  }
+
+  return {
+    title: 'Start tracking to unlock smarter notes.',
+    detail: 'Add a few expenses and FBPly will keep the insights short and useful.',
+    tone: 'learning',
+  }
+}
+
+function formatActivityTime(value) {
+  const parsed = new Date(value || Date.now())
+
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Now'
+  }
+
+  return parsed.toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function buildTrackedDayCount(expenses = []) {
+  return new Set(
+    expenses
+      .map((expense) => String(expense.date || expense.createdAt || '').slice(0, 10))
+      .filter(Boolean),
+  ).size
+}
+
+function activityVerb(transaction = {}) {
+  if (transaction.tone === 'incoming') {
+    return 'Earned'
+  }
+
+  if (transaction.tone === 'outgoing') {
+    return 'Spent'
+  }
+
+  if (transaction.tone === 'transfer') {
+    return 'Shifted'
+  }
+
+  if (transaction.impactType === 'goal') {
+    return 'Planned'
+  }
+
+  return 'Tracked'
+}
+
 function App() {
   const [currentPath, setCurrentPath] = useState(() =>
     typeof window === 'undefined' ? '/' : window.location.pathname || '/',
@@ -690,6 +804,7 @@ function App() {
   const [quickSaveMode, setQuickSaveMode] = useState(() => safeStorageGet('fbply-voice-quick-save', 'false') === 'true')
   const [voiceMemory, setVoiceMemory] = useState(() => readStoredJson('fbply-voice-memory', {}))
   const [lastVoiceSave, setLastVoiceSave] = useState(null)
+  const [addSheetMode, setAddSheetMode] = useState(null)
   const [plannerInput, setPlannerInput] = useState('')
   const [selectedPlan, setSelectedPlan] = useState('Car')
   const [plannerTargetAmount, setPlannerTargetAmount] = useState('')
@@ -724,7 +839,7 @@ function App() {
     }
 
     const pageTitle = legalPages[currentPath]?.title
-    document.title = pageTitle ? `FBPly | ${pageTitle}` : 'FBPly | Home'
+    document.title = pageTitle ? `FBPly | ${pageTitle}` : 'FBPly | Today'
   }, [currentPath])
 
   useEffect(() => {
@@ -1237,18 +1352,14 @@ function App() {
 
   const saveExpenseRecord = useCallback(({ label, category, amount, note = '', type = expenseMode, source = 'manual' }) => {
     const parsedAmount = Number(amount)
-    const labelName = String(label || '').trim()
     const categoryName = String(category || '').trim()
+    const labelName = String(label || categoryName || '').trim()
     const fieldErrors = {}
 
     setExpenseError('')
 
     if (!parsedAmount || parsedAmount <= 0) {
       fieldErrors.amount = 'Add a positive amount.'
-    }
-
-    if (!labelName) {
-      fieldErrors.name = 'Add a short expense name.'
     }
 
     if (!categoryName) {
@@ -1298,13 +1409,14 @@ function App() {
     })
 
     if (!saved) {
-      return
+      return false
     }
 
     setExpenseAmount('')
     setExpenseNote('')
     setCustomExpenseName('')
     setExpenseFieldErrors({})
+    return saved
   }, [customExpenseName, expenseAmount, expenseMode, expenseNote, saveExpenseRecord, selectedCategory])
 
   const saveVoiceDraft = useCallback((draft, options = {}) => {
@@ -1513,6 +1625,14 @@ function App() {
     setSavingsBuckets((current) => [createBucket('New bucket', 0, 10000), ...current])
   }, [])
 
+  const openAddSheet = useCallback((mode = 'menu') => {
+    setAddSheetMode(mode)
+  }, [])
+
+  const closeAddSheet = useCallback(() => {
+    setAddSheetMode(null)
+  }, [])
+
   const updateSavingsBucket = useCallback((id, patch) => {
     setSavingsBuckets((current) =>
       current.map((bucket) => (bucket.id === id ? { ...bucket, ...patch } : bucket)),
@@ -1548,9 +1668,10 @@ function App() {
     setExpenseNote(expense.note || '')
     setExpenseError('')
     setExpenseFieldErrors({})
-    setActiveTab('profile')
+    setActiveTab('home')
+    openAddSheet('expense')
     setVoiceStatus('Loaded the recent entry for editing. Review and save it again.')
-  }, [])
+  }, [openAddSheet])
 
   const startVoiceExpense = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -1838,6 +1959,9 @@ function App() {
               setProfile={setProfile}
               authUser={authUser}
               onSignOut={handleSignOut}
+              addSheetMode={addSheetMode}
+              openAddSheet={openAddSheet}
+              closeAddSheet={closeAddSheet}
               financialState={financialState}
               insights={insights}
               smartHomeInsights={smartHomeInsights}
@@ -1857,6 +1981,7 @@ function App() {
               reportTransactions={selectedMonthActivity.transactions}
               reportTransactionSummary={selectedMonthActivity.transactionSummary}
               monthlyComparison={selectedMonthlyComparison}
+              todayTransactions={financialActivity.transactions}
               expenses={expenses}
               historyGroups={historyGroups}
               transactionSummary={transactionSummary}
@@ -2449,7 +2574,7 @@ function SetupScreen({ profile, setProfile, onComplete }) {
       <section className="setup-flow-card">
         <p className="eyebrow">Ready</p>
         <h1>Your dashboard is ready.</h1>
-        <p className="setup-soft-copy">FBPly will use these numbers in Home, History, Planner, Reports, and Profile.</p>
+        <p className="setup-soft-copy">FBPly will use these numbers in Today, Activity, Goals, Insights, and Settings.</p>
         <div className="setup-review-grid">
           <div>
             <span>Income</span>
@@ -2624,6 +2749,9 @@ function MainApp(props) {
     setProfile,
     authUser,
     onSignOut,
+    addSheetMode,
+    openAddSheet,
+    closeAddSheet,
     financialState,
     insights,
     smartHomeInsights,
@@ -2643,6 +2771,7 @@ function MainApp(props) {
     reportTransactions,
     reportTransactionSummary,
     monthlyComparison,
+    todayTransactions,
     expenses,
     historyGroups,
     transactionSummary,
@@ -2713,6 +2842,7 @@ function MainApp(props) {
     updateSavingsBucket,
     removeSavingsBucket,
   } = props
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   return (
     <motion.div className="app-shell" {...fadeUp}>
@@ -2720,6 +2850,14 @@ function MainApp(props) {
         <BrandMark size="tiny" />
         <span>FBPly</span>
       </div>
+      <button
+        className="top-settings-button"
+        type="button"
+        aria-label="Open profile and settings"
+        onClick={() => setIsSettingsOpen(true)}
+      >
+        <User size={18} />
+      </button>
       <main className="screen-panel">
         {activeTab === 'home' && (
           <HomeScreen
@@ -2734,6 +2872,8 @@ function MainApp(props) {
             whatChangedInsights={whatChangedInsights}
             emergencyCushion={emergencyCushion}
             savingsBuckets={savingsBuckets}
+            todayTransactions={todayTransactions}
+            expenses={expenses}
             selectedPlan={selectedPlan}
             plannerInput={plannerInput}
             plannerTargetAmount={plannerTargetAmount}
@@ -2742,6 +2882,7 @@ function MainApp(props) {
             recommendation={recommendation}
             lowEnergyMode={lowEnergyMode}
             setActiveTab={setActiveTab}
+            openAddSheet={openAddSheet}
             downloadPdf={downloadPdf}
             isExportingPdf={isExportingPdf}
             pdfError={pdfError}
@@ -2763,6 +2904,7 @@ function MainApp(props) {
             monthOptions={monthOptions}
             onEditExpense={editExpense}
             setActiveTab={setActiveTab}
+            openAddSheet={openAddSheet}
           />
         )}
         {activeTab === 'planner' && (
@@ -2855,7 +2997,65 @@ function MainApp(props) {
           />
         )}
       </main>
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      {addSheetMode && (
+        <QuickAddSheet
+          mode={addSheetMode}
+          setMode={openAddSheet}
+          onClose={closeAddSheet}
+          profile={profile}
+          setProfile={setProfile}
+          savingsBuckets={savingsBuckets}
+          addSavingsBucket={addSavingsBucket}
+          updateSavingsBucket={updateSavingsBucket}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+          customExpenseName={customExpenseName}
+          setCustomExpenseName={setCustomExpenseName}
+          expenseAmount={expenseAmount}
+          setExpenseAmount={setExpenseAmount}
+          expenseNote={expenseNote}
+          setExpenseNote={setExpenseNote}
+          expenseError={expenseError}
+          expenseFieldErrors={expenseFieldErrors}
+          clearExpenseFieldError={clearExpenseFieldError}
+          addExpense={addExpense}
+          quickExpenseChips={quickExpenseChips}
+          applyQuickExpense={applyQuickExpense}
+          voiceDraft={voiceDraft}
+          voiceStatus={voiceStatus}
+          isListening={isListening}
+          voiceLanguage={voiceLanguage}
+          setVoiceLanguage={setVoiceLanguage}
+          quickSaveMode={quickSaveMode}
+          setQuickSaveMode={setQuickSaveMode}
+          startVoiceExpense={startVoiceExpense}
+          stopVoiceExpense={stopVoiceExpense}
+          confirmVoiceExpense={confirmVoiceExpense}
+          updateVoiceDraft={updateVoiceDraft}
+          clearVoiceDraft={clearVoiceDraft}
+          useVoiceDraftInForm={useVoiceDraftInForm}
+          undoVoiceSave={undoVoiceSave}
+          lastVoiceSave={lastVoiceSave}
+          saveMoneyBookEntry={saveMoneyBookEntry}
+          setActiveTab={setActiveTab}
+        />
+      )}
+      {isSettingsOpen && (
+        <SettingsSheet
+          authUser={authUser}
+          profile={profile}
+          setProfile={setProfile}
+          onClose={() => setIsSettingsOpen(false)}
+          onSignOut={onSignOut}
+          financialState={financialState}
+          fixedDistribution={fixedDistribution}
+          flexibleDistribution={flexibleDistribution}
+          updateCommitment={updateCommitment}
+          addCommitment={addCommitment}
+          removeCommitment={removeCommitment}
+        />
+      )}
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} openAddSheet={openAddSheet} />
     </motion.div>
   )
 }
@@ -2886,8 +3086,8 @@ function ReportsFallback() {
     <section className="screen-content reports-screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">Reports</p>
-          <h1>Preparing your snapshot</h1>
+          <p className="eyebrow">Insights</p>
+          <h1>Preparing your money notes</h1>
         </div>
       </div>
       <article className="chart-card skeleton-card" />
@@ -3061,371 +3261,703 @@ function WalkthroughOverlay({ step, current, total, onNext, onSkip }) {
   )
 }
 
+function QuickAddSheet({
+  mode,
+  setMode,
+  onClose,
+  profile,
+  setProfile,
+  savingsBuckets,
+  addSavingsBucket,
+  updateSavingsBucket,
+  selectedCategory,
+  setSelectedCategory,
+  customExpenseName,
+  setCustomExpenseName,
+  expenseAmount,
+  setExpenseAmount,
+  expenseNote,
+  setExpenseNote,
+  expenseError,
+  expenseFieldErrors,
+  clearExpenseFieldError,
+  addExpense,
+  quickExpenseChips,
+  applyQuickExpense,
+  voiceDraft,
+  voiceStatus,
+  isListening,
+  voiceLanguage,
+  setVoiceLanguage,
+  quickSaveMode,
+  setQuickSaveMode,
+  startVoiceExpense,
+  stopVoiceExpense,
+  confirmVoiceExpense,
+  updateVoiceDraft,
+  clearVoiceDraft,
+  useVoiceDraftInForm,
+  undoVoiceSave,
+  lastVoiceSave,
+  saveMoneyBookEntry,
+  setActiveTab,
+}) {
+  const title = {
+    menu: 'Add money move',
+    expense: 'Add expense',
+    income: 'Add income',
+    transfer: 'Move to goal',
+    borrow: 'Borrow or lend',
+  }[mode] || 'Add money move'
+
+  return (
+    <AppModal onClose={onClose} labelledBy="quick-add-title" sheetClassName="editor-sheet quick-add-sheet">
+      <div className="editor-sheet-header">
+        <div>
+          <p className="eyebrow">Quick add</p>
+          <h2 id="quick-add-title">{title}</h2>
+        </div>
+        <button className="icon-button" type="button" aria-label="Close quick add" onClick={onClose}>
+          <X size={17} />
+        </button>
+      </div>
+
+      {mode !== 'menu' && (
+        <button className="text-action-button quick-add-back" type="button" onClick={() => setMode('menu')}>
+          Back to options
+        </button>
+      )}
+
+      <div className="editor-sheet-body quick-add-body">
+        {mode === 'menu' && (
+          <div className="quick-add-options">
+            <button type="button" onClick={() => setMode('expense')}>
+              <span className="soft-icon"><Receipt size={18} /></span>
+              <span>
+                <strong>Expense</strong>
+                <small>Food, petrol, bill, shopping</small>
+              </span>
+            </button>
+            <button type="button" onClick={() => setMode('income')}>
+              <span className="soft-icon"><Wallet size={18} /></span>
+              <span>
+                <strong>Income</strong>
+                <small>Update monthly income</small>
+              </span>
+            </button>
+            <button type="button" onClick={() => setMode('transfer')}>
+              <span className="soft-icon"><PiggyBank size={18} /></span>
+              <span>
+                <strong>Transfer</strong>
+                <small>Move money to a goal</small>
+              </span>
+            </button>
+            <button type="button" onClick={() => setMode('borrow')}>
+              <span className="soft-icon"><CreditCard size={18} /></span>
+              <span>
+                <strong>Borrow / lend</strong>
+                <small>Track simple udhar</small>
+              </span>
+            </button>
+          </div>
+        )}
+
+        {mode === 'expense' && (
+          <QuickExpenseEntry
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            customExpenseName={customExpenseName}
+            setCustomExpenseName={setCustomExpenseName}
+            expenseAmount={expenseAmount}
+            setExpenseAmount={setExpenseAmount}
+            expenseNote={expenseNote}
+            setExpenseNote={setExpenseNote}
+            expenseError={expenseError}
+            expenseFieldErrors={expenseFieldErrors}
+            clearExpenseFieldError={clearExpenseFieldError}
+            addExpense={addExpense}
+            quickExpenseChips={quickExpenseChips}
+            applyQuickExpense={applyQuickExpense}
+            onSaved={onClose}
+            voiceDraft={voiceDraft}
+            voiceStatus={voiceStatus}
+            isListening={isListening}
+            voiceLanguage={voiceLanguage}
+            setVoiceLanguage={setVoiceLanguage}
+            quickSaveMode={quickSaveMode}
+            setQuickSaveMode={setQuickSaveMode}
+            startVoiceExpense={startVoiceExpense}
+            stopVoiceExpense={stopVoiceExpense}
+            confirmVoiceExpense={confirmVoiceExpense}
+            updateVoiceDraft={updateVoiceDraft}
+            clearVoiceDraft={clearVoiceDraft}
+            useVoiceDraftInForm={useVoiceDraftInForm}
+            undoVoiceSave={undoVoiceSave}
+            lastVoiceSave={lastVoiceSave}
+          />
+        )}
+
+        {mode === 'income' && (
+          <QuickIncomeEntry profile={profile} setProfile={setProfile} onSaved={onClose} />
+        )}
+
+        {mode === 'transfer' && (
+          <QuickTransferEntry
+            savingsBuckets={savingsBuckets}
+            addSavingsBucket={addSavingsBucket}
+            updateSavingsBucket={updateSavingsBucket}
+            onSaved={onClose}
+            setActiveTab={setActiveTab}
+          />
+        )}
+
+        {mode === 'borrow' && (
+          <QuickBorrowLendEntry saveMoneyBookEntry={saveMoneyBookEntry} onSaved={onClose} />
+        )}
+      </div>
+    </AppModal>
+  )
+}
+
+function QuickExpenseEntry({
+  selectedCategory,
+  setSelectedCategory,
+  customExpenseName,
+  setCustomExpenseName,
+  expenseAmount,
+  setExpenseAmount,
+  expenseNote,
+  setExpenseNote,
+  expenseError,
+  expenseFieldErrors = {},
+  clearExpenseFieldError,
+  addExpense,
+  quickExpenseChips,
+  applyQuickExpense,
+  onSaved,
+  voiceDraft,
+  voiceStatus,
+  isListening,
+  voiceLanguage,
+  setVoiceLanguage,
+  quickSaveMode,
+  setQuickSaveMode,
+  startVoiceExpense,
+  stopVoiceExpense,
+  confirmVoiceExpense,
+  updateVoiceDraft,
+  clearVoiceDraft,
+  useVoiceDraftInForm,
+  undoVoiceSave,
+  lastVoiceSave,
+}) {
+  const clearField = (field) => {
+    if (clearExpenseFieldError) {
+      clearExpenseFieldError(field)
+    }
+  }
+
+  return (
+    <form className={`quick-expense-form ${Object.keys(expenseFieldErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
+      const saved = addExpense(event)
+
+      if (saved) {
+        onSaved()
+      }
+    }}>
+      <div className="quick-chip-row compact-quick-row">
+        {quickExpenseChips.slice(0, 6).map((chip) => (
+          <button key={chip.label} type="button" onClick={() => {
+            applyQuickExpense(chip)
+            clearField('amount')
+            clearField('category')
+          }}>
+            {chip.label}
+            {chip.amount > 0 && <span>{shortRupees(chip.amount)}</span>}
+          </button>
+        ))}
+      </div>
+
+      <CurrencyInput
+        label="Amount"
+        id="quick-expense-amount"
+        value={expenseAmount}
+        placeholder="120"
+        onChange={(value) => {
+          setExpenseAmount(value)
+          clearField('amount')
+        }}
+        error={expenseFieldErrors.amount}
+      />
+
+      <CategoryPicker
+        categories={expenseCategories}
+        customExpenseName={customExpenseName}
+        quickExpenseChips={quickExpenseChips}
+        selectedCategory={selectedCategory}
+        setCustomExpenseName={(value) => {
+          setCustomExpenseName(value)
+          clearField('category')
+        }}
+        setSelectedCategory={(value) => {
+          setSelectedCategory(value)
+          if (value !== 'Custom') {
+            setCustomExpenseName('')
+          }
+          clearField('category')
+        }}
+        error={expenseFieldErrors.category}
+      />
+
+      <label>
+        <span className="input-label">Note</span>
+        <input
+          className="plain-input"
+          type="text"
+          value={expenseNote}
+          placeholder="Optional, like tea near office"
+          onChange={(event) => setExpenseNote(event.target.value)}
+        />
+      </label>
+
+      <VoiceExpenseBox
+        voiceDraft={voiceDraft}
+        voiceStatus={voiceStatus}
+        isListening={isListening}
+        voiceLanguage={voiceLanguage}
+        setVoiceLanguage={setVoiceLanguage}
+        quickSaveMode={quickSaveMode}
+        setQuickSaveMode={setQuickSaveMode}
+        startVoiceExpense={startVoiceExpense}
+        stopVoiceExpense={stopVoiceExpense}
+        confirmVoiceExpense={confirmVoiceExpense}
+        updateVoiceDraft={updateVoiceDraft}
+        clearVoiceDraft={clearVoiceDraft}
+        useVoiceDraftInForm={useVoiceDraftInForm}
+        undoVoiceSave={undoVoiceSave}
+        lastVoiceSave={lastVoiceSave}
+      />
+
+      <button className="primary-button full" type="submit">
+        Save expense
+      </button>
+      {expenseError && <p className="form-message">{expenseError}</p>}
+    </form>
+  )
+}
+
+function QuickIncomeEntry({ profile, setProfile, onSaved }) {
+  const [incomeAmount, setIncomeAmount] = useState(profile.income ? String(profile.income) : '')
+  const [error, setError] = useState('')
+
+  return (
+    <form className="quick-expense-form" onSubmit={(event) => {
+      event.preventDefault()
+      const parsed = Number(incomeAmount || 0)
+
+      if (!parsed || parsed <= 0) {
+        setError('Add a valid income amount.')
+        return
+      }
+
+      setProfile((current) => ({ ...current, income: parsed }))
+      onSaved()
+    }}>
+      <CurrencyInput
+        label="Monthly income"
+        id="quick-income-amount"
+        value={incomeAmount}
+        placeholder="50000"
+        onChange={(value) => {
+          setIncomeAmount(value)
+          setError('')
+        }}
+        error={error}
+      />
+      <p className="quick-form-note">This updates your monthly income used for safe spending.</p>
+      <button className="primary-button full" type="submit">
+        Save income
+      </button>
+    </form>
+  )
+}
+
+function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavingsBucket, onSaved, setActiveTab }) {
+  const [bucketId, setBucketId] = useState(savingsBuckets[0]?.id || '')
+  const [amount, setAmount] = useState('')
+  const [error, setError] = useState('')
+  const selectedBucket = savingsBuckets.find((bucket) => bucket.id === bucketId)
+
+  if (savingsBuckets.length === 0) {
+    return (
+      <div className="quick-transfer-empty">
+        <EmptyState
+          title="Create one goal first"
+          detail="A goal gives this transfer a clear place."
+          actionLabel="Create goal"
+          onAction={() => {
+            addSavingsBucket()
+            setActiveTab('planner')
+            onSaved()
+          }}
+          icon={PiggyBank}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <form className="quick-expense-form" onSubmit={(event) => {
+      event.preventDefault()
+      const parsed = Number(amount || 0)
+
+      if (!selectedBucket) {
+        setError('Choose a goal.')
+        return
+      }
+
+      if (!parsed || parsed <= 0) {
+        setError('Add a valid amount.')
+        return
+      }
+
+      updateSavingsBucket(selectedBucket.id, {
+        saved: Number(selectedBucket.saved || 0) + parsed,
+      })
+      onSaved()
+    }}>
+      <label>
+        <span className="input-label">Goal</span>
+        <select className="month-select" value={bucketId} onChange={(event) => {
+          setBucketId(event.target.value)
+          setError('')
+        }}>
+          {savingsBuckets.map((bucket) => (
+            <option key={bucket.id} value={bucket.id}>
+              {bucket.name || 'Goal'}
+            </option>
+          ))}
+        </select>
+      </label>
+      <CurrencyInput
+        label="Amount to move"
+        id="quick-transfer-amount"
+        value={amount}
+        placeholder="1000"
+        onChange={(value) => {
+          setAmount(value)
+          setError('')
+        }}
+        error={error}
+      />
+      <p className="quick-form-note">This updates the saved amount for your goal.</p>
+      <button className="primary-button full" type="submit">
+        Move to goal
+      </button>
+    </form>
+  )
+}
+
+function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
+  const [kind, setKind] = useState('given')
+  const [person, setPerson] = useState('')
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [error, setError] = useState('')
+
+  return (
+    <form className="quick-expense-form" onSubmit={(event) => {
+      event.preventDefault()
+      const saved = saveMoneyBookEntry({
+        kind,
+        person,
+        amount,
+        date: todayDateKey(),
+        note,
+      })
+
+      if (!saved) {
+        setError('Add person and amount to save this entry.')
+        return
+      }
+
+      onSaved()
+    }}>
+      <div className="segmented-control quick-kind-toggle" aria-label="Borrow or lend type">
+        <button className={kind === 'given' ? 'active' : ''} type="button" onClick={() => setKind('given')}>
+          I gave
+        </button>
+        <button className={kind === 'taken' ? 'active' : ''} type="button" onClick={() => setKind('taken')}>
+          I took
+        </button>
+      </div>
+      <label>
+        <span className="input-label">Person</span>
+        <input
+          className="plain-input"
+          type="text"
+          value={person}
+          placeholder="Rahul, Priya..."
+          onChange={(event) => {
+            setPerson(event.target.value)
+            setError('')
+          }}
+        />
+      </label>
+      <CurrencyInput
+        label="Amount"
+        id="quick-borrow-amount"
+        value={amount}
+        placeholder="500"
+        onChange={(value) => {
+          setAmount(value)
+          setError('')
+        }}
+      />
+      <label>
+        <span className="input-label">Note</span>
+        <input
+          className="plain-input"
+          type="text"
+          value={note}
+          placeholder="Optional"
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </label>
+      <button className="primary-button full" type="submit">
+        Save entry
+      </button>
+      {error && <p className="form-message">{error}</p>}
+    </form>
+  )
+}
+
+function SettingsSheet({
+  authUser,
+  profile,
+  setProfile,
+  onClose,
+  onSignOut,
+  financialState,
+  fixedDistribution,
+  flexibleDistribution,
+  updateCommitment,
+  addCommitment,
+  removeCommitment,
+}) {
+  const commitments = normalizeCommitments(profile)
+  const balanceMessage = getProfileBalanceMessage(financialState)
+
+  return (
+    <AppModal onClose={onClose} labelledBy="settings-title" sheetClassName="editor-sheet settings-sheet">
+      <div className="editor-sheet-header">
+        <div>
+          <p className="eyebrow">Settings</p>
+          <h2 id="settings-title">Profile and money setup</h2>
+        </div>
+        <button className="icon-button" type="button" aria-label="Close settings" onClick={onClose}>
+          <X size={17} />
+        </button>
+      </div>
+
+      <div className="editor-sheet-body settings-body">
+        <div className="profile-menu-account settings-account">
+          <BrandMark size="small" />
+          <div>
+            <span className="mini-label">Signed in as</span>
+            <strong>{authUser?.email || profile.email || 'Local profile'}</strong>
+            <p>{balanceMessage}</p>
+          </div>
+        </div>
+
+        <label className="input-label" htmlFor="settings-name">
+          Name
+        </label>
+        <input
+          className="plain-input"
+          id="settings-name"
+          type="text"
+          value={profile.name}
+          placeholder="Your name"
+          onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))}
+        />
+        <CurrencyInput
+          label="Monthly income"
+          id="settings-income"
+          value={profile.income}
+          onChange={(value) => setProfile((current) => ({ ...current, income: Number(value) }))}
+        />
+
+        <div className="profile-menu-section">
+          <span className="input-label">Planning style</span>
+          <div className="preference-grid compact-preference-grid">
+            {['safe', 'balanced', 'flexible'].map((preference) => (
+              <button
+                className={`preference-card ${profile.savingsPreference === preference ? 'active' : ''}`}
+                key={preference}
+                type="button"
+                onClick={() => setProfile((current) => ({ ...current, savingsPreference: preference }))}
+              >
+                <CheckCircle2 size={16} />
+                <span>{titleCase(preference)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-donut-grid">
+          <FinanceDonut chart={fixedDistribution} />
+          <FinanceDonut chart={flexibleDistribution} />
+        </div>
+
+        <section className="settings-commitments">
+          <div className="section-heading-row">
+            <div>
+              <p className="eyebrow">Fixed payments</p>
+              <h2>Monthly basics</h2>
+            </div>
+          </div>
+          <CommitmentsEditor
+            commitments={commitments}
+            updateCommitment={updateCommitment}
+            addCommitment={addCommitment}
+            removeCommitment={removeCommitment}
+          />
+        </section>
+      </div>
+
+      <div className="editor-sheet-footer profile-menu-footer">
+        <button
+          className="sign-out-button"
+          type="button"
+          onClick={() => {
+            onClose()
+            onSignOut()
+          }}
+        >
+          <LogOut size={17} />
+          Sign out
+        </button>
+      </div>
+    </AppModal>
+  )
+}
+
 function HomeScreen({
   profile,
   financialState,
-  insights,
   smartHomeInsights,
-  smartReminders,
-  financialHealth,
   safeToSpend,
   calmSummaries,
   whatChangedInsights,
-  emergencyCushion,
-  savingsBuckets,
-  selectedPlan,
-  plannerInput,
-  plannerTargetAmount,
-  plannerCurrentSavings,
-  plannerTimeline,
-  recommendation,
-  lowEnergyMode,
+  todayTransactions = [],
+  expenses = [],
   setActiveTab,
-  downloadPdf,
-  isExportingPdf,
-  pdfError,
+  openAddSheet,
 }) {
+  const status = buildDailyMoneyStatus(financialState, safeToSpend)
+  const todayKey = todayDateKey()
+  const todayFeed = useMemo(
+    () => todayTransactions
+      .filter((transaction) => transaction.date === todayKey)
+      .filter((transaction) => transaction.sourceModule !== 'Planner')
+      .slice(0, 6),
+    [todayKey, todayTransactions],
+  )
+  const insight = buildSingleTodayInsight({
+    smartHomeInsights,
+    whatChangedInsights,
+    calmSummaries,
+    financialState,
+  })
+  const trackedDays = buildTrackedDayCount(expenses)
+
   return (
-    <section className="screen-content">
-      <div className="screen-heading">
+    <section className={`screen-content today-screen today-${status.tone}`}>
+      <div className="today-greeting">
         <div>
           <p className="eyebrow">{getGreeting(profile.name)}</p>
-          <h1>{financialState.comfort}</h1>
-        </div>
-        <div className="mini-avatar">
-          <User size={20} />
+          <h1>{status.title}</h1>
+          <p>{status.detail}</p>
         </div>
       </div>
 
-      <article className="comfort-card">
-        <div className="comfort-copy">
-          <span>Available Flexibility</span>
-          <strong>{rupees(financialState.flexibility)}</strong>
-          <p>Spending Comfort: {financialState.comfort}</p>
-          <p>Monthly Pressure Level: {financialState.pressure}</p>
-          <p>Breathing Room To Protect: {rupees(financialState.reserveTarget)}</p>
+      <article className="today-safe-card">
+        <div>
+          <span className="mini-label">Safe to spend</span>
+          <strong>{rupees(safeToSpend.comfortablyUsable)}</strong>
+          <p>{rupees(financialState.flexibility)} left after saved activity this month.</p>
         </div>
-        <ProgressRing value={financialState.usagePercent} />
+        <span className={`today-status-pill ${financialState.pressureTone === 'slight-pressure' ? 'warm' : financialState.pressureTone}`}>
+          {financialState.pressure}
+        </span>
       </article>
 
-      <div className="home-status-grid">
-        <FinancialHealthCard health={financialHealth} />
-        <article className="safe-spend-card">
+      <div className="today-quick-actions" aria-label="Quick actions">
+        <button type="button" onClick={() => openAddSheet('expense')}>
+          <Receipt size={18} />
+          <span>Add expense</span>
+        </button>
+        <button type="button" onClick={() => openAddSheet('income')}>
+          <Wallet size={18} />
+          <span>Add income</span>
+        </button>
+        <button type="button" onClick={() => setActiveTab('planner')}>
+          <Target size={18} />
+          <span>Create goal</span>
+        </button>
+      </div>
+
+      <section className="today-feed-section" aria-label="Today activity">
+        <div className="section-heading-row">
           <div>
-            <span>Comfortably usable</span>
-            <strong>{rupees(safeToSpend.comfortablyUsable)}</strong>
-            <p>Protected: {rupees(safeToSpend.protectedAmount)}</p>
+            <p className="eyebrow">Today</p>
+            <h2>Money activity</h2>
           </div>
-          <div>
-            <span>Current state</span>
-            <strong>{safeToSpend.pressure}</strong>
-            <p>Flexibility level: {safeToSpend.flexibilityLevel}</p>
+          <span>{todayFeed.length} move{todayFeed.length === 1 ? '' : 's'}</span>
+        </div>
+        {todayFeed.length === 0 ? (
+          <EmptyState
+            title="Start adding expenses"
+            detail="Your daily money feed will appear here instantly."
+            actionLabel="Add expense"
+            onAction={() => openAddSheet('expense')}
+            icon={Receipt}
+          />
+        ) : (
+          <div className="today-feed-list">
+            {todayFeed.map((transaction) => (
+              <article className={`today-feed-item ${transaction.tone}`} key={transaction.id}>
+                <span className="today-feed-icon" style={{ color: transaction.color }}>
+                  <HistoryItemIcon transaction={transaction} />
+                </span>
+                <div>
+                  <strong>{transaction.tone === 'incoming' ? '+' : transaction.tone === 'outgoing' ? '-' : ''}{rupees(transaction.amount)}</strong>
+                  <p>{transaction.title || transaction.category}</p>
+                  {transaction.note && <small>{transaction.note}</small>}
+                </div>
+                <time dateTime={transaction.dateTime || transaction.date}>{formatActivityTime(transaction.dateTime)}</time>
+              </article>
+            ))}
           </div>
-        </article>
-      </div>
+        )}
+      </section>
 
-      <SmartInsightsSection insights={smartHomeInsights} />
-
-      <SmartReminderSection reminders={smartReminders} />
-
-      <FocusGoalsSection
-        savingsBuckets={savingsBuckets}
-        selectedPlan={selectedPlan}
-        plannerInput={plannerInput}
-        plannerTargetAmount={plannerTargetAmount}
-        plannerCurrentSavings={plannerCurrentSavings}
-        plannerTimeline={plannerTimeline}
-        recommendation={recommendation}
-        setActiveTab={setActiveTab}
-      />
-
-      {!lowEnergyMode && (
-        <div className="lifestyle-grid">
-          <SummaryCard title="Month summary" items={calmSummaries} />
-          <SummaryCard title="What changed" items={whatChangedInsights} />
-          <article className="summary-card">
-            <h2>Emergency cushion</h2>
-            <strong>{emergencyCushion.days} days</strong>
-            <p>{emergencyCushion.label}</p>
-          </article>
-        </div>
-      )}
-
-      <div className={`quick-grid ${lowEnergyMode ? 'low-energy-list' : ''}`}>
-        {insights.map((insight) => (
-          <article className={`insight-card ${insight.tone}`} key={insight.title}>
-            <CheckCircle2 size={18} />
-            <h3>{insight.title}</h3>
-            <p>{insight.detail}</p>
-          </article>
-        ))}
-      </div>
-
-      <div className="action-row">
-        <button className="action-button" type="button" onClick={() => setActiveTab('profile')}>
-          <Plus size={20} />
-          Add Expense
-        </button>
-        <button className="action-button" type="button" onClick={() => setActiveTab('planner')}>
-          <PiggyBank size={20} />
-          Check Comfort
-        </button>
-        <button className="action-button" type="button" onClick={downloadPdf} disabled={isExportingPdf}>
-          <Download size={20} />
-          {isExportingPdf ? 'Preparing Report' : 'Download Report'}
-        </button>
-      </div>
-      {pdfError && <p className="form-message">{pdfError}</p>}
-      <HomeTrustFooter />
-    </section>
-  )
-}
-
-function HomeTrustFooter() {
-  const footerLinks = [
-    { path: '/about', label: 'About Us' },
-    { path: '/contact', label: 'Contact Us' },
-    { path: '/privacy', label: 'Privacy Policy' },
-    { path: '/terms', label: 'Terms & Conditions' },
-    { path: '/disclaimer', label: 'Disclaimer' },
-  ]
-
-  return (
-    <footer className="home-footer" aria-label="FBPly information links">
-      <div className="home-trust-strip" aria-label="Privacy reminders">
-        <span>
-          <LockKeyhole size={13} />
-          Private by design
+      <article className={`today-insight-card ${insight.tone}`}>
+        <span className="soft-icon">
+          <Sparkles size={17} />
         </span>
-        <span>
-          <CheckCircle2 size={13} />
-          Real-time finance sync
-        </span>
-        <span>Secure local persistence</span>
-        <span>Your data stays yours</span>
-      </div>
-      <nav className="home-footer-links" aria-label="Footer links">
-        {footerLinks.map((link) => (
-          <a href={link.path} key={link.path}>
-            {link.label}
-          </a>
-        ))}
-      </nav>
-    </footer>
-  )
-}
-
-function FinancialHealthCard({ health }) {
-  const hasScore = health?.status !== 'insufficient' && Number.isFinite(Number(health?.score))
-  const score = hasScore ? Math.min(Math.max(Number(health.score), 0), 100) : null
-  const factors = health?.factors || []
-
-  return (
-    <article className={`health-score-card ${health?.tone || 'balanced'} ${hasScore ? '' : 'learning'}`}>
-      <div className="health-score-top">
-        <span>Financial Health</span>
-        <strong>{hasScore ? `${score}/100` : 'Learning'}</strong>
-      </div>
-      {hasScore ? (
-        <div className="health-score-bar" aria-label={`Financial health ${score} out of 100`}>
-          <span style={{ width: `${score}%` }} />
-        </div>
-      ) : (
-        <div className="health-score-empty" aria-label="Financial health score needs more activity">
-          <span />
-          <span />
-          <span />
-        </div>
-      )}
-      <p>{health?.message || 'Your money system will get clearer as entries build.'}</p>
-      {factors.length > 0 && (
-        <div className="health-factor-row">
-          {factors.map((factor) => (
-            <span key={factor.label}>
-              <small>{factor.label}</small>
-              <b>{factor.score}</b>
-            </span>
-          ))}
-        </div>
-      )}
-    </article>
-  )
-}
-
-function SmartInsightsSection({ insights = [] }) {
-  return (
-    <section className="smart-insights-section" aria-label="Smart Home insights">
-      <div className="section-heading-row smart-insights-heading">
         <div>
-          <p className="eyebrow">Smart insights</p>
-          <h2>Signals worth noticing</h2>
+          <p className="eyebrow">One insight</p>
+          <h2>{insight.title}</h2>
+          <p>{insight.detail}</p>
         </div>
-        <span className="insight-rotation-pill">
-          <Sparkles size={13} />
-          Rotates daily
-        </span>
+      </article>
+
+      <div className="today-habit-strip">
+        <span>{trackedDays > 0 ? `You tracked expenses for ${trackedDays} day${trackedDays === 1 ? '' : 's'}.` : 'Track today to build a simple money habit.'}</span>
+        <span>{rupees(safeToSpend.protectedAmount)} kept as safety savings.</span>
       </div>
-      <div className="smart-insight-row">
-        {insights.map((insight) => (
-          <article className={`smart-insight-card ${insight.tone}`} key={`${insight.kind}-${insight.title}`}>
-            <span>{insight.kicker}</span>
-            <h3>{insight.title}</h3>
-            <p>{insight.detail}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function SmartReminderSection({ reminders = [] }) {
-  const hasReminders = reminders.length > 0
-
-  return (
-    <section className="smart-reminder-section" aria-label="Smart reminders">
-      <div className="section-heading-row smart-reminder-heading">
-        <div>
-          <p className="eyebrow">Due now</p>
-          <h2>Smart reminders</h2>
-        </div>
-        <span className={`reminder-state-pill ${hasReminders ? 'active' : 'clear'}`}>
-          <Bell size={13} />
-          {hasReminders ? `${reminders.length} signal${reminders.length === 1 ? '' : 's'}` : 'All clear'}
-        </span>
-      </div>
-
-      {hasReminders ? (
-        <div className="smart-reminder-row">
-          {reminders.map((reminder) => (
-            <article
-              className={`smart-reminder-card ${reminder.tone || 'balanced'} ${reminder.severity || 'later'}`}
-              key={reminder.id}
-            >
-              <div>
-                <span>{reminder.source}</span>
-                <strong>{reminder.dueLabel}</strong>
-              </div>
-              <h3>{reminder.title}</h3>
-              <p>{reminder.detail}</p>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="smart-reminder-empty">
-          <CheckCircle2 size={16} />
-          <span>No urgent dues. Your finance engine is watching the important dates quietly.</span>
-        </div>
-      )}
-    </section>
-  )
-}
-
-function SummaryCard({ title, items }) {
-  return (
-    <article className="summary-card">
-      <h2>{title}</h2>
-      {items.slice(0, 3).map((item) => (
-        <p key={item}>{item}</p>
-      ))}
-    </article>
-  )
-}
-
-function FocusGoalsSection({
-  savingsBuckets,
-  selectedPlan,
-  plannerInput,
-  plannerTargetAmount,
-  plannerCurrentSavings,
-  plannerTimeline,
-  recommendation,
-  setActiveTab,
-}) {
-  const goals = useMemo(() => {
-    const timelineLabel = timelineOptions.find((option) => option.key === plannerTimeline)?.label || 'Flexible'
-    const plannerTarget = Number(plannerTargetAmount || 0)
-    const plannerSavings = Number(plannerCurrentSavings || 0)
-    const plannerProgress = plannerTarget > 0
-      ? Math.min(Math.round((Math.max(plannerSavings, 0) / plannerTarget) * 100), 100)
-      : 0
-    const plannerGoal = plannerTarget > 0
-      ? {
-          id: 'planner-active-goal',
-          type: 'Planner',
-          name: plannerInput?.trim() || `${selectedPlan} plan`,
-          detail: recommendation?.ownershipStatus || 'Purchase path ready',
-          savedLabel: `${rupees(Math.max(plannerSavings, 0))} ready`,
-          targetLabel: rupees(plannerTarget),
-          progress: plannerProgress,
-          deadline: timelineLabel,
-          tone: recommendation?.ownershipTone || 'balanced',
-        }
-      : null
-    const bucketGoals = savingsBuckets.map((bucket) => {
-      const saved = Number(bucket.saved || 0)
-      const target = Number(bucket.target || 0)
-      const progress = target > 0 ? Math.min(Math.round((saved / target) * 100), 100) : 0
-
-      return {
-        id: bucket.id,
-        type: 'Savings',
-        name: bucket.name || 'Savings goal',
-        detail: progress >= 100 ? 'Target reached' : progress >= 50 ? 'Building steadily' : 'Early progress',
-        savedLabel: `${rupees(saved)} saved`,
-        targetLabel: target > 0 ? rupees(target) : 'Set target',
-        progress,
-        deadline: '',
-        tone: progress >= 75 ? 'good' : progress >= 35 ? 'balanced' : 'warm',
-      }
-    })
-
-    return [...bucketGoals, ...(plannerGoal ? [plannerGoal] : [])].slice(0, 6)
-  }, [plannerCurrentSavings, plannerInput, plannerTargetAmount, plannerTimeline, recommendation, savingsBuckets, selectedPlan])
-
-  return (
-    <section className="focus-goals-section">
-      <div className="section-heading-row focus-goals-heading">
-        <div>
-          <p className="eyebrow">Current targets</p>
-          <h2>Your Active Goals</h2>
-        </div>
-        <button className="ghost-button small-button" type="button" onClick={() => setActiveTab('planner')}>
-          <Target size={16} />
-          Plan
-        </button>
-      </div>
-
-      {goals.length === 0 ? (
-        <button className="goal-empty-cta" type="button" onClick={() => setActiveTab('profile')}>
-          <span className="soft-icon">
-            <PiggyBank size={18} />
-          </span>
-          <span>
-            <strong>Start with one money goal.</strong>
-            <small>Add a savings bucket or plan a purchase to make Home feel personal.</small>
-          </span>
-        </button>
-      ) : (
-        <div className="focus-goals-row" aria-label="Active goals">
-          {goals.map((goal) => (
-            <article className={`focus-goal-card ${goal.tone}`} key={goal.id}>
-              <div className="focus-goal-top">
-                <span>{goal.type}</span>
-                <strong>{goal.progress}%</strong>
-              </div>
-              <h3>{goal.name}</h3>
-              <p>{goal.detail}</p>
-              <div className="focus-goal-progress" aria-label={`${goal.progress}% progress`}>
-                <span style={{ width: `${goal.progress}%` }} />
-              </div>
-              <div className="focus-goal-meta">
-                <small>{goal.savedLabel}</small>
-                <small>{goal.deadline ? `By ${goal.deadline}` : goal.targetLabel}</small>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
     </section>
   )
 }
@@ -3466,7 +3998,7 @@ function HistoryScreen({
   setSelectedMonthKey,
   monthOptions,
   onEditExpense,
-  setActiveTab,
+  openAddSheet,
 }) {
   const [moneyBookModalEntry, setMoneyBookModalEntry] = useState(null)
   const [expandedGroups, setExpandedGroups] = useState({})
@@ -3523,8 +4055,8 @@ function HistoryScreen({
     <section className="screen-content history-screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">History</p>
-          <h1>Every money move in one timeline.</h1>
+          <p className="eyebrow">Activity</p>
+          <h1>Your money timeline</h1>
         </div>
         <MonthSelector
           monthOptions={monthOptions}
@@ -3544,18 +4076,18 @@ function HistoryScreen({
       <CashflowStrip events={cashflowTimeline} />
 
       <section className="history-summary-grid" aria-label="Financial activity summary">
-        <HistorySummaryCard label="Incoming" value={summary.incoming} tone="incoming" />
-        <HistorySummaryCard label="Outgoing" value={summary.outgoing} tone="outgoing" />
-        <HistorySummaryCard label="Transfers" value={summary.transfers} tone="transfer" />
+        <HistorySummaryCard label="Earned" value={summary.incoming} tone="incoming" />
+        <HistorySummaryCard label="Spent" value={summary.outgoing} tone="outgoing" />
+        <HistorySummaryCard label="Shifted" value={summary.transfers} tone="transfer" />
       </section>
 
       <section className="history-feed" aria-label="Unified financial activity timeline">
         {!hasHistory ? (
           <EmptyState
-            title="Your money timeline will build itself"
-            detail="Add an expense from Profile, fund a goal, or split a shared cost and it will appear here automatically."
-            actionLabel="Add from Profile"
-            onAction={() => setActiveTab('profile')}
+            title="Start adding expenses"
+            detail="Add an expense, income, transfer, or udhar entry and it will appear here automatically."
+            actionLabel="Add expense"
+            onAction={() => openAddSheet('expense')}
             icon={CalendarDays}
           />
         ) : visibleGroups.map((group) => {
@@ -3628,10 +4160,10 @@ function CashflowStrip({ events = [] }) {
     return (
       <section className="cashflow-strip empty" aria-label="Monthly cashflow timeline">
         <div>
-          <p className="eyebrow">Cashflow</p>
-          <h2>Monthly flow strip</h2>
+          <p className="eyebrow">Money flow</p>
+          <h2>No money moves yet</h2>
         </div>
-        <span>No movements yet</span>
+        <span>Empty</span>
       </section>
     )
   }
@@ -3640,8 +4172,8 @@ function CashflowStrip({ events = [] }) {
     <section className="cashflow-strip" aria-label="Monthly cashflow timeline">
       <div className="cashflow-strip-header">
         <div>
-          <p className="eyebrow">Cashflow</p>
-          <h2>Where money moved this month</h2>
+          <p className="eyebrow">Money flow</p>
+          <h2>This month in short</h2>
         </div>
         <span>{events.length} flow{events.length === 1 ? '' : 's'}</span>
       </div>
@@ -3724,7 +4256,7 @@ function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete
           </span>
           <span>
             <strong>Track udhar without mental load.</strong>
-            <small>Add money given or taken. History and reports update automatically.</small>
+            <small>Add money given or taken. Activity and insights update automatically.</small>
           </span>
         </button>
       ) : (
@@ -4003,13 +4535,13 @@ function HistoryItem({ transaction, onEditExpense }) {
       <div className="history-item-main">
         <div>
           <strong>{transaction.title}</strong>
-          <span>{transaction.sourceModule}</span>
+          <span>{activityVerb(transaction)}</span>
         </div>
         <p>{transaction.category}{transaction.note ? ` - ${transaction.note}` : ''}</p>
       </div>
       <div className="history-item-amount">
         <strong>{amountPrefix}{rupees(transaction.amount)}</strong>
-        <span>{transaction.impactType}</span>
+        <span>{formatActivityTime(transaction.dateTime)}</span>
         {onEditExpense && (
           <button className="text-action-button history-edit-button" type="button" onClick={onEditExpense}>
             Edit
@@ -4454,31 +4986,20 @@ function PlannerScreen({
   removeSharedGroup,
 }) {
   return (
-    <section className="screen-content">
+    <section className="screen-content goals-screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">Planner</p>
-          <h1>Plan the purchase without monthly pressure.</h1>
+          <p className="eyebrow">Goals</p>
+          <h1>Buy safely, without monthly stress.</h1>
         </div>
       </div>
-
-      <SharedExpensesPanel
-        groups={sharedGroups}
-        profile={profile}
-        sharedSummary={sharedSummary}
-        addSharedGroup={addSharedGroup}
-        addSharedPayment={addSharedPayment}
-        markSharedSettlementReceived={markSharedSettlementReceived}
-        removeSharedGroup={removeSharedGroup}
-        variant="planner"
-      />
 
       <PlannerRealityCard financialState={financialState} />
 
       <div className="planner-section-title">
         <div>
-          <h2>Purchase type</h2>
-          <p>Each type uses its own downpayment, EMI, and ownership comfort rules.</p>
+          <h2>What are you planning?</h2>
+          <p>Pick a rough type. FBPly keeps the calculation behind the scenes.</p>
         </div>
       </div>
 
@@ -4511,7 +5032,7 @@ function PlannerScreen({
         </div>
         <div className="planner-field-grid">
           <CurrencyInput
-            label="Target Purchase Amount"
+            label="Price"
             id="planner-target-amount"
             ariaLabel="Target purchase amount"
             value={plannerTargetAmount}
@@ -4519,7 +5040,7 @@ function PlannerScreen({
             onChange={setPlannerTargetAmount}
           />
           <CurrencyInput
-            label="Current Savings Available"
+            label="Savings ready"
             id="planner-current-savings"
             ariaLabel="Current savings available"
             value={plannerCurrentSavings}
@@ -4528,7 +5049,7 @@ function PlannerScreen({
           />
         </div>
         <div>
-          <span className="input-label">Desired Timeline</span>
+          <span className="input-label">When do you want it?</span>
           <div className="timeline-control" aria-label="Desired timeline">
             {timelineOptions.map((option) => (
               <button
@@ -4548,25 +5069,36 @@ function PlannerScreen({
         recommendation={recommendation}
         financialState={financialState}
       />
+
+      <SharedExpensesPanel
+        groups={sharedGroups}
+        profile={profile}
+        sharedSummary={sharedSummary}
+        addSharedGroup={addSharedGroup}
+        addSharedPayment={addSharedPayment}
+        markSharedSettlementReceived={markSharedSettlementReceived}
+        removeSharedGroup={removeSharedGroup}
+        variant="planner"
+      />
     </section>
   )
 }
 
 function PlannerRealityCard({ financialState }) {
   const realityRows = [
-    { label: 'Monthly income', value: financialState.income },
-    { label: 'Fixed expenses', value: financialState.fixedExpensesTotal || 0 },
-    { label: 'Existing EMIs', value: financialState.emiAmount || 0 },
-    { label: 'Lifestyle spending', value: financialState.monthlyVariable || 0 },
-    { label: 'Remaining flexibility', value: financialState.flexibility || 0, highlight: true },
+    { label: 'Income', value: financialState.income },
+    { label: 'Fixed basics', value: financialState.fixedExpensesTotal || 0 },
+    { label: 'EMIs', value: financialState.emiAmount || 0 },
+    { label: 'Daily spends', value: financialState.monthlyVariable || 0 },
+    { label: 'Safe space left', value: financialState.flexibility || 0, highlight: true },
   ]
 
   return (
     <article className="planner-reality-card">
       <div className="planner-reality-heading">
         <div>
-          <span className="mini-label">Monthly reality first</span>
-          <h2>Your purchase plan starts from this space.</h2>
+          <span className="mini-label">Money status</span>
+          <h2>Can you afford this safely?</h2>
         </div>
         <span className={`simulation-pill ${financialState.pressureTone === 'slight-pressure' ? 'warm' : financialState.pressureTone}`}>
           {financialState.pressure}
@@ -4591,8 +5123,8 @@ function RecommendationPanel({ recommendation, financialState }) {
         <article className="planner-empty-card">
           <PiggyBank size={20} />
           <div>
-            <h2>Add a target amount to start planning.</h2>
-            <p>FBPly uses your income, commitments, savings preference, and timeline to estimate a safer path.</p>
+            <h2>Add a price to see a safe path.</h2>
+            <p>FBPly checks your income, fixed payments, savings style, and timeline quietly.</p>
           </div>
         </article>
       </section>
@@ -4620,24 +5152,24 @@ function RecommendationPanel({ recommendation, financialState }) {
         </div>
         <div className="finance-structure-grid">
           <div>
-            <span>Recommended downpayment</span>
+            <span>Suggested down payment</span>
             <strong>{recommendation.suggestedDownpaymentLabel}</strong>
-            <p>Stronger downpayment keeps the monthly payment lighter.</p>
+            <p>More upfront money keeps monthly pressure lower.</p>
           </div>
           <div>
-            <span>Likely finance amount</span>
+            <span>May need finance</span>
             <strong>{recommendation.financeRangeLabel}</strong>
-            <p>Based on the suggested downpayment band.</p>
+            <p>Based on the safer down payment range.</p>
           </div>
           <div>
-            <span>Low-stress EMI zone</span>
+            <span>Easy EMI zone</span>
             <strong>{recommendation.comfortableEmiLabel}</strong>
-            <p>After preserving breathing room and category costs.</p>
+            <p>After keeping some monthly safety space.</p>
           </div>
           <div>
-            <span>Selected path EMI</span>
+            <span>This plan EMI</span>
             <strong>{requiredEmiValue}</strong>
-            <p>Estimated using a conservative finance buffer.</p>
+            <p>Estimated with a cautious buffer.</p>
           </div>
         </div>
       </article>
@@ -4662,7 +5194,7 @@ function RecommendationPanel({ recommendation, financialState }) {
       <div className="guidance-grid">
         <article className="simulation-card">
           <div className="simulation-heading">
-            <h2>Ownership comfort simulation</h2>
+            <h2>How heavy it may feel</h2>
             <span className={`simulation-pill ${recommendation.ownershipTone}`}>
               {recommendation.ownershipStatus}
             </span>
@@ -4673,12 +5205,12 @@ function RecommendationPanel({ recommendation, financialState }) {
           <div className="pressure-list">
             <span>Monthly set-aside: {shortRupees(recommendation.monthlySetAside)}</span>
             <span>Downpayment gap: {shortRupees(recommendation.downpaymentGap)}</span>
-            <span>Flexibility after EMI: {shortRupees(recommendation.projectedFlexAfterEmi)}</span>
-            <span>Protected space after EMI: {shortRupees(recommendation.projectedBreathingAfterEmi)}</span>
+            <span>Safe space after EMI: {shortRupees(recommendation.projectedFlexAfterEmi)}</span>
+            <span>Safety savings after EMI: {shortRupees(recommendation.projectedBreathingAfterEmi)}</span>
           </div>
         </article>
         <article className="guidance-card">
-          <h2>Why this path is safer</h2>
+          <h2>Why this feels safer</h2>
           <p>{recommendation.categorySummary}</p>
           <div className="pressure-list">
             {recommendation.rationale.map((item) => (
@@ -4704,7 +5236,7 @@ function OwnershipPathCard({ title, path, highlight = false }) {
       </div>
       <div className="ownership-path-values">
         <div>
-          <span>Downpayment</span>
+          <span>Down payment</span>
           <strong>{shortRupees(path.projectedDownpayment)}</strong>
         </div>
         <div>
@@ -4712,11 +5244,11 @@ function OwnershipPathCard({ title, path, highlight = false }) {
           <strong>{shortRupees(path.financeNeeded)}</strong>
         </div>
         <div>
-          <span>EMI estimate</span>
+          <span>EMI idea</span>
           <strong>{path.financeNeeded === 0 ? 'None' : shortRupees(path.requiredEmi)}</strong>
         </div>
         <div>
-          <span>Monthly space after EMI</span>
+          <span>Space after EMI</span>
           <strong>{shortRupees(path.flexAfterEmi)}</strong>
         </div>
       </div>
@@ -5249,43 +5781,26 @@ function CurrencyInput({ label, value, onChange, placeholder = '0', id = slugify
   )
 }
 
-function ProgressRing({ value, compact = false }) {
-  const radius = compact ? 42 : 48
-  const circumference = 2 * Math.PI * radius
-  const offset = circumference - (value / 100) * circumference
-
-  return (
-    <div className={`progress-ring ${compact ? 'compact' : ''}`}>
-      <svg viewBox="0 0 120 120" role="img" aria-label={`${value}% income used`}>
-        <circle className="track" cx="60" cy="60" r={radius} />
-        <circle
-          className="indicator"
-          cx="60"
-          cy="60"
-          r={radius}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <div>
-        <strong>{value}%</strong>
-        <span>used</span>
-      </div>
-    </div>
-  )
-}
-
-function BottomNav({ activeTab, setActiveTab }) {
+function BottomNav({ activeTab, setActiveTab, openAddSheet }) {
   return (
     <nav className="bottom-nav" aria-label="Main navigation">
       {navItems.map((item) => {
         const Icon = item.icon
+        const isAdd = item.isAdd
         return (
           <button
-            className={activeTab === item.key ? 'active' : ''}
+            className={`${activeTab === item.key ? 'active' : ''} ${isAdd ? 'nav-add-button' : ''}`}
             key={item.key}
             type="button"
-            onClick={() => setActiveTab(item.key)}
+            aria-label={isAdd ? 'Add money entry' : item.label}
+            onClick={() => {
+              if (isAdd) {
+                openAddSheet('menu')
+                return
+              }
+
+              setActiveTab(item.key)
+            }}
           >
             <Icon size={20} />
             <span>{item.label}</span>
