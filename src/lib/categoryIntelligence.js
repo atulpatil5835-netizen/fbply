@@ -1,4 +1,5 @@
 import { FINANCE_CATEGORY_COLORS, getFinanceColor } from './financeColors.js'
+import { addMoney, normalizeMoney, sumMoney } from './money.js'
 
 const GENERIC_LABELS = new Set(['', 'custom', 'other', 'misc', 'miscellaneous', 'expense'])
 
@@ -166,8 +167,7 @@ const DIRECT_CATEGORY_MAP = new Map(
 )
 
 function safeAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 export function normalizeKey(value) {
@@ -303,16 +303,16 @@ export function aggregateExpenses(expenses = []) {
 
   records.forEach((record) => {
     const category = record.normalizedCategory || 'Other'
-    totals[category] = (totals[category] || 0) + record.amount
+    totals[category] = addMoney(totals[category] || 0, record.amount)
     counts[category] = (counts[category] || 0) + 1
-    confidenceTotals[record.normalizedConfidence] += record.amount
+    confidenceTotals[record.normalizedConfidence] = addMoney(confidenceTotals[record.normalizedConfidence], record.amount)
 
     if (!examples[category]) {
       examples[category] = record.category || record.note || category
     }
   })
 
-  const total = Object.values(totals).reduce((sum, value) => sum + value, 0)
+  const total = sumMoney(Object.values(totals))
   const categories = Object.entries(totals)
     .map(([category, value]) => ({
       category,

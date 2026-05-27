@@ -1,4 +1,12 @@
 import { aggregateExpenses, getCategoryTotal } from './categoryIntelligence.js'
+import {
+  addMoney,
+  formatRupees,
+  multiplyMoney,
+  normalizeMoney,
+  subtractMoney,
+  sumMoney,
+} from './money.js'
 
 const preferenceProfiles = {
   safe: {
@@ -135,29 +143,25 @@ const timelineProfiles = {
 }
 
 export function rupees(value) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(value) ? value : 0)
+  return formatRupees(value)
 }
 
 export function shortRupees(value) {
-  const amount = Number.isFinite(value) ? value : 0
-  return rupees(amount)
+  return rupees(value)
 }
 
 function roundToNearest(value, step = 500) {
-  return Math.max(Math.round(value / step) * step, 0)
+  const cleanStep = normalizeMoney(step) || 1
+  return normalizeMoney(Math.max(Math.round(normalizeMoney(value) / cleanStep) * cleanStep, 0))
 }
 
 function roundUpToNearest(value, step = 500) {
-  return Math.max(Math.ceil(value / step) * step, 0)
+  const cleanStep = normalizeMoney(step) || 1
+  return normalizeMoney(Math.max(Math.ceil(normalizeMoney(value) / cleanStep) * cleanStep, 0))
 }
 
 function safeNumber(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 function normalizeDueDay(value) {
@@ -190,7 +194,7 @@ export function normalizeCommitments(profile = {}) {
       .map((item, index) => ({
         id: item.id || `commitment-${index}`,
         name: String(item.name || item.label || 'Monthly commitment').trim() || 'Monthly commitment',
-        amount: Number(item.amount || 0),
+        amount: normalizeMoney(item.amount),
         dueDay: normalizeDueDay(item.dueDay || item.paymentDay),
         recurrence: item.recurrence || 'monthly',
       }))
@@ -201,7 +205,7 @@ export function normalizeCommitments(profile = {}) {
     .map((item, index) => ({
       id: item.key || `commitment-${index}`,
       name: String(item.name || item.label || 'Monthly commitment').trim() || 'Monthly commitment',
-      amount: Number(item.amount || 0),
+      amount: normalizeMoney(item.amount),
       dueDay: normalizeDueDay(item.dueDay || item.paymentDay),
       recurrence: item.recurrence || 'monthly',
     }))
@@ -209,7 +213,7 @@ export function normalizeCommitments(profile = {}) {
 }
 
 export function sumCommitments(commitments = []) {
-  return commitments.reduce((total, item) => total + Number(item.amount || 0), 0)
+  return sumMoney(commitments, (item) => item.amount)
 }
 
 export function sumFixedExpenses(fixedExpenses = []) {
@@ -217,25 +221,25 @@ export function sumFixedExpenses(fixedExpenses = []) {
 }
 
 export function monthExpenseTotal(expenses = []) {
-  return expenses.reduce((total, item) => total + Number(item.amount || 0), 0)
+  return sumMoney(expenses, (item) => item.amount)
 }
 
 function splitCommitments(profile = {}) {
   const commitments = normalizeCommitments(profile)
   const namedEmiTotal = commitments.reduce((total, item) => {
-    return isEmiLike(item.name) ? total + Number(item.amount || 0) : total
+    return isEmiLike(item.name) ? addMoney(total, item.amount) : total
   }, 0)
   const fixedWithoutEmi = commitments.reduce((total, item) => {
-    return isEmiLike(item.name) ? total : total + Number(item.amount || 0)
+    return isEmiLike(item.name) ? total : addMoney(total, item.amount)
   }, 0)
-  const legacyEmi = Number(profile.emi?.amount || 0)
+  const legacyEmi = normalizeMoney(profile.emi?.amount)
   const emiAmount = namedEmiTotal || legacyEmi
 
   return {
     commitments,
     emiAmount,
     fixedWithoutEmi,
-    fixedTotal: fixedWithoutEmi + emiAmount,
+    fixedTotal: addMoney(fixedWithoutEmi, emiAmount),
   }
 }
 
@@ -276,16 +280,16 @@ function pressureFrom({ usagePercent, emiLoad, flexibilityRatio }) {
 }
 
 export function calculateFinancialState(profile = {}, expenses = []) {
-  const income = Number(profile.income || 0)
+  const income = normalizeMoney(profile.income)
   const { commitments, emiAmount, fixedWithoutEmi, fixedTotal } = splitCommitments(profile)
   const monthlyVariable = monthExpenseTotal(expenses)
-  const committed = fixedTotal + monthlyVariable
-  const flexibility = Math.max(income - committed, 0)
+  const committed = addMoney(fixedTotal, monthlyVariable)
+  const flexibility = subtractMoney(income, committed)
   const usagePercent = income > 0 ? Math.min(Math.round((committed / income) * 100), 100) : 0
   const emiLoad = income > 0 ? Math.round((emiAmount / income) * 100) : 0
   const flexibilityRatio = income > 0 ? flexibility / income : 0
-  const reserveTarget = Math.round(income * getPreference(profile).reserveRatio)
-  const breathingRoom = Math.max(flexibility - reserveTarget, 0)
+  const reserveTarget = multiplyMoney(income, getPreference(profile).reserveRatio)
+  const breathingRoom = subtractMoney(flexibility, reserveTarget)
   const pressure = pressureFrom({ usagePercent, emiLoad, flexibilityRatio })
 
   return {
@@ -298,6 +302,8 @@ export function calculateFinancialState(profile = {}, expenses = []) {
     committed,
     flexibility,
     remainingFlexibility: flexibility,
+    safeToSpend: breathingRoom,
+    monthlyRemaining: breathingRoom,
     breathingRoom,
     reserveTarget,
     usagePercent,
@@ -313,15 +319,16 @@ export function buildInsights(state, expenses = []) {
   const shoppingTotal = getCategoryTotal(spending, 'Shopping')
   const shoppingRatio = state.income > 0 ? shoppingTotal / state.income : 0
   const hasEnoughSpendData = spending.count >= 3
+  const safeRoom = safeNumber(state.safeToSpend ?? state.breathingRoom)
 
   return [
     {
-      title: state.breathingRoom > 0 ? 'Breathing room protected' : 'Breathing room needs care',
+      title: safeRoom > 0 ? 'Safe room is protected' : 'Safe room needs care',
       detail:
-        state.breathingRoom > 0
-          ? 'You still have space after regular commitments and a savings buffer.'
+        safeRoom > 0
+          ? 'You still have space after regular commitments and safety savings.'
           : 'Your current commitments are already handling a lot, so lighter purchase choices may feel better.',
-      tone: state.breathingRoom > 0 ? 'good' : 'warm',
+      tone: safeRoom > 0 ? 'good' : 'warm',
     },
     {
       title: state.emiLoad > 24 ? 'EMI pressure needs space' : 'EMI pressure manageable',
@@ -334,20 +341,20 @@ export function buildInsights(state, expenses = []) {
     {
       title:
         shoppingTotal <= 0 && !hasEnoughSpendData
-          ? 'Discretionary pattern still forming'
+          ? 'Extra spending pattern is forming'
           : shoppingRatio > 0.08
-            ? 'Discretionary spend is noticeable'
-            : 'Discretionary spend looks calm',
+            ? 'Extra spending is noticeable'
+            : 'Extra spending looks calm',
       detail:
         shoppingTotal <= 0 && !hasEnoughSpendData
-          ? 'More entries will make non-essential spending patterns clearer.'
+          ? 'More entries will make optional spending patterns clearer.'
           : shoppingRatio > 0.08
           ? 'A short pause before non-urgent buys can keep the month more comfortable.'
           : 'Non-essential spending is staying gentle against income.',
       tone: shoppingRatio > 0.08 ? 'balanced' : 'good',
     },
     {
-      title: state.usagePercent < 70 ? 'Flexibility is steady' : 'Planning should stay light',
+      title: state.usagePercent < 70 ? 'Safe space is steady' : 'Planning should stay light',
       detail:
         state.usagePercent < 70
           ? 'The month has enough clarity for simple purchase planning.'
@@ -362,12 +369,12 @@ function estimateEmiForPrincipal(principal, tenureMonths, interestBuffer = 1.08)
     return 0
   }
 
-  return Math.round((principal * interestBuffer) / tenureMonths)
+  return normalizeMoney(Math.round(multiplyMoney(principal, interestBuffer) / tenureMonths))
 }
 
 function estimateOwnershipBuffer(config, targetAmount) {
   return roundToNearest(
-    Math.max(config.minOwnershipBuffer, targetAmount * config.ownershipBufferRatio),
+    Math.max(config.minOwnershipBuffer, multiplyMoney(targetAmount, config.ownershipBufferRatio)),
     100,
   )
 }
@@ -401,28 +408,28 @@ function calculatePlannerCapacity({ state, profile, config, targetAmount }) {
     baseFlexibility,
     roundToNearest(
       Math.max(
-        baseFlexibility * config.breathingKeepRatio,
-        state.income * config.minBreathingIncomeRatio,
+        multiplyMoney(baseFlexibility, config.breathingKeepRatio),
+        multiplyMoney(state.income, config.minBreathingIncomeRatio),
         config.minBreathingCash,
       ),
     ),
   )
   const ownershipBuffer = Math.min(
-    Math.max(baseFlexibility - breathingRoomToKeep, 0),
+    subtractMoney(baseFlexibility, breathingRoomToKeep),
     estimateOwnershipBuffer(config, targetAmount),
   )
-  const flexAfterProtection = Math.max(baseFlexibility - breathingRoomToKeep, 0)
+  const flexAfterProtection = subtractMoney(baseFlexibility, breathingRoomToKeep)
   const monthlySetAside = roundToNearest(
-    Math.min(baseFlexibility * preference.setAsideRatio, flexAfterProtection) * stressFactorForState(state),
+    multiplyMoney(Math.min(multiplyMoney(baseFlexibility, preference.setAsideRatio), flexAfterProtection), stressFactorForState(state)),
   )
-  const totalEmiRoomByIncome = Math.max(state.income * config.maxTotalEmiIncomeRatio - state.emiAmount, 0)
-  const newEmiIncomeCap = state.income * config.maxNewEmiIncomeRatio
-  const emiRoomByFlexibility = Math.max(baseFlexibility - breathingRoomToKeep - ownershipBuffer, 0)
+  const totalEmiRoomByIncome = subtractMoney(multiplyMoney(state.income, config.maxTotalEmiIncomeRatio), state.emiAmount)
+  const newEmiIncomeCap = multiplyMoney(state.income, config.maxNewEmiIncomeRatio)
+  const emiRoomByFlexibility = subtractMoney(baseFlexibility, breathingRoomToKeep, ownershipBuffer)
   const rawComfortableEmiMax = Math.min(totalEmiRoomByIncome, newEmiIncomeCap, emiRoomByFlexibility)
   const comfortableEmiMax = roundToNearest(
-    rawComfortableEmiMax * stressFactorForState(state) * preference.emiFactor,
+    multiplyMoney(multiplyMoney(rawComfortableEmiMax, stressFactorForState(state)), preference.emiFactor),
   )
-  const comfortableEmiMin = comfortableEmiMax >= 1500 ? roundToNearest(comfortableEmiMax * 0.62) : 0
+  const comfortableEmiMin = comfortableEmiMax >= 1500 ? roundToNearest(multiplyMoney(comfortableEmiMax, 0.62)) : 0
 
   return {
     breathingRoomToKeep,
@@ -453,7 +460,7 @@ function statusForPath({ emi, comfortableEmiMax, noNewEmi, downpayment, suggeste
     return { label: 'Balanced', tone: 'good' }
   }
 
-  if (emi <= comfortableEmiMax * 1.18) {
+  if (emi <= multiplyMoney(comfortableEmiMax, 1.18)) {
     return { label: 'Slight pressure', tone: 'balanced' }
   }
 
@@ -471,18 +478,15 @@ function buildOwnershipPath({
   suggestedDownpaymentMin,
   state,
 }) {
-  const projectedDownpayment = Math.min(targetAmount, currentSavings + monthlySetAside * months)
-  const financeNeeded = Math.max(targetAmount - projectedDownpayment, 0)
+  const projectedDownpayment = Math.min(targetAmount, addMoney(currentSavings, multiplyMoney(monthlySetAside, months)))
+  const financeNeeded = subtractMoney(targetAmount, projectedDownpayment)
   const requiredEmi = estimateEmiForPrincipal(financeNeeded, config.tenure, config.interestBuffer)
-  const flexAfterEmi = Math.max(state.flexibility - requiredEmi, 0)
-  const breathingAfterEmi = Math.max(
-    state.flexibility - requiredEmi - capacity.breathingRoomToKeep - capacity.ownershipBuffer,
-    0,
-  )
+  const flexAfterEmi = subtractMoney(state.flexibility, requiredEmi)
+  const breathingAfterEmi = subtractMoney(state.flexibility, requiredEmi, capacity.breathingRoomToKeep, capacity.ownershipBuffer)
   const usagePercent =
     state.income > 0
       ? Math.min(
-          Math.round(((state.committed + requiredEmi + capacity.ownershipBuffer) / state.income) * 100),
+          Math.round((addMoney(state.committed, requiredEmi, capacity.ownershipBuffer) / state.income) * 100),
           100,
         )
       : 0
@@ -614,14 +618,14 @@ export function buildRecommendation(
   const downpaymentStep = targetAmount >= 100000 ? 5000 : 1000
   const suggestedDownpaymentMin = Math.min(
     targetAmount,
-    roundUpToNearest(targetAmount * config.minDownpaymentRatio, downpaymentStep),
+    roundUpToNearest(multiplyMoney(targetAmount, config.minDownpaymentRatio), downpaymentStep),
   )
   const suggestedDownpaymentMax = Math.min(
     targetAmount,
-    roundUpToNearest(targetAmount * config.idealDownpaymentRatio, downpaymentStep),
+    roundUpToNearest(multiplyMoney(targetAmount, config.idealDownpaymentRatio), downpaymentStep),
   )
-  const financeRangeMin = Math.max(targetAmount - suggestedDownpaymentMax, 0)
-  const financeRangeMax = Math.max(targetAmount - suggestedDownpaymentMin, 0)
+  const financeRangeMin = subtractMoney(targetAmount, suggestedDownpaymentMax)
+  const financeRangeMax = subtractMoney(targetAmount, suggestedDownpaymentMin)
   const capacity = calculatePlannerCapacity({ state, profile, config, targetAmount })
   const saferMonth = findSaferOwnershipMonth({
     targetAmount,
@@ -655,8 +659,8 @@ export function buildRecommendation(
     suggestedDownpaymentMin,
     state,
   })
-  const savingsGrowth = capacity.monthlySetAside * selectedMonths
-  const downpaymentGap = Math.max(suggestedDownpaymentMin - selectedPath.projectedDownpayment, 0)
+  const savingsGrowth = multiplyMoney(capacity.monthlySetAside, selectedMonths)
+  const downpaymentGap = subtractMoney(suggestedDownpaymentMin, selectedPath.projectedDownpayment)
   const downpaymentCoveragePercent = targetAmount > 0 ? Math.round((selectedPath.projectedDownpayment / targetAmount) * 100) : 0
   const comfortRangeLabel = capacity.noNewEmi
     ? 'Avoid new EMI'

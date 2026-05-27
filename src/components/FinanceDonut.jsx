@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
+import { normalizeMoney, sumMoney } from '../lib/money'
 
 const EMPTY_ENTRIES = []
 
 function buildConicGradient(entries) {
-  const total = entries.reduce((sum, entry) => sum + Number(entry.value || 0), 0)
+  const total = sumMoney(entries, (entry) => entry.value)
   let cursor = 0
 
   if (total <= 0) {
@@ -11,8 +12,9 @@ function buildConicGradient(entries) {
   }
 
   const stops = entries.flatMap((entry) => {
+    const value = normalizeMoney(entry.value)
     const start = cursor
-    const end = cursor + (Number(entry.value || 0) / total) * 360
+    const end = cursor + (value / total) * 360
     const separatorStart = Math.max(end - 0.8, start)
     cursor = end
 
@@ -32,7 +34,7 @@ function buildConicGradient(entries) {
 export default function FinanceDonut({ chart, action = null }) {
   const chartEntries = chart?.entries || EMPTY_ENTRIES
   const entries = useMemo(
-    () => chartEntries.filter((entry) => Number(entry.value || 0) > 0),
+    () => chartEntries.filter((entry) => normalizeMoney(entry.value) > 0),
     [chartEntries],
   )
   const gradient = useMemo(() => buildConicGradient(entries), [entries])

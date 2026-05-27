@@ -1,4 +1,5 @@
 import { buildAdvancedReport } from './reportInsights.js'
+import { normalizeMoney, sumMoney } from './money.js'
 
 const PAGE = {
   width: 210,
@@ -36,12 +37,17 @@ const CHART_COLORS = [
 ]
 
 function safeAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 function formatIndian(value) {
-  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(safeAmount(value))
+  const amount = safeAmount(value)
+  const fractionDigits = Number.isInteger(amount) ? 0 : 2
+
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(amount)
 }
 
 function formatMoney(value) {
@@ -213,13 +219,14 @@ function monthlyFeeling(financialState = {}) {
 }
 
 function buildMetricCards(report, financialState, savingsBuckets = []) {
-  const saved = savingsBuckets.reduce((total, bucket) => total + safeAmount(bucket.saved), 0)
-  const target = savingsBuckets.reduce((total, bucket) => total + safeAmount(bucket.target), 0)
+  const saved = sumMoney(savingsBuckets, (bucket) => bucket.saved)
+  const target = sumMoney(savingsBuckets, (bucket) => bucket.target)
   const savingsRhythm = report.snapshot?.find((item) => item.label === 'Savings consistency')?.value || (saved > 0 ? 'Forming' : 'Early')
+  const safeRoom = safeAmount(financialState.safeToSpend ?? financialState.breathingRoom)
 
   return [
     {
-      label: 'Financial Balance',
+      label: 'Money Status',
       value: financialState.comfort || 'Balanced Month',
       detail: financialState.pressure || 'Moderate',
       tone: COLORS.blue,
@@ -228,21 +235,21 @@ function buildMetricCards(report, financialState, savingsBuckets = []) {
     {
       label: 'Spending Comfort',
       value: `${financialState.usagePercent || 0}% used`,
-      detail: 'Income allocated this month',
+      detail: 'Income used this month',
       tone: COLORS.cyan,
       fill: [224, 242, 254],
     },
     {
-      label: 'Breathing Room',
-      value: formatMoney(financialState.breathingRoom || 0),
-      detail: 'After protected buffer',
+      label: 'Safe To Spend',
+      value: formatMoney(safeRoom),
+      detail: 'After safety savings',
       tone: COLORS.green,
       fill: COLORS.greenSoft,
     },
     {
       label: 'Savings Rhythm',
       value: savingsRhythm,
-      detail: target > 0 ? `${Math.round((saved / target) * 100)}% bucket progress` : 'No bucket target yet',
+      detail: target > 0 ? `${Math.round((saved / target) * 100)}% goal progress` : 'No savings goal yet',
       tone: COLORS.orange,
       fill: COLORS.orangeSoft,
     },
@@ -334,7 +341,7 @@ function drawUsageRing(doc, x, y, percent, label, value, color = COLORS.cyan) {
 }
 
 function drawDonut(doc, x, y, items, totalLabel) {
-  const total = items.reduce((sum, item) => sum + safeAmount(item.value), 0)
+  const total = sumMoney(items, (item) => item.value)
   const radius = 24
   const cx = x + radius
   const cy = y + radius
@@ -453,8 +460,8 @@ function drawMetricCard(doc, x, y, width, height, metric) {
 }
 
 function drawHealthSummary(doc, y, metrics) {
-  y = addPageIfNeeded(doc, y, 74, 'Financial Health Summary')
-  drawSectionLabel(doc, 'Financial Health Summary', y)
+  y = addPageIfNeeded(doc, y, 74, 'Money Status Summary')
+  drawSectionLabel(doc, 'Money Status Summary', y)
   y += 9
 
   const gap = 5
@@ -491,14 +498,14 @@ function drawSectionLabel(doc, title, y, subtitle = '') {
 }
 
 function drawVisualStory(doc, y, { financialState, mixItems }) {
-  y = addPageIfNeeded(doc, y, 76, 'Financial Visuals')
+  y = addPageIfNeeded(doc, y, 76, 'Money Visuals')
   const cardWidth = (PAGE.width - PAGE.margin * 2 - 7) / 2
 
   drawRoundedCard(doc, PAGE.margin, y, cardWidth, 70, { fill: COLORS.white })
   setText(doc, COLORS.navy)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  doc.text('Financial balance', PAGE.margin + 6, y + 9)
+  doc.text('Money status', PAGE.margin + 6, y + 9)
   drawUsageRing(doc, PAGE.margin + 9, y + 19, financialState.usagePercent || 0, 'used', `${financialState.usagePercent || 0}%`, COLORS.cyan)
   drawTextBlock(doc, 'Lower usage leaves more room for future choices.', PAGE.margin + 50, y + 25, cardWidth - 57, {
     maxLines: 5,
@@ -511,7 +518,7 @@ function drawVisualStory(doc, y, { financialState, mixItems }) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.text('Spending mix', x2 + 6, y + 9)
-  const total = mixItems.reduce((sum, item) => sum + item.value, 0)
+  const total = sumMoney(mixItems, (item) => item.value)
   drawDonut(doc, x2 + 7, y + 17, mixItems, formatMoney(total))
   const legendX = x2 + 60
   mixItems.slice(0, 4).forEach((item, index) => {
@@ -558,7 +565,7 @@ function drawSpendingBalance(doc, y, mixItems, financialState) {
   y = addPageIfNeeded(doc, y, 80, 'Spending Balance')
   y = drawSectionLabel(doc, 'Spending Balance', y, 'A compact view of what shaped the month.')
 
-  const total = Math.max(mixItems.reduce((sum, item) => sum + item.value, 0), 1)
+  const total = Math.max(sumMoney(mixItems, (item) => item.value), 1)
   mixItems.slice(0, 6).forEach((item, index) => {
     const rowY = y + index * 12
     const share = item.value / total
@@ -712,8 +719,8 @@ function drawPurchaseReadiness(doc, y, report, recommendation) {
   const readinessCards = [
     {
       label: 'Financing comfort',
-      value: recommendation?.comfortableEmiLabel || purchaseItems[1]?.title || 'Use Planner',
-      detail: purchaseItems[1]?.detail || 'Add a target purchase in Planner to estimate a safer EMI path.',
+      value: recommendation?.comfortableEmiLabel || purchaseItems[1]?.title || 'Use Goals',
+      detail: purchaseItems[1]?.detail || 'Add a target purchase in Goals to estimate a safer EMI path.',
       fill: COLORS.blueSoft,
       tone: COLORS.blue,
     },
@@ -770,7 +777,7 @@ function drawClosingReflection(doc, y, report) {
   setText(doc, COLORS.muted)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
-  doc.text('This report uses saved income, commitments, expense entries, planner state, and savings buckets only.', PAGE.margin, PAGE.height - 9)
+  doc.text('This report uses saved income, commitments, expense entries, planner state, and savings goals only.', PAGE.margin, PAGE.height - 9)
 
   return y + 50
 }
@@ -805,7 +812,7 @@ export async function createMonthlyReportPdfBlob({
 
   drawCoverPage(doc, { profile, report, financialState })
 
-  let y = addPage(doc, 'Financial Health Summary')
+  let y = addPage(doc, 'Money Status Summary')
   y = drawHealthSummary(doc, y, metrics)
   y = drawVisualStory(doc, y, { financialState, mixItems })
   drawInsightCards(doc, y, 'What Shaped The Month', [

@@ -1,11 +1,11 @@
 import { aggregateExpenses, getCategoryTotal } from './categoryIntelligence.js'
+import { addMoney, normalizeMoney, sumMoney } from './money.js'
 import { rupees } from './ruleEngine.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
 function safeAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 function clamp(value, min = 0, max = 100) {
@@ -35,7 +35,7 @@ function entriesInWindow(expenses, now, startDay, endDay) {
 }
 
 function sumExpenses(expenses) {
-  return expenses.reduce((total, expense) => total + safeAmount(expense.amount), 0)
+  return sumMoney(expenses, (expense) => expense.amount)
 }
 
 function percentChange(current, previous) {
@@ -78,7 +78,7 @@ function buildWeekendInsight(expenses, now) {
 
   recentEntries.forEach((expense) => {
     const key = startOfDay(parseExpenseDate(expense, now)).toISOString().slice(0, 10)
-    totalsByDate.set(key, safeAmount(totalsByDate.get(key)) + safeAmount(expense.amount))
+    totalsByDate.set(key, addMoney(totalsByDate.get(key) || 0, expense.amount))
   })
 
   if (recentEntries.length < 4) {
@@ -99,10 +99,10 @@ function buildWeekendInsight(expenses, now) {
     const isWeekend = date.getDay() === 0 || date.getDay() === 6
 
     if (isWeekend) {
-      weekendTotal += total
+      weekendTotal = addMoney(weekendTotal, total)
       weekendDays += 1
     } else {
-      weekdayTotal += total
+      weekdayTotal = addMoney(weekdayTotal, total)
       weekdayDays += 1
     }
   }
@@ -247,7 +247,7 @@ export function buildSmartHomeInsights({
       kind: 'goal',
       kicker: 'Next habit',
       title: 'One small goal will sharpen Home',
-      detail: 'Add a savings bucket when you want progress and reminders to feel more personal.',
+      detail: 'Add a savings goal when you want progress and reminders to feel more personal.',
       tone: 'balanced',
       priority: 52,
     })
@@ -258,12 +258,14 @@ export function buildSmartHomeInsights({
     candidates.push(weekendInsight)
   }
 
-  if (safeAmount(financialState.breathingRoom) > 0) {
+  const safeRoom = safeAmount(financialState.safeToSpend ?? financialState.breathingRoom)
+
+  if (safeRoom > 0) {
     candidates.push({
       kind: 'control',
       kicker: 'Control',
-      title: 'You are protecting breathing room',
-      detail: `${rupees(financialState.breathingRoom)} remains after the protected buffer.`,
+      title: 'You still have safe spending room',
+      detail: `${rupees(safeRoom)} remains after safety savings.`,
       tone: 'good',
       priority: 82,
     })
@@ -310,17 +312,17 @@ export function buildFinancialHealthScore({
       target: safeAmount(bucket.target),
     }))
     .filter((bucket) => bucket.target > 0)
-  const bucketSaved = bucketGoals.reduce((total, goal) => total + goal.saved, 0)
-  const bucketTarget = bucketGoals.reduce((total, goal) => total + goal.target, 0)
+  const bucketSaved = sumMoney(bucketGoals, (goal) => goal.saved)
+  const bucketTarget = sumMoney(bucketGoals, (goal) => goal.target)
   const plannerTarget = safeAmount(recommendation?.targetAmount)
   const plannerSaved = safeAmount(recommendation?.currentSavings)
   const usagePercent = Number(financialState.usagePercent)
-  const breathingRoom = safeAmount(financialState.breathingRoom)
+  const breathingRoom = safeAmount(financialState.safeToSpend ?? financialState.breathingRoom)
   const topShare = spending.categories[0]?.share || 0
   const diversityScore = spending.categories.length > 0 ? Math.min((spending.categories.length / 4) * 100, 100) : 0
   const pendingReceivable = safeAmount(moneyBookSummary.needToReceive)
   const pendingPayable = safeAmount(moneyBookSummary.needToPay)
-  const pendingDebt = pendingReceivable + pendingPayable
+  const pendingDebt = addMoney(pendingReceivable, pendingPayable)
   const settledThisMonth = safeAmount(moneyBookSummary.settledThisMonth)
   const moneyBookActivity = pendingDebt > 0 ||
     settledThisMonth > 0 ||

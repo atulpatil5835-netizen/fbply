@@ -1,10 +1,10 @@
 import { aggregateExpenses, categoryColor, normalizeSpendCategory } from './categoryIntelligence.js'
 import { getFinanceColor, getFinanceMatteColor } from './financeColors.js'
+import { addMoney, normalizeMoney, subtractMoney, sumMoney } from './money.js'
 import { normalizeCommitments, shortRupees } from './ruleEngine.js'
 
 function safeAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 function groupedEntriesFromTotals(totals = {}, { matte = false } = {}) {
@@ -29,14 +29,14 @@ export function buildFixedExpenseDistribution(profile = {}) {
       note: commitment.name,
     })
     const category = normalized.category === 'Other' ? 'Recurring' : normalized.category
-    totals[category] = (totals[category] || 0) + safeAmount(commitment.amount)
+    totals[category] = addMoney(totals[category] || 0, commitment.amount)
   })
 
   const entries = groupedEntriesFromTotals(totals, { matte: true })
-  const total = entries.reduce((sum, entry) => sum + entry.value, 0)
+  const total = sumMoney(entries, (entry) => entry.value)
 
   return {
-    title: 'Fixed Expense Distribution',
+    title: 'Fixed payments',
     subtitle: 'Regular payments that shape the month.',
     entries,
     total,
@@ -47,33 +47,31 @@ export function buildFixedExpenseDistribution(profile = {}) {
 
 export function buildFlexibleSpendingDistribution(expenses = [], financialState = {}) {
   const spending = aggregateExpenses(expenses)
-  const availableAfterFixed = Math.max(
-    safeAmount(financialState.income) - safeAmount(financialState.fixedTotal),
-    0,
-  )
+  const availableAfterFixed = subtractMoney(financialState.income, financialState.fixedTotal)
   const trackedFlexible = spending.total
-  const openFlexibleSpace = Math.max(availableAfterFixed - trackedFlexible, 0)
+  const openFlexibleSpace = safeAmount(financialState.safeToSpend ?? financialState.breathingRoom ?? subtractMoney(availableAfterFixed, trackedFlexible))
+  const totalSpace = addMoney(trackedFlexible, openFlexibleSpace)
   const entries = spending.categories.map((entry) => ({
     name: entry.name,
-    value: entry.value,
+    value: safeAmount(entry.value),
     color: entry.color,
   }))
 
   if (openFlexibleSpace > 0) {
     entries.push({
-      name: 'Open flexible space',
+      name: 'Safe room left',
       value: openFlexibleSpace,
       color: getFinanceColor('Other'),
     })
   }
 
   return {
-    title: 'Flexible Spending Distribution',
-    subtitle: 'Tracked spending inside the space left after fixed expenses.',
+    title: 'Daily spending space',
+    subtitle: 'Tracked spending plus what still looks safe.',
     entries,
-    total: availableAfterFixed,
+    total: totalSpace,
     spent: trackedFlexible,
-    totalLabel: shortRupees(availableAfterFixed),
+    totalLabel: shortRupees(totalSpace),
   }
 }
 
@@ -87,16 +85,16 @@ export function getGreeting(name = '') {
 
 export function getProfileBalanceMessage(financialState = {}) {
   if (financialState.pressureTone === 'slight-pressure') {
-    return 'Your financial balance is carrying a lot this month. Keeping new commitments light may help.'
+    return 'This month is carrying a lot. Keeping new commitments light may help.'
   }
 
   if (financialState.pressureTone === 'warm') {
-    return 'Your financial balance looks manageable, with a little care around new spending.'
+    return 'This month looks manageable, with a little care around new spending.'
   }
 
   if (financialState.pressureTone === 'comfortable') {
-    return 'Your financial balance looks stable this month.'
+    return 'Your money looks stable this month.'
   }
 
-  return 'Your financial balance looks steady with room for careful planning.'
+  return 'Your money looks steady with room for careful planning.'
 }

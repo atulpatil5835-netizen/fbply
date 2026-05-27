@@ -1,9 +1,9 @@
 import { aggregateExpenses, getCategoryTotal } from './categoryIntelligence.js'
+import { addMoney, normalizeMoney, sumMoney } from './money.js'
 import { rupees, shortRupees } from './ruleEngine.js'
 
 function safeAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 function getTopBreakdown(expenseBreakdown = []) {
@@ -41,7 +41,7 @@ function weekendTotal(spending) {
     }
 
     const day = date.getDay()
-    return day === 0 || day === 6 ? total + safeAmount(expense.amount) : total
+    return day === 0 || day === 6 ? addMoney(total, expense.amount) : total
   }, 0)
 }
 
@@ -49,15 +49,15 @@ function recurringTotal(profile = {}, spending) {
   const commitments = Array.isArray(profile.commitments) ? profile.commitments : profile.fixedExpenses || []
   const subscriptions = getCategoryTotal(spending, 'Subscription')
 
-  return commitments.reduce((total, item) => total + safeAmount(item.amount), subscriptions)
+  return commitments.reduce((total, item) => addMoney(total, item.amount), subscriptions)
 }
 
 function savingsBucketTotal(buckets = []) {
-  return buckets.reduce((total, bucket) => total + safeAmount(bucket.saved), 0)
+  return sumMoney(buckets, (bucket) => bucket.saved)
 }
 
 function savingsBucketTarget(buckets = []) {
-  return buckets.reduce((total, bucket) => total + safeAmount(bucket.target), 0)
+  return sumMoney(buckets, (bucket) => bucket.target)
 }
 
 function savingsConsistency(financialState, savingsBuckets = []) {
@@ -66,7 +66,7 @@ function savingsConsistency(financialState, savingsBuckets = []) {
   const progress = target > 0 ? Math.round((saved / target) * 100) : 0
 
   if (target <= 0 && saved <= 0) {
-    return 'No bucket yet'
+    return 'No goal yet'
   }
 
   if (target <= 0) {
@@ -173,7 +173,7 @@ function buildTimeline(spending) {
       return
     }
 
-    byDate.set(date, (byDate.get(date) || 0) + safeAmount(expense.amount))
+    byDate.set(date, addMoney(byDate.get(date) || 0, expense.amount))
   })
 
   return Array.from(byDate.entries())
@@ -199,7 +199,7 @@ function customMappingInsight(spending) {
     )
   }
 
-  const amount = lowConfidenceRecords.reduce((total, item) => total + safeAmount(item.amount), 0)
+  const amount = sumMoney(lowConfidenceRecords, (item) => item.amount)
 
   return insight(
     'Some custom entries are kept broad',
@@ -303,7 +303,7 @@ export function buildAdvancedReport({
   const topItem = getTopBreakdown(expenseBreakdown)
   const topTracked = spending.categories[0]
   const totalSpending = safeAmount(financialState.committed)
-  const foodAndGrocery = getCategoryTotal(spending, 'Food') + getCategoryTotal(spending, 'Grocery')
+  const foodAndGrocery = addMoney(getCategoryTotal(spending, 'Food'), getCategoryTotal(spending, 'Grocery'))
   const travel = getCategoryTotal(spending, 'Travel')
   const shopping = getCategoryTotal(spending, 'Shopping')
   const weekend = weekendTotal(spending)
@@ -311,18 +311,19 @@ export function buildAdvancedReport({
   const saved = savingsBucketTotal(savingsBuckets)
   const target = savingsBucketTarget(savingsBuckets)
   const savingsProgress = target > 0 ? Math.round((saved / target) * 100) : 0
+  const safeRoom = safeAmount(financialState.safeToSpend ?? financialState.breathingRoom)
   const timeline = buildTimeline(spending)
   const snapshot = [
     { label: 'Income', value: shortRupees(safeAmount(financialState.income)), detail: 'Monthly base' },
     { label: 'Total spending', value: shortRupees(totalSpending), detail: `${financialState.usagePercent || 0}% of income used` },
     { label: 'EMI load', value: `${financialState.emiLoad || 0}%`, detail: rupees(safeAmount(financialState.emiAmount)) },
-    { label: 'Remaining flexibility', value: shortRupees(safeAmount(financialState.flexibility)), detail: 'Before future purchases' },
+    { label: 'Safe to spend', value: shortRupees(safeRoom), detail: 'After safety savings' },
     {
       label: 'Insight confidence',
       value: confidenceLabel(spending.dataConfidence),
       detail: `${spending.count} tracked entr${spending.count === 1 ? 'y' : 'ies'}`,
     },
-    { label: 'Savings consistency', value: savingsConsistency(financialState, savingsBuckets), detail: `${savingsProgress}% bucket progress` },
+    { label: 'Savings consistency', value: savingsConsistency(financialState, savingsBuckets), detail: `${savingsProgress}% goal progress` },
     ...(sharedSummary?.activeGroups
       ? [{
           label: 'Shared impact',
@@ -378,10 +379,10 @@ export function buildAdvancedReport({
   const pressureAnalysis = [
     insight(financialState.pressure || 'Balanced', pressureReading(financialState), 'high'),
     insight(
-      'Breathing room',
-      financialState.breathingRoom > 0
-        ? `${rupees(financialState.breathingRoom)} remains after the protected buffer.`
-        : 'Protected breathing room is close to fully used, so waiting may feel better.',
+      'Safe spending room',
+      safeRoom > 0
+        ? `${rupees(safeRoom)} remains after safety savings.`
+        : 'Safe spending room is close to fully used, so waiting may feel better.',
       'high',
     ),
     insight('Existing commitments', `Regular commitments and lifestyle spending total ${rupees(totalSpending)}.`, 'high'),
@@ -399,7 +400,7 @@ export function buildAdvancedReport({
       'Financing comfort',
       recommendation
         ? `Current low-stress EMI guidance: ${recommendation.comfortableEmiLabel}.`
-        : 'Use Planner with a target amount to estimate a comfortable EMI path.',
+        : 'Use Goals with a target amount to estimate a comfortable EMI path.',
       recommendation ? 'moderate' : 'low',
     ),
     insight(
@@ -426,8 +427,8 @@ export function buildAdvancedReport({
       'high',
     ),
     saved > 0
-      ? insight('Savings buckets are building', `Buckets hold around ${rupees(saved)} so far.`, 'high')
-      : insight('Savings bucket visibility is early', 'No bucket savings are recorded yet. Adding one bucket can make purchase planning clearer.', 'low'),
+      ? insight('Savings goals are building', `Goals hold around ${rupees(saved)} so far.`, 'high')
+      : insight('Savings goal visibility is early', 'No goal savings are recorded yet. Adding one goal can make purchase planning clearer.', 'low'),
     travel > 0
       ? insight('Travel mapping is active', `Travel includes fuel and commute-like labels, currently totaling ${rupees(travel)}.`, 'high')
       : insight('Travel mapping is ready', 'Fuel, petrol, cab, train, bus, flight, and hotel labels will be included when they appear.', 'low'),

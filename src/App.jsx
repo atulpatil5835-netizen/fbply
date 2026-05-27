@@ -62,6 +62,7 @@ import {
   buildSmartReminders,
 } from './lib/financeIntelligence'
 import { getFinanceColor } from './lib/financeColors'
+import { addMoney, normalizeMoney, sumMoney } from './lib/money'
 import {
   createSharedPayment,
   displayPersonName,
@@ -147,7 +148,7 @@ const legalPages = {
       {
         title: 'Data FBPly Uses',
         body: [
-          'FBPly uses the information you enter, such as income, expenses, commitments, savings buckets, shared expenses, planner inputs, and reviewed statement data.',
+          'FBPly uses the information you enter, such as income, expenses, commitments, savings goals, shared expenses, planner inputs, and reviewed statement data.',
           'Demo or sample entries are treated as user-controlled local data and can be edited or removed at any time.',
         ],
       },
@@ -197,7 +198,7 @@ const legalPages = {
         title: 'No Professional Advice',
         body: [
           'FBPly is not a bank, financial institution, investment advisor, tax advisor, or legal advisor.',
-          'Reports, planner outputs, comfort labels, and statement summaries are estimates based on provided or detected data. They are not professional advice.',
+          'Insights, planner outputs, comfort labels, and statement summaries are estimates based on provided or detected data. They are not professional advice.',
         ],
       },
       {
@@ -325,7 +326,7 @@ function createCommitment(name = 'New commitment', amount = 0) {
   }
 }
 
-function createBucket(name = 'New bucket', saved = 0, target = 10000) {
+function createBucket(name = 'New goal', saved = 0, target = 10000) {
   return {
     id: `bucket-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name,
@@ -392,10 +393,10 @@ function normalizeMoneyBookEntries(entries = []) {
         id: entry.id || `money-book-${date}-${index}`,
         kind,
         person: String(entry.person || entry.name || '').trim(),
-        amount: Number(entry.amount || 0),
+        amount: normalizeMoney(entry.amount),
         date,
         note: String(entry.note || '').trim(),
-        interest: Number(entry.interest || entry.vyaj || 0),
+        interest: normalizeMoney(entry.interest || entry.vyaj),
         status,
         dueDate: /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : '',
         createdAt: entry.createdAt || `${date}T12:00:00`,
@@ -414,10 +415,10 @@ function createMoneyBookEntry(entry) {
     id: entry.id || `money-book-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     kind: entry.kind === 'taken' ? 'taken' : 'given',
     person: String(entry.person || '').trim(),
-    amount: Number(entry.amount || 0),
+    amount: normalizeMoney(entry.amount),
     date,
     note: String(entry.note || '').trim(),
-    interest: Number(entry.interest || 0),
+    interest: normalizeMoney(entry.interest),
     status: entry.status === 'settled' ? 'settled' : 'pending',
     dueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(entry.dueDate || '').slice(0, 10))
       ? String(entry.dueDate).slice(0, 10)
@@ -491,7 +492,7 @@ function createSharedGroup({ name, amount, paidBy, people, profile }) {
   const id = `shared-${Date.now()}-${Math.random().toString(16).slice(2)}`
   const currentUserName = resolveCurrentUserName(profile)
   const members = uniqueSharedPeople([currentUserName, ...(people || [])])
-  const initialAmount = Number(amount || 0)
+  const initialAmount = normalizeMoney(amount)
   const initialPaidBy = String(paidBy || currentUserName).trim()
   const payments = initialAmount > 0
     ? [createSharedPayment({
@@ -531,7 +532,7 @@ function buildQuickExpenseChips(expenses, voiceMemory) {
       label,
       category: current.category || label,
       count: current.count + 1,
-      amount: Number(expense.amount || current.amount || 0),
+      amount: normalizeMoney(expense.amount || current.amount),
     })
     return map
   }, new Map())
@@ -552,7 +553,7 @@ function buildQuickExpenseChips(expenses, voiceMemory) {
       ...current,
       category: item.category || current.category,
       count: current.count + Number(item.count || 0),
-      amount: Number(item.amount || current.amount || 0),
+      amount: normalizeMoney(item.amount || current.amount),
     })
   })
 
@@ -576,14 +577,17 @@ function buildQuickExpenseChips(expenses, voiceMemory) {
 }
 
 function buildSafeToSpend(state) {
-  const protectedAmount = state.reserveTarget
-  const comfortablyUsable = Math.max(Math.round((state.flexibility - protectedAmount) * 0.5), 0)
+  const protectedAmount = normalizeMoney(state.reserveTarget)
+  const comfortablyUsable = normalizeMoney(state.safeToSpend ?? state.breathingRoom)
   const flexibilityLevel =
     state.pressureTone === 'comfortable' ? 'Open' : state.pressureTone === 'balanced' ? 'Steady' : 'Careful'
 
   return {
+    amount: comfortablyUsable,
     comfortablyUsable,
     protectedAmount,
+    monthlyRemaining: comfortablyUsable,
+    remainingFlexibility: normalizeMoney(state.flexibility),
     pressure: state.pressure,
     flexibilityLevel,
   }
@@ -593,15 +597,15 @@ function buildCalmSummaries(expenses, state, buckets) {
   const spending = aggregateExpenses(expenses)
   const foodTotal = getCategoryTotal(spending, 'Food') + getCategoryTotal(spending, 'Grocery')
   const shoppingTotal = getCategoryTotal(spending, 'Shopping')
-  const bucketProgress = buckets.reduce((total, bucket) => total + Number(bucket.saved || 0), 0)
+  const bucketProgress = sumMoney(buckets, (bucket) => bucket.saved)
 
   if (spending.count === 0) {
     return [
       'Current spending history is still limited, so summaries will stay simple for now.',
       'Add a few expenses to make food, travel, and shopping patterns clearer.',
       bucketProgress > 0
-        ? 'Savings buckets are slowly building a clearer cushion.'
-        : 'Starting one small savings bucket can make future plans feel easier.',
+        ? 'Savings goals are slowly building a clearer cushion.'
+        : 'Starting one small savings goal can make future plans feel easier.',
     ]
   }
 
@@ -617,8 +621,8 @@ function buildCalmSummaries(expenses, state, buckets) {
         ? 'Shopping activity is staying light overall.'
         : 'No shopping entries are visible in the current data.',
     bucketProgress > 0
-      ? 'Savings buckets are slowly building a clearer cushion.'
-      : 'Starting one small savings bucket can make future plans feel easier.',
+      ? 'Savings goals are slowly building a clearer cushion.'
+      : 'Starting one small savings goal can make future plans feel easier.',
   ]
 }
 
@@ -636,16 +640,16 @@ function buildWhatChangedInsights(expenses, state) {
     shoppingTotal > 0
       ? `Shopping activity is currently around ${rupees(shoppingTotal)}.`
       : 'No shopping entries are currently visible.',
-    state.flexibility > state.reserveTarget
-      ? 'Current flexibility remains above the protected buffer.'
-      : 'Flexibility is close to the protected buffer, so lighter choices may feel better.',
+    state.safeToSpend > 0
+      ? 'You still have safe spending room after safety savings.'
+      : 'Safe spending room is close, so lighter choices may feel better.',
   ]
 }
 
 function buildEmergencyCushion(buckets, state) {
   const emergencyBucket = buckets.find((bucket) => bucket.name.toLowerCase().includes('emergency'))
-  const saved = Number(emergencyBucket?.saved || 0)
-  const dailyNeed = Math.max(state.committed / 30, 1)
+  const saved = normalizeMoney(emergencyBucket?.saved)
+  const dailyNeed = Math.max(normalizeMoney(state.committed) / 30, 1)
   const days = Math.round(saved / dailyNeed)
   const label =
     days >= 45 ? 'Emergency stability looks steady.' : days >= 15 ? 'Emergency stability is forming.' : 'Emergency cushion is still early.'
@@ -658,9 +662,9 @@ function buildEmergencyCushion(buckets, state) {
 }
 
 function buildDailyMoneyStatus(state, safeToSpend) {
-  const safeAmount = Number(safeToSpend?.comfortablyUsable || 0)
+  const safeAmount = normalizeMoney(safeToSpend?.comfortablyUsable)
 
-  if (!Number(state.income || 0)) {
+  if (!normalizeMoney(state.income)) {
     return {
       title: 'Add income to see your safe spending.',
       detail: 'Once income is added, FBPly can guide the month more clearly.',
@@ -1351,7 +1355,7 @@ function App() {
   }, [])
 
   const saveExpenseRecord = useCallback(({ label, category, amount, note = '', type = expenseMode, source = 'manual' }) => {
-    const parsedAmount = Number(amount)
+    const parsedAmount = normalizeMoney(amount)
     const categoryName = String(category || '').trim()
     const labelName = String(label || categoryName || '').trim()
     const fieldErrors = {}
@@ -1514,7 +1518,7 @@ function App() {
   const addSharedPayment = useCallback((groupId, payment) => {
     const label = String(payment.label || '').trim()
     const paidBy = String(payment.paidBy || '').trim()
-    const amount = Number(payment.amount || 0)
+    const amount = normalizeMoney(payment.amount)
 
     if (!label || !paidBy || !amount || amount <= 0) {
       return false
@@ -1622,7 +1626,7 @@ function App() {
   }, [])
 
   const addSavingsBucket = useCallback(() => {
-    setSavingsBuckets((current) => [createBucket('New bucket', 0, 10000), ...current])
+    setSavingsBuckets((current) => [createBucket('New goal', 0, 10000), ...current])
   }, [])
 
   const openAddSheet = useCallback((mode = 'menu') => {
@@ -2369,7 +2373,7 @@ function SetupScreen({ profile, setProfile, onComplete }) {
 
   const upsertSetupCommitment = (name, amount) => {
     const cleanName = String(name || '').trim()
-    const parsedAmount = Number(amount || 0)
+    const parsedAmount = normalizeMoney(amount)
 
     if (!cleanName || !parsedAmount || parsedAmount <= 0) {
       setSetupError('Add a name and amount to save this monthly item.')
@@ -2415,7 +2419,7 @@ function SetupScreen({ profile, setProfile, onComplete }) {
   }
 
   const goNext = () => {
-    if (step === 1 && !Number(profile.income || 0)) {
+    if (step === 1 && !normalizeMoney(profile.income)) {
       setSetupError('Add your monthly income to build a useful financial picture.')
       return
     }
@@ -2430,7 +2434,7 @@ function SetupScreen({ profile, setProfile, onComplete }) {
   }
 
   const finishSetup = () => {
-    if (!Number(profile.income || 0)) {
+    if (!normalizeMoney(profile.income)) {
       setSetupError('Add your monthly income to build a useful financial picture.')
       setStep(1)
       return
@@ -2438,7 +2442,7 @@ function SetupScreen({ profile, setProfile, onComplete }) {
 
     setProfile((current) => ({
       ...current,
-      commitments: normalizeCommitments(current).filter((item) => item.name && Number(item.amount || 0) > 0),
+      commitments: normalizeCommitments(current).filter((item) => item.name && normalizeMoney(item.amount) > 0),
     }))
     setSetupError('')
     onComplete()
@@ -2469,7 +2473,7 @@ function SetupScreen({ profile, setProfile, onComplete }) {
           <CurrencyInput
             label="Monthly Income"
             value={profile.income || ''}
-            onChange={(value) => setProfile((current) => ({ ...current, income: Number(value) }))}
+            onChange={(value) => setProfile((current) => ({ ...current, income: normalizeMoney(value) }))}
           />
         </section>
       )
@@ -2705,7 +2709,7 @@ function CommitmentsEditor({ commitments, updateCommitment, addCommitment, remov
                 id={`commitment-amount-${slugify(item.id)}`}
                 ariaLabel={`Amount for ${item.name || `commitment ${index + 1}`}`}
                 value={item.amount}
-                onChange={(value) => updateCommitment(item.id, { amount: Number(value) })}
+                onChange={(value) => updateCommitment(item.id, { amount: normalizeMoney(value) })}
               />
             </div>
             <label className="commitment-due-day">
@@ -2922,6 +2926,10 @@ function MainApp(props) {
             recommendation={recommendation}
             financialState={financialState}
             profile={profile}
+            savingsBuckets={savingsBuckets}
+            addSavingsBucket={addSavingsBucket}
+            updateSavingsBucket={updateSavingsBucket}
+            removeSavingsBucket={removeSavingsBucket}
             sharedSummary={sharedSummary}
             sharedGroups={sharedGroups}
             addSharedGroup={addSharedGroup}
@@ -3553,7 +3561,7 @@ function QuickIncomeEntry({ profile, setProfile, onSaved }) {
   return (
     <form className="quick-expense-form" onSubmit={(event) => {
       event.preventDefault()
-      const parsed = Number(incomeAmount || 0)
+      const parsed = normalizeMoney(incomeAmount)
 
       if (!parsed || parsed <= 0) {
         setError('Add a valid income amount.')
@@ -3609,7 +3617,7 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
   return (
     <form className="quick-expense-form" onSubmit={(event) => {
       event.preventDefault()
-      const parsed = Number(amount || 0)
+      const parsed = normalizeMoney(amount)
 
       if (!selectedBucket) {
         setError('Choose a goal.')
@@ -3622,7 +3630,7 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
       }
 
       updateSavingsBucket(selectedBucket.id, {
-        saved: Number(selectedBucket.saved || 0) + parsed,
+        saved: addMoney(selectedBucket.saved, parsed),
       })
       onSaved()
     }}>
@@ -3785,7 +3793,7 @@ function SettingsSheet({
           label="Monthly income"
           id="settings-income"
           value={profile.income}
-          onChange={(value) => setProfile((current) => ({ ...current, income: Number(value) }))}
+          onChange={(value) => setProfile((current) => ({ ...current, income: normalizeMoney(value) }))}
         />
 
         <div className="profile-menu-section">
@@ -3886,7 +3894,7 @@ function HomeScreen({
         <div>
           <span className="mini-label">Safe to spend</span>
           <strong>{rupees(safeToSpend.comfortablyUsable)}</strong>
-          <p>{rupees(financialState.flexibility)} left after saved activity this month.</p>
+          <p>This is after keeping safety savings aside for the month.</p>
         </div>
         <span className={`today-status-pill ${financialState.pressureTone === 'slight-pressure' ? 'warm' : financialState.pressureTone}`}>
           {financialState.pressure}
@@ -3982,7 +3990,7 @@ function MonthSelector({ selectedMonthKey, setSelectedMonthKey, monthOptions = [
 }
 
 function moneyBookEntryDue(entry = {}) {
-  return Number(entry.amount || 0) + Number(entry.interest || 0)
+  return addMoney(entry.amount, entry.interest)
 }
 
 function HistoryScreen({
@@ -4075,7 +4083,7 @@ function HistoryScreen({
 
       <CashflowStrip events={cashflowTimeline} />
 
-      <section className="history-summary-grid" aria-label="Financial activity summary">
+      <section className="history-summary-grid" aria-label="Money activity summary">
         <HistorySummaryCard label="Earned" value={summary.incoming} tone="incoming" />
         <HistorySummaryCard label="Spent" value={summary.outgoing} tone="outgoing" />
         <HistorySummaryCard label="Shifted" value={summary.transfers} tone="transfer" />
@@ -4334,8 +4342,8 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
     event.preventDefault()
 
     const fieldErrors = {}
-    const parsedAmount = Number(amount || 0)
-    const parsedInterest = Number(interest || 0)
+    const parsedAmount = normalizeMoney(amount)
+    const parsedInterest = normalizeMoney(interest)
 
     if (!String(person || '').trim()) {
       fieldErrors.person = 'Add a person name.'
@@ -4757,7 +4765,7 @@ function SharedExpensesPanel({
     const draft = paymentDrafts[group.id] || {}
     const saved = addSharedPayment(group.id, {
       label: draft.label,
-      amount: Number(draft.amount),
+      amount: normalizeMoney(draft.amount),
       paidBy: draft.paidBy || currentUserName,
     })
 
@@ -4777,9 +4785,9 @@ function SharedExpensesPanel({
     <section className={`shared-panel ${variant === 'planner' ? 'planner-shared-panel' : ''}`}>
       <div className="screen-heading compact-heading">
         <div>
-          <p className="eyebrow">Shared expenses</p>
-          <h1>{variant === 'planner' ? 'Split trip expenses with friends.' : 'Track who paid and who owes.'}</h1>
-          <p className="section-note shared-panel-note">Manage group costs, participants, payments, and settlements in one place.</p>
+          <p className="eyebrow">Shared money</p>
+          <h1>{variant === 'planner' ? 'Trips, rent, and group spends.' : 'Track who paid and who owes.'}</h1>
+          <p className="section-note shared-panel-note">Add Goa trips, flat rent splits, office lunches, or group travel. FBPly keeps who owes whom clear.</p>
         </div>
       </div>
 
@@ -4799,7 +4807,7 @@ function SharedExpensesPanel({
           <input className="plain-input" value={people} onChange={(event) => setPeople(event.target.value)} placeholder="Rahul, Priya, Sam" />
         </label>
         <button className="primary-button full" type="submit">
-          Create shared group
+          Create group
         </button>
         {message && <p className="form-message">{message}</p>}
       </form>
@@ -4807,7 +4815,7 @@ function SharedExpensesPanel({
       {sharedSummary?.activeGroups > 0 && (
         <div className="shared-metrics-strip" aria-label="Shared expense summary">
           <span>
-            <small>You paid upfront</small>
+            <small>You paid first</small>
             <strong>{rupees(sharedSummary.totalPaidByYou)}</strong>
           </span>
           <span>
@@ -4815,11 +4823,11 @@ function SharedExpensesPanel({
             <strong>{rupees(sharedSummary.pendingRecoverable)}</strong>
           </span>
           <span>
-            <small>Received back</small>
+            <small>Got back</small>
             <strong>{rupees(sharedSummary.receivedRecoveries)}</strong>
           </span>
           <span>
-            <small>Net monthly impact</small>
+            <small>Month impact</small>
             <strong>{rupees(sharedSummary.netSharedImpact)}</strong>
           </span>
         </div>
@@ -4914,7 +4922,7 @@ function SharedExpensesPanel({
                   <strong>{rupees(group.share)}</strong>
                 </span>
                 <span>
-                  <small>Your current impact</small>
+                  <small>Your share impact</small>
                   <strong>{rupees(group.cashImpact)}</strong>
                 </span>
               </div>
@@ -4978,6 +4986,10 @@ function PlannerScreen({
   recommendation,
   financialState,
   profile,
+  savingsBuckets,
+  addSavingsBucket,
+  updateSavingsBucket,
+  removeSavingsBucket,
   sharedSummary,
   sharedGroups,
   addSharedGroup,
@@ -4990,84 +5002,16 @@ function PlannerScreen({
       <div className="screen-heading">
         <div>
           <p className="eyebrow">Goals</p>
-          <h1>Buy safely, without monthly stress.</h1>
+          <h1>Plan future money calmly.</h1>
+          <p className="section-note">Savings, shared money, and big purchases stay in one simple place.</p>
         </div>
       </div>
 
-      <PlannerRealityCard financialState={financialState} />
-
-      <div className="planner-section-title">
-        <div>
-          <h2>What are you planning?</h2>
-          <p>Pick a rough type. FBPly keeps the calculation behind the scenes.</p>
-        </div>
-      </div>
-
-      <div className="plan-grid purchase-type-grid">
-        {planCategories.map((category) => {
-          const Icon = category.icon
-          return (
-            <button
-              className={selectedPlan === category.label ? 'active' : ''}
-              key={category.label}
-              type="button"
-              onClick={() => setSelectedPlan(category.label)}
-            >
-              <Icon size={21} />
-              <span>{category.label}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      <section className="planner-goal-card">
-        <div className="input-with-icon planner-search">
-          <PiggyBank size={18} />
-          <input
-            type="text"
-            value={plannerInput}
-            placeholder="Optional name, like used car or work laptop"
-            onChange={(event) => setPlannerInput(event.target.value)}
-          />
-        </div>
-        <div className="planner-field-grid">
-          <CurrencyInput
-            label="Price"
-            id="planner-target-amount"
-            ariaLabel="Target purchase amount"
-            value={plannerTargetAmount}
-            placeholder="300000"
-            onChange={setPlannerTargetAmount}
-          />
-          <CurrencyInput
-            label="Savings ready"
-            id="planner-current-savings"
-            ariaLabel="Current savings available"
-            value={plannerCurrentSavings}
-            placeholder="40000"
-            onChange={setPlannerCurrentSavings}
-          />
-        </div>
-        <div>
-          <span className="input-label">When do you want it?</span>
-          <div className="timeline-control" aria-label="Desired timeline">
-            {timelineOptions.map((option) => (
-              <button
-                className={plannerTimeline === option.key ? 'active' : ''}
-                key={option.key}
-                type="button"
-                onClick={() => setPlannerTimeline(option.key)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <RecommendationPanel
-        recommendation={recommendation}
-        financialState={financialState}
+      <SavingsBucketsManager
+        buckets={savingsBuckets}
+        addSavingsBucket={addSavingsBucket}
+        updateSavingsBucket={updateSavingsBucket}
+        removeSavingsBucket={removeSavingsBucket}
       />
 
       <SharedExpensesPanel
@@ -5080,17 +5024,97 @@ function PlannerScreen({
         removeSharedGroup={removeSharedGroup}
         variant="planner"
       />
+
+      <section className="buy-safely-section">
+        <div className="planner-section-title">
+          <div>
+            <p className="eyebrow">Buy safely</p>
+            <h2>Can I afford this safely?</h2>
+            <p>Pick a rough type. FBPly keeps the calculation behind the scenes.</p>
+          </div>
+        </div>
+
+        <PlannerRealityCard financialState={financialState} />
+
+        <div className="plan-grid purchase-type-grid">
+          {planCategories.map((category) => {
+            const Icon = category.icon
+            return (
+              <button
+                className={selectedPlan === category.label ? 'active' : ''}
+                key={category.label}
+                type="button"
+                onClick={() => setSelectedPlan(category.label)}
+              >
+                <Icon size={21} />
+                <span>{category.label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <section className="planner-goal-card">
+          <div className="input-with-icon planner-search">
+            <PiggyBank size={18} />
+            <input
+              type="text"
+              value={plannerInput}
+              placeholder="Optional name, like used car or work laptop"
+              onChange={(event) => setPlannerInput(event.target.value)}
+            />
+          </div>
+          <div className="planner-field-grid">
+            <CurrencyInput
+              label="Price"
+              id="planner-target-amount"
+              ariaLabel="Target purchase amount"
+              value={plannerTargetAmount}
+              placeholder="300000"
+              onChange={setPlannerTargetAmount}
+            />
+            <CurrencyInput
+              label="Savings ready"
+              id="planner-current-savings"
+              ariaLabel="Current savings available"
+              value={plannerCurrentSavings}
+              placeholder="40000"
+              onChange={setPlannerCurrentSavings}
+            />
+          </div>
+          <div>
+            <span className="input-label">When do you want it?</span>
+            <div className="timeline-control" aria-label="Desired timeline">
+              {timelineOptions.map((option) => (
+                <button
+                  className={plannerTimeline === option.key ? 'active' : ''}
+                  key={option.key}
+                  type="button"
+                  onClick={() => setPlannerTimeline(option.key)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <RecommendationPanel
+          recommendation={recommendation}
+          financialState={financialState}
+        />
+      </section>
     </section>
   )
 }
 
 function PlannerRealityCard({ financialState }) {
+  const safeRoom = normalizeMoney(financialState.safeToSpend ?? financialState.breathingRoom)
   const realityRows = [
     { label: 'Income', value: financialState.income },
     { label: 'Fixed basics', value: financialState.fixedExpensesTotal || 0 },
     { label: 'EMIs', value: financialState.emiAmount || 0 },
     { label: 'Daily spends', value: financialState.monthlyVariable || 0 },
-    { label: 'Safe space left', value: financialState.flexibility || 0, highlight: true },
+    { label: 'Safe room', value: safeRoom, highlight: true },
   ]
 
   return (
@@ -5451,10 +5475,10 @@ function ProfileMenuSheet({ authUser, profile, setProfile, onClose, onSignOut })
           label="Income"
           id="profile-menu-income"
           value={profile.income}
-          onChange={(value) => setProfile((current) => ({ ...current, income: Number(value) }))}
+          onChange={(value) => setProfile((current) => ({ ...current, income: normalizeMoney(value) }))}
         />
         <div className="profile-menu-section">
-          <span className="input-label">Planner style</span>
+          <span className="input-label">Planning style</span>
           <div className="preference-grid compact-preference-grid">
             {['safe', 'balanced', 'flexible'].map((preference) => (
               <button
@@ -5631,20 +5655,21 @@ function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavingsBucket,
     <section className="savings-manager">
       <div className="section-heading-row">
         <div>
-          <p className="eyebrow">Savings buckets</p>
+          <p className="eyebrow">Savings goals</p>
           <h2>Small goals, clearer comfort.</h2>
+          <p className="section-note">Emergency fund, bike savings, laptop goal, or anything you want to protect.</p>
         </div>
         <button className="ghost-button small-button" type="button" onClick={addSavingsBucket}>
           <Plus size={17} />
-          Add Bucket
+          Add goal
         </button>
       </div>
       <div className="bucket-grid">
         {buckets.length === 0 ? (
           <EmptyState
-            title="Give your next win a place"
-            detail="A small bucket makes progress visible without adding pressure."
-            actionLabel="Add bucket"
+            title="Give your next plan a place"
+            detail="A small savings goal makes progress visible without adding pressure."
+            actionLabel="Add goal"
             onAction={addSavingsBucket}
             icon={PiggyBank}
           />
@@ -5676,13 +5701,13 @@ function SavingsBucketEditor({ bucket, updateSavingsBucket, removeSavingsBucket 
         label="Saved"
         id={`bucket-saved-${slugify(bucket.id)}`}
         value={bucket.saved}
-        onChange={(value) => updateSavingsBucket(bucket.id, { saved: Number(value) })}
+        onChange={(value) => updateSavingsBucket(bucket.id, { saved: normalizeMoney(value) })}
       />
       <CurrencyInput
         label="Target"
         id={`bucket-target-${slugify(bucket.id)}`}
         value={bucket.target}
-        onChange={(value) => updateSavingsBucket(bucket.id, { target: Number(value) })}
+        onChange={(value) => updateSavingsBucket(bucket.id, { target: normalizeMoney(value) })}
       />
       <div className="bucket-recurring-grid">
         <div className="bucket-recurring-amount">
@@ -5690,7 +5715,7 @@ function SavingsBucketEditor({ bucket, updateSavingsBucket, removeSavingsBucket 
             label="Monthly add"
             id={`bucket-monthly-${slugify(bucket.id)}`}
             value={bucket.monthlyContribution || ''}
-            onChange={(value) => updateSavingsBucket(bucket.id, { monthlyContribution: Number(value) })}
+            onChange={(value) => updateSavingsBucket(bucket.id, { monthlyContribution: normalizeMoney(value) })}
           />
         </div>
         <label>
@@ -5725,13 +5750,15 @@ function SavingsBucketEditor({ bucket, updateSavingsBucket, removeSavingsBucket 
 }
 
 function SavingsBucketCard({ bucket, compact = false }) {
-  const progress = bucket.target > 0 ? Math.min(Math.round((Number(bucket.saved || 0) / Number(bucket.target)) * 100), 100) : 0
+  const saved = normalizeMoney(bucket.saved)
+  const target = normalizeMoney(bucket.target)
+  const progress = target > 0 ? Math.min(Math.round((saved / target) * 100), 100) : 0
 
   return (
     <article className={`bucket-card ${compact ? 'compact' : ''}`}>
       <div>
-        <h3>{bucket.name}</h3>
-        <p>{rupees(bucket.saved)} saved of {rupees(bucket.target)}</p>
+        <h3>{bucket.name || 'Savings goal'}</h3>
+        <p>{rupees(saved)} saved of {rupees(target)}</p>
       </div>
       <strong>{progress}%</strong>
       <div className="bucket-progress" aria-label={`${progress}% saved`}>
@@ -5819,7 +5846,7 @@ function buildExpenseBreakdown(expenses, profile) {
       note: commitment.name,
     })
     const name = normalized.category === 'Other' ? 'Recurring' : normalized.category
-    map[name] = (map[name] || 0) + Number(commitment.amount || 0)
+    map[name] = addMoney(map[name] || 0, commitment.amount)
     sources[name] = sources[name] ? 'Mixed' : 'Monthly commitment'
     return map
   }, {})
@@ -5827,7 +5854,7 @@ function buildExpenseBreakdown(expenses, profile) {
   expenses.forEach((expense) => {
     const normalized = normalizeSpendCategory(expense)
     const name = normalized.category || 'Other'
-    totals[name] = (totals[name] || 0) + Number(expense.amount || 0)
+    totals[name] = addMoney(totals[name] || 0, expense.amount)
     sources[name] = sources[name] ? 'Mixed' : 'Tracked expense'
   })
 

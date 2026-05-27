@@ -1,3 +1,5 @@
+import { normalizeMoney } from './money.js'
+
 export const voiceLanguageOptions = [
   { code: 'en-IN', label: 'English' },
   { code: 'hi-IN', label: 'Hindi' },
@@ -370,7 +372,7 @@ function parseNumberTokens(tokens) {
   })
 
   return {
-    amount: total + current,
+    amount: normalizeMoney(total + current),
     usedMultiplier,
     hasDigit: tokens.some((token) => /^\d/.test(token)),
   }
@@ -581,7 +583,7 @@ export function learnVoiceExpense(memory, draft) {
     [labelKey]: {
       label: draft.label,
       category,
-      amount: Number(draft.amount || current.amount || 0),
+      amount: normalizeMoney(draft.amount || current.amount || 0),
       count: Number(current.count || 0) + 1,
       updatedAt: new Date().toISOString(),
     },

@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import { ArrowDownLeft, ArrowUpRight, FileSpreadsheet, Files, FileText, LockKeyhole, ShieldCheck, Store, X } from 'lucide-react'
+import { normalizeMoney, sumMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 
 const modes = [
   { key: 'reflection', label: 'Report' },
-  { key: 'timeline', label: 'History' },
+  { key: 'timeline', label: 'Activity' },
 ]
 
 const statementPreviewCategories = [
@@ -43,14 +44,14 @@ function formatSize(bytes) {
 
 function StatementBars({ title, items, emptyText }) {
   const visibleItems = items.slice(0, 6)
-  const total = visibleItems.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+  const total = sumMoney(visibleItems, (item) => item.amount)
 
   return (
     <div className="statement-chart-block">
       <strong>{title}</strong>
       {visibleItems.length === 0 && <p>{emptyText}</p>}
       {visibleItems.map((item) => {
-        const share = total > 0 ? Math.max((Number(item.amount || 0) / total) * 100, 3) : 0
+        const share = total > 0 ? Math.max((normalizeMoney(item.amount) / total) * 100, 3) : 0
 
         return (
           <div className="statement-bar-row" key={`${title}-${item.name}`}>

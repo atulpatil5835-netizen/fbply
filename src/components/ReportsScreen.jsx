@@ -18,6 +18,7 @@ import {
 } from 'recharts'
 import { Download, FileText, HeartHandshake, Upload } from 'lucide-react'
 import { getFinanceColor } from '../lib/financeColors'
+import { addMoney, normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 
 const StatementUploadSheet = lazy(() => import('./StatementUploadSheet.jsx'))
@@ -51,8 +52,7 @@ function StatementUploadFallback() {
 }
 
 function safeChartAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 function cleanCompactNumber(value) {
@@ -116,12 +116,12 @@ function buildDirectionData(financialState = {}, transactionSummary = {}) {
   const summarizedOutgoing = safeChartAmount(transactionSummary?.outgoing)
   const calculatedCommitted = safeChartAmount(financialState.committed)
   const allocated = summarizedOutgoing || calculatedCommitted
-  const flexible = income > 0 ? Math.max(income - allocated, 0) : safeChartAmount(financialState.flexibility)
+  const safeRoom = safeChartAmount(financialState.safeToSpend ?? financialState.breathingRoom)
 
   return [
     { name: 'Income', amount: income, color: getFinanceColor('Income') },
-    { name: 'Allocated', amount: allocated, color: getFinanceColor('Expense') },
-    { name: 'Flexible', amount: flexible, color: getFinanceColor('Travel') },
+    { name: 'Spent or fixed', amount: allocated, color: getFinanceColor('Expense') },
+    { name: 'Safe room', amount: safeRoom, color: getFinanceColor('Travel') },
   ].filter((item) => item.amount > 0)
 }
 
@@ -178,7 +178,7 @@ function buildMoneyMixData(reportTransactions = [], expenseBreakdown = []) {
         source: transaction.sourceModule || 'Unified finance engine',
       }
 
-      current.value += safeChartAmount(transaction.amount)
+      current.value = addMoney(current.value, transaction.amount)
       if (current.source !== transaction.sourceModule) {
         current.source = 'Mixed'
       }
@@ -215,7 +215,7 @@ function buildEntryTrendData(reportTransactions = [], fallbackTimeline = []) {
         return
       }
 
-      totals.set(date, (totals.get(date) || 0) + safeChartAmount(transaction.amount))
+      totals.set(date, addMoney(totals.get(date) || 0, transaction.amount))
     })
 
   return Array.from(totals.entries())
@@ -298,7 +298,7 @@ export default function ReportsScreen({
   const hasActiveCategory = mixBreakdown.some((item) => item.name === activeCategory)
   const selectedCategory = hasActiveCategory ? activeCategory : 'all'
   const focusedCategory = mixBreakdown.find((item) => item.name === selectedCategory) || null
-  const breakdownTotal = mixBreakdown.reduce((total, item) => total + Number(item.value || 0), 0)
+  const breakdownTotal = mixBreakdown.reduce((total, item) => addMoney(total, item.value), 0)
   const visibleBreakdown = selectedCategory === 'all'
     ? mixBreakdown
     : mixBreakdown.filter((item) => item.name === selectedCategory)
@@ -385,7 +385,7 @@ export default function ReportsScreen({
         <div className="report-direction-list">
           {directionData.length > 0 ? directionData.map((item) => (
             <div key={item.name}>
-              <span>{item.name === 'Allocated' ? 'Spent or fixed' : item.name}</span>
+              <span>{item.name}</span>
               <strong>{compactRupees(item.amount)}</strong>
             </div>
           )) : (
@@ -505,7 +505,7 @@ export default function ReportsScreen({
           <div className="category-focus-card">
             <span>Category focus</span>
             <strong>{focusedCategory.name}</strong>
-            <p>{rupees(focusedCategory.value)} tracked, about {Math.round((Number(focusedCategory.value || 0) / Math.max(breakdownTotal, 1)) * 100)}% of the mix.</p>
+            <p>{rupees(focusedCategory.value)} tracked, about {Math.round((safeChartAmount(focusedCategory.value) / Math.max(breakdownTotal, 1)) * 100)}% of the mix.</p>
           </div>
         )}
       </article>

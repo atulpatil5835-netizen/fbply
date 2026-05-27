@@ -1,11 +1,11 @@
 import { getFinanceColor } from './financeColors.js'
+import { addMoney, normalizeMoney, subtractMoney, sumMoney } from './money.js'
 import { normalizeCommitments, rupees } from './ruleEngine.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
 function safeAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 function clamp(value, min = 0, max = 100) {
@@ -107,7 +107,7 @@ function buildMoneyBookReminders(moneyBookSummary = {}, now) {
   return (moneyBookSummary.visibleEntries || [])
     .filter((entry) => entry.status !== 'settled' && safeAmount(entry.amount) > 0 && entry.person)
     .map((entry) => {
-      const due = safeAmount(entry.amount) + safeAmount(entry.interest)
+      const due = addMoney(entry.amount, entry.interest)
       const fallbackDate = addDays(entry.date || todayKey(now), entry.kind === 'given' ? 21 : 14)
       const dueDate = entry.dueDate || fallbackDate
       const status = dueStatus(dueDate, now, entry.dueDate ? 7 : -1)
@@ -176,8 +176,8 @@ function buildSavingsReminders(savingsBuckets = [], now) {
       return {
         id: reminderId('goal', bucket.id || bucket.name),
         title: `${bucket.name || 'Savings goal'} deadline approaching`,
-        detail: `${progress}% funded, ${rupees(Math.max(target - saved, 0))} left`,
-        amount: Math.max(target - saved, 0),
+        detail: `${progress}% funded, ${rupees(subtractMoney(target, saved))} left`,
+        amount: subtractMoney(target, saved),
         tone: progress >= 70 ? 'incoming' : 'transfer',
         severity: status.severity,
         source: 'Goals',
@@ -196,7 +196,7 @@ function buildPlannerReminder(recommendation = null, now) {
 
   const target = safeAmount(recommendation.targetAmount)
   const saved = safeAmount(recommendation.currentSavings)
-  const remaining = Math.max(target - saved, 0)
+  const remaining = subtractMoney(target, saved)
 
   if (!remaining) {
     return []
@@ -215,14 +215,14 @@ function buildPlannerReminder(recommendation = null, now) {
 
   return [{
     id: 'planner-active-reminder',
-    title: `${recommendation.goalName || recommendation.category || 'Planner goal'} needs attention`,
+    title: `${recommendation.goalName || recommendation.category || 'Purchase plan'} needs attention`,
     detail: status
       ? `${status.label}; ${rupees(remaining)} still to arrange`
       : `${rupees(remaining)} still to arrange for the selected plan`,
     amount: remaining,
     tone: 'transfer',
     severity: urgent ? 'soon' : 'later',
-    source: 'Planner',
+    source: 'Goals',
     dueDate,
     dueLabel: status?.label || recommendation.timelineLabel || 'Flexible',
     priority: urgent ? 88 : 56,
@@ -292,7 +292,7 @@ export function buildCashflowTimeline(transactions = []) {
       color: transaction.color || getFinanceColor(transaction.category),
     }
 
-    current.amount += amount
+    current.amount = addMoney(current.amount, amount)
     current.count += 1
     current.categories.add(transaction.category)
     grouped.set(key, current)
@@ -354,15 +354,15 @@ function groupedTitle(key, items) {
   }
 
   if (key === 'planner') {
-    return 'Planner movement'
+    return 'Purchase plan movement'
   }
 
   return first.sourceModule || 'Related activity'
 }
 
 function groupedTone(items) {
-  const incoming = items.reduce((total, item) => total + (item.tone === 'incoming' ? item.amount : 0), 0)
-  const outgoing = items.reduce((total, item) => total + (item.tone === 'outgoing' ? item.amount : 0), 0)
+  const incoming = sumMoney(items, (item) => (item.tone === 'incoming' ? item.amount : 0))
+  const outgoing = sumMoney(items, (item) => (item.tone === 'outgoing' ? item.amount : 0))
 
   if (incoming > outgoing) {
     return 'incoming'
@@ -401,10 +401,10 @@ export function buildRelatedTransactionGroups(transactions = []) {
       }
 
       const tone = groupedTone(items)
-      const incoming = items.reduce((total, item) => total + (item.tone === 'incoming' ? safeAmount(item.amount) : 0), 0)
-      const outgoing = items.reduce((total, item) => total + (item.tone === 'outgoing' ? safeAmount(item.amount) : 0), 0)
-      const transfers = items.reduce((total, item) => total + (item.tone === 'transfer' ? safeAmount(item.amount) : 0), 0)
-      const amount = Math.abs(incoming - outgoing) || transfers
+      const incoming = sumMoney(items, (item) => (item.tone === 'incoming' ? item.amount : 0))
+      const outgoing = sumMoney(items, (item) => (item.tone === 'outgoing' ? item.amount : 0))
+      const transfers = sumMoney(items, (item) => (item.tone === 'transfer' ? item.amount : 0))
+      const amount = normalizeMoney(Math.abs(incoming - outgoing)) || transfers
       const latest = items.reduce(
         (value, item) => (String(item.dateTime) > String(value) ? item.dateTime : value),
         '',
@@ -427,7 +427,7 @@ export function buildRelatedTransactionGroups(transactions = []) {
 }
 
 function changeLabel(current, previous) {
-  const diff = safeAmount(current) - safeAmount(previous)
+  const diff = normalizeMoney(safeAmount(current) - safeAmount(previous), { allowNegative: true })
 
   if (!previous && !current) {
     return 'No movement'
@@ -452,19 +452,19 @@ export function buildMonthlyComparison({
 } = {}) {
   const rows = [
     {
-      label: 'Incoming',
+      label: 'Earned',
       tone: 'incoming',
       current: safeAmount(current.incoming),
       previous: safeAmount(previous.incoming),
     },
     {
-      label: 'Outgoing',
+      label: 'Spent',
       tone: 'outgoing',
       current: safeAmount(current.outgoing),
       previous: safeAmount(previous.outgoing),
     },
     {
-      label: 'Transfers',
+      label: 'Shifted',
       tone: 'transfer',
       current: safeAmount(current.transfers),
       previous: safeAmount(previous.transfers),
@@ -474,6 +474,6 @@ export function buildMonthlyComparison({
   return rows.map((row) => ({
     ...row,
     labelText: changeLabel(row.current, row.previous),
-    delta: row.current - row.previous,
+    delta: normalizeMoney(row.current - row.previous, { allowNegative: true }),
   }))
 }

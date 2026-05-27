@@ -1,3 +1,5 @@
+import { addMoney, normalizeMoney, sumMoney } from './money.js'
+
 const MAX_TEXT_BYTES = 1_500_000
 const MAX_PDF_SCAN_BYTES = 1_200_000
 const MAX_PDF_PAGES = 12
@@ -179,7 +181,7 @@ function safeAmount(value) {
     .replace(/[()]/g, '-')
   const match = text.match(/-?\d+(?:\.\d{1,2})?/)
   const amount = match ? Number(match[0]) : 0
-  return Number.isFinite(amount) ? Math.abs(amount) : 0
+  return Number.isFinite(amount) ? normalizeMoney(Math.abs(amount)) : 0
 }
 
 function parseAmount(value) {
@@ -735,7 +737,7 @@ function aggregateBy(items, keyGetter) {
   items.forEach((item) => {
     const key = keyGetter(item) || 'Other'
     const current = totals.get(key) || { name: key, amount: 0, count: 0 }
-    current.amount += item.amount
+    current.amount = addMoney(current.amount, item.amount)
     current.count += 1
     totals.set(key, current)
   })
@@ -791,8 +793,8 @@ export function buildStatementReport(transactions = []) {
   const validTransactions = transactions.filter((item) => item.amount > 0)
   const incomes = validTransactions.filter((item) => item.direction === 'income')
   const expenses = validTransactions.filter((item) => item.direction !== 'income')
-  const totalIncome = incomes.reduce((sum, item) => sum + item.amount, 0)
-  const totalExpense = expenses.reduce((sum, item) => sum + item.amount, 0)
+  const totalIncome = sumMoney(incomes, (item) => item.amount)
+  const totalExpense = sumMoney(expenses, (item) => item.amount)
   const incomeSources = aggregateBy(incomes, (item) => item.category || 'Other income')
   const expenseCategories = aggregateBy(expenses, (item) => item.category || 'Other')
   const merchants = aggregateBy(expenses, (item) => item.merchant || item.description)
@@ -812,7 +814,7 @@ export function buildStatementReport(transactions = []) {
     expenseCount: expenses.length,
     totalIncome,
     totalExpense,
-    netMovement: totalIncome - totalExpense,
+    netMovement: normalizeMoney(totalIncome - totalExpense, { allowNegative: true }),
     incomeSources,
     expenseCategories,
     merchants,
@@ -832,7 +834,7 @@ function summarizeTransactions(transactions, text = '') {
     detectedMonth,
     monthLabel: transactionMonths.length > 1 ? `${readableMonth(transactionMonths[0])} - ${readableMonth(transactionMonths.at(-1))}` : readableMonth(detectedMonth),
     rows: transactions.length,
-    visibleAmountSample: report.totalIncome + report.totalExpense,
+    visibleAmountSample: addMoney(report.totalIncome, report.totalExpense),
     transactions,
     report,
   }

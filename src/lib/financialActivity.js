@@ -1,8 +1,9 @@
+import { addMoney, allocateMoney, normalizeMoney, subtractMoney, sumMoney } from './money.js'
+
 const SHARED_CATEGORY = 'Shared'
 
 function safeAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 export function normalizePersonName(value) {
@@ -103,8 +104,9 @@ export function createSharedSettlements({ groupId, amount, paidBy, people, payme
   const normalizedPayments = payments?.length
     ? normalizeSharedPayments({ payments }, members, profile)
     : normalizeSharedPayments({ amount, paidBy, date: new Date().toISOString().slice(0, 10) }, members, profile)
-  const total = normalizedPayments.reduce((sum, payment) => sum + safeAmount(payment.amount), 0)
-  const share = members.length > 0 ? Math.round(total / members.length) : 0
+  const total = sumMoney(normalizedPayments, (payment) => payment.amount)
+  const memberShares = allocateMoney(total, members.length)
+  const share = memberShares[0] || 0
 
   if (!share || members.length < 2) {
     return []
@@ -113,21 +115,21 @@ export function createSharedSettlements({ groupId, amount, paidBy, people, payme
   const paidTotals = new Map(members.map((member) => [member, 0]))
   normalizedPayments.forEach((payment) => {
     const payer = findMemberName(members, payment.paidBy, profile)
-    paidTotals.set(payer, safeAmount(paidTotals.get(payer)) + safeAmount(payment.amount))
+    paidTotals.set(payer, addMoney(paidTotals.get(payer), payment.amount))
   })
 
   const debtors = []
   const creditors = []
 
-  members.forEach((member) => {
-    const balance = Math.round(safeAmount(paidTotals.get(member)) - share)
+  members.forEach((member, index) => {
+    const balance = normalizeMoney(safeAmount(paidTotals.get(member)) - safeAmount(memberShares[index]), { allowNegative: true })
 
-    if (balance < -1) {
+    if (balance < -0.009) {
       debtors.push({ member, amount: Math.abs(balance) })
       return
     }
 
-    if (balance > 1) {
+    if (balance > 0.009) {
       creditors.push({ member, amount: balance })
     }
   })
@@ -148,9 +150,9 @@ export function createSharedSettlements({ groupId, amount, paidBy, people, payme
         id: settlementId(groupId || 'shared', from, to),
         from,
         to,
-        amount: Math.round(paymentAmount),
+        amount: normalizeMoney(paymentAmount),
         settledAmount: 0,
-        remainingAmount: Math.round(paymentAmount),
+        remainingAmount: normalizeMoney(paymentAmount),
         direction: isCurrentUserName(to, profile)
           ? 'incoming'
           : isCurrentUserName(from, profile)
@@ -160,10 +162,10 @@ export function createSharedSettlements({ groupId, amount, paidBy, people, payme
         receivedAt: '',
       })
 
-      remaining -= paymentAmount
-      creditor.amount -= paymentAmount
+      remaining = subtractMoney(remaining, paymentAmount)
+      creditor.amount = subtractMoney(creditor.amount, paymentAmount)
 
-      if (creditor.amount <= 1) {
+      if (creditor.amount <= 0.009) {
         creditorIndex += 1
       }
     }
@@ -176,8 +178,10 @@ export function reconcileSharedGroup(group = {}, profile = {}) {
   const currentUserName = resolveCurrentUserName(profile)
   const members = uniquePeople([currentUserName, ...(group.people || [])])
   const payments = normalizeSharedPayments(group, members, profile)
-  const amount = payments.reduce((total, payment) => total + safeAmount(payment.amount), 0)
-  const share = members.length > 0 ? Math.round(amount / members.length) : 0
+  const amount = sumMoney(payments, (payment) => payment.amount)
+  const memberShares = allocateMoney(amount, members.length)
+  const currentUserIndex = Math.max(members.findIndex((person) => isCurrentUserName(person, profile)), 0)
+  const share = memberShares[currentUserIndex] || memberShares[0] || 0
   const generated = createSharedSettlements({
     groupId: group.id || 'shared',
     payments,
@@ -191,7 +195,7 @@ export function reconcileSharedGroup(group = {}, profile = {}) {
       ? safeAmount(saved.settledAmount || saved.amount || item.amount)
       : safeAmount(saved.settledAmount)
     const settledAmount = Math.min(savedSettledAmount, item.amount)
-    const remainingAmount = Math.max(item.amount - settledAmount, 0)
+    const remainingAmount = subtractMoney(item.amount, settledAmount)
     const settledStatus = item.direction === 'outgoing' ? 'paid' : 'received'
 
     return {
@@ -206,16 +210,16 @@ export function reconcileSharedGroup(group = {}, profile = {}) {
   })
   const paidByUserAmount = payments
     .filter((payment) => isCurrentUserName(payment.paidBy, profile))
-    .reduce((total, payment) => total + safeAmount(payment.amount), 0)
+    .reduce((total, payment) => addMoney(total, payment.amount), 0)
   const incoming = settlements.filter((item) => item.direction === 'incoming')
   const outgoing = settlements.filter((item) => item.direction === 'outgoing')
-  const received = incoming.reduce((total, item) => total + safeAmount(item.settledAmount), 0)
-  const pendingRecoverable = incoming.reduce((total, item) => total + safeAmount(item.remainingAmount), 0)
-  const pendingLiability = outgoing.reduce((total, item) => total + safeAmount(item.remainingAmount), 0)
-  const paidLiability = outgoing.reduce((total, item) => total + safeAmount(item.settledAmount), 0)
-  const outgoingTotal = outgoing.reduce((total, item) => total + safeAmount(item.amount), 0)
+  const received = sumMoney(incoming, (item) => item.settledAmount)
+  const pendingRecoverable = sumMoney(incoming, (item) => item.remainingAmount)
+  const pendingLiability = sumMoney(outgoing, (item) => item.remainingAmount)
+  const paidLiability = sumMoney(outgoing, (item) => item.settledAmount)
+  const outgoingTotal = sumMoney(outgoing, (item) => item.amount)
   const userIsMember = members.some((person) => isCurrentUserName(person, profile))
-  const cashImpact = paidByUserAmount - received + outgoingTotal
+  const cashImpact = addMoney(subtractMoney(paidByUserAmount, received), outgoingTotal)
 
   return {
     ...group,
@@ -254,12 +258,12 @@ export function buildFinancialActivity({ expenses = [], sharedGroups = [], profi
     }))
 
   const summary = reconciledShared.reduce((total, group) => ({
-    totalPaidByYou: total.totalPaidByYou + group.paidByUserAmount,
-    pendingRecoverable: total.pendingRecoverable + group.pendingRecoverable,
-    receivedRecoveries: total.receivedRecoveries + group.received,
-    pendingLiability: total.pendingLiability + group.pendingLiability,
-    paidLiability: total.paidLiability + group.paidLiability,
-    netSharedImpact: total.netSharedImpact + group.cashImpact,
+    totalPaidByYou: addMoney(total.totalPaidByYou, group.paidByUserAmount),
+    pendingRecoverable: addMoney(total.pendingRecoverable, group.pendingRecoverable),
+    receivedRecoveries: addMoney(total.receivedRecoveries, group.received),
+    pendingLiability: addMoney(total.pendingLiability, group.pendingLiability),
+    paidLiability: addMoney(total.paidLiability, group.paidLiability),
+    netSharedImpact: addMoney(total.netSharedImpact, group.cashImpact),
     activeGroups: total.activeGroups + 1,
   }), {
     totalPaidByYou: 0,

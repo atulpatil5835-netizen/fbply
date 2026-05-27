@@ -1,11 +1,11 @@
 import { aggregateExpenses, categoryColor, normalizeSpendCategory } from './categoryIntelligence.js'
 import { getTransactionTone } from './financeColors.js'
 import { buildFinancialActivity, displayPersonName, isCurrentUserName } from './financialActivity.js'
+import { addMoney, normalizeMoney } from './money.js'
 import { normalizeCommitments } from './ruleEngine.js'
 
 function safeAmount(value) {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  return normalizeMoney(value)
 }
 
 function todayKey() {
@@ -226,7 +226,7 @@ function buildSavingsTransactions(savingsBuckets = [], monthKey) {
         impactType: 'transfer',
         sourceModule: 'Goals',
         source: 'savings-bucket',
-        note: target > 0 ? `${Math.min(Math.round((saved / target) * 100), 100)}% funded` : 'Savings bucket balance',
+        note: target > 0 ? `${Math.min(Math.round((saved / target) * 100), 100)}% funded` : 'Savings goal balance',
         meta: {
           target,
           bucketId: bucket.id,
@@ -270,7 +270,7 @@ function buildPlannerTransactions(planner = {}) {
     return []
   }
 
-  const name = String(planner.label || planner.selectedPlan || 'Planner target').trim()
+  const name = String(planner.label || planner.selectedPlan || 'Purchase plan').trim()
   const transactions = [
     makeTransaction({
       id: `planner-target-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'target'}`,
@@ -389,7 +389,7 @@ function normalizeMoneyBookEntry(entry = {}, index = 0) {
 }
 
 function moneyBookDue(entry) {
-  return safeAmount(entry.amount) + safeAmount(entry.interest)
+  return addMoney(entry.amount, entry.interest)
 }
 
 function isMoneyBookPendingAt(entry, monthKey) {
@@ -544,25 +544,25 @@ function buildMoneyBookSummary(moneyBookEntries = [], monthKey) {
     const pendingAtMonthEnd = isMoneyBookPendingAt(entry, monthKey)
 
     if (entry.kind === 'given' && isInMonth(entry.date, monthKey)) {
-      summary.totalGiven += entry.amount
+      summary.totalGiven = addMoney(summary.totalGiven, entry.amount)
     }
 
     if (entry.kind === 'taken' && isInMonth(entry.date, monthKey)) {
-      summary.totalBorrowed += entry.amount
+      summary.totalBorrowed = addMoney(summary.totalBorrowed, entry.amount)
     }
 
     if (entry.status === 'settled' && entry.settledAt && isInMonth(entry.settledAt, monthKey)) {
-      summary.settledThisMonth += due
+      summary.settledThisMonth = addMoney(summary.settledThisMonth, due)
     }
 
     if (pendingAtMonthEnd) {
       summary.pendingCount += 1
-      summary.pendingSettlements += due
+      summary.pendingSettlements = addMoney(summary.pendingSettlements, due)
 
       if (entry.kind === 'given') {
-        summary.needToReceive += due
+        summary.needToReceive = addMoney(summary.needToReceive, due)
       } else {
-        summary.needToPay += due
+        summary.needToPay = addMoney(summary.needToPay, due)
       }
     }
   })
@@ -603,11 +603,11 @@ export function groupTransactionsByDate(transactions = []) {
     group.items.push(transaction)
 
     if (transaction.tone === 'incoming') {
-      group.incoming += transaction.amount
+      group.incoming = addMoney(group.incoming, transaction.amount)
     } else if (transaction.tone === 'outgoing') {
-      group.outgoing += transaction.amount
+      group.outgoing = addMoney(group.outgoing, transaction.amount)
     } else if (transaction.tone === 'transfer') {
-      group.transfers += transaction.amount
+      group.transfers = addMoney(group.transfers, transaction.amount)
     }
 
     groups.set(key, group)
@@ -624,11 +624,11 @@ export function groupTransactionsByDate(transactions = []) {
 export function buildTransactionSummary(transactions = []) {
   return transactions.reduce((summary, transaction) => {
     if (transaction.tone === 'incoming') {
-      summary.incoming += transaction.amount
+      summary.incoming = addMoney(summary.incoming, transaction.amount)
     } else if (transaction.tone === 'outgoing') {
-      summary.outgoing += transaction.amount
+      summary.outgoing = addMoney(summary.outgoing, transaction.amount)
     } else if (transaction.tone === 'transfer') {
-      summary.transfers += transaction.amount
+      summary.transfers = addMoney(summary.transfers, transaction.amount)
     }
 
     summary.count += 1
