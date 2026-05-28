@@ -4056,6 +4056,7 @@ function SettingsSheet({
 }
 
 function HomeFooter() {
+  const [isAboutOpen, setIsAboutOpen] = useState(false)
   const trustItems = [
     { label: 'Privacy-aware', icon: ShieldCheck },
     { label: 'Local-first planning', icon: LockKeyhole },
@@ -4064,43 +4065,66 @@ function HomeFooter() {
 
   return (
     <footer className="home-footer" aria-label="FBPly legal and founder information">
-      <section className="home-about-block" aria-labelledby="home-about-title">
-        <div className="home-footer-brand">
-          <BrandMark size="tiny" />
-          <div>
-            <span className="mini-label" id="home-about-title">About FBPly</span>
-            <strong>Founder-led personal finance clarity.</strong>
-            <p>Built independently to make everyday spending, shared costs, and future purchases easier to understand.</p>
-          </div>
-        </div>
-
-        <div className="home-founder-stack">
-          <span>Founder</span>
-          <strong>{founderName}</strong>
-          <a
-            className="home-linkedin-button"
-            href={founderLinkedInUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-            aria-label={`${founderName} on LinkedIn`}
-          >
-            <span className="linkedin-glyph" aria-hidden="true">in</span>
-            <ExternalLink size={11} aria-hidden="true" />
-          </a>
-        </div>
-
-        <a
-          className="home-support-button"
-          href={supportPaymentUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          <Coffee size={14} />
-          Support FBPly
-        </a>
-      </section>
-
       <QuickFeedbackForm />
+
+      <section className={`home-about-block ${isAboutOpen ? 'open' : ''}`} aria-labelledby="home-about-title">
+        <button
+          className="home-about-toggle"
+          type="button"
+          aria-expanded={isAboutOpen}
+          aria-controls="home-about-details"
+          onClick={() => setIsAboutOpen((current) => !current)}
+        >
+          <span className="home-about-toggle-main">
+            <BrandMark size="tiny" />
+            <span>
+              <span className="mini-label" id="home-about-title">About FBPly</span>
+              <strong>Founder, support, and trust details</strong>
+              <small>Tap to view the founder note and links.</small>
+            </span>
+          </span>
+          <ChevronRight size={17} aria-hidden="true" />
+        </button>
+
+        {isAboutOpen && (
+          <div className="home-about-details" id="home-about-details">
+            <div className="home-footer-brand">
+              <div>
+                <strong>Founder-led personal finance clarity.</strong>
+                <p>Built independently to make everyday spending, shared costs, and future purchases easier to understand.</p>
+              </div>
+            </div>
+
+            <div className="home-founder-stack">
+              <span>Founder</span>
+              <strong>{founderName}</strong>
+            </div>
+
+            <div className="home-about-actions">
+              <a
+                className="home-linkedin-button"
+                href={founderLinkedInUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label={`${founderName} on LinkedIn`}
+              >
+                <span className="linkedin-glyph" aria-hidden="true">in</span>
+                <span>LinkedIn</span>
+                <ExternalLink size={11} aria-hidden="true" />
+              </a>
+              <a
+                className="home-support-button"
+                href={supportPaymentUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                <Coffee size={14} />
+                Support FBPly
+              </a>
+            </div>
+          </div>
+        )}
+      </section>
 
       <div className="home-trust-strip" aria-label="FBPly trust notes">
         {trustItems.map((item) => (
