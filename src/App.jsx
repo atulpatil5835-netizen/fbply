@@ -4211,10 +4211,10 @@ function QuickFeedbackForm() {
           throw error
         }
 
-        setStatus('Thanks. Your feedback was sent.')
+        setStatus('Thanks for your feedback. It genuinely helps make FBPly clearer and better.')
       } else {
         sendViaMailto(cleanSuggestion, cleanEmail)
-        setStatus('Thanks. Your email app has the feedback ready to send.')
+        setStatus('Thanks for your feedback. Your note is ready to send, and it genuinely helps improve FBPly.')
       }
 
       setSuggestion('')
@@ -4222,7 +4222,7 @@ function QuickFeedbackForm() {
       setErrors({})
     } catch {
       sendViaMailto(cleanSuggestion, cleanEmail)
-      setStatus('Thanks. Your email app has the feedback ready to send.')
+      setStatus('Thanks for your feedback. Your note is ready to send, and it genuinely helps improve FBPly.')
     } finally {
       setIsSending(false)
     }
