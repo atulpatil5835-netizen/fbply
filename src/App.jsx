@@ -30,6 +30,7 @@ import {
   Receipt,
   ShoppingBag,
   ShieldCheck,
+  Send,
   Smartphone,
   Sparkles,
   Square,
@@ -583,7 +584,7 @@ function uniqueSharedPeople(people = []) {
     })
 }
 
-function createSharedGroup({ name, amount, paidBy, people, profile }) {
+function createSharedGroup({ name, amount, paidBy, people, profile, purpose = '' }) {
   const id = `shared-${Date.now()}-${Math.random().toString(16).slice(2)}`
   const currentUserName = resolveCurrentUserName(profile)
   const members = uniqueSharedPeople([currentUserName, ...(people || [])])
@@ -600,6 +601,7 @@ function createSharedGroup({ name, amount, paidBy, people, profile }) {
   return {
     id,
     name: String(name || 'Shared trip').trim() || 'Shared trip',
+    purpose: String(purpose || '').trim(),
     people: members,
     date: new Date().toISOString().slice(0, 10),
     payments,
@@ -902,6 +904,28 @@ function activityVerb(transaction = {}) {
   }
 
   return 'Tracked'
+}
+
+function focusInvalidField(root) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return
+  }
+
+  window.setTimeout(() => {
+    const scope = root?.querySelector ? root : document
+    const invalidField = scope.querySelector(
+      '.field-invalid input, .field-invalid textarea, .field-invalid select, input.field-invalid, textarea.field-invalid, select.field-invalid, [aria-invalid="true"]',
+    )
+
+    if (!invalidField) {
+      return
+    }
+
+    invalidField.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    if (typeof invalidField.focus === 'function') {
+      invalidField.focus({ preventScroll: true })
+    }
+  }, 0)
 }
 
 function App() {
@@ -1619,8 +1643,10 @@ function App() {
   }, [lastVoiceSave])
 
   const addSharedGroup = useCallback((group) => {
+    const ownerName = String(group.ownerName || '').trim()
+    const effectiveProfile = ownerName ? { ...profile, name: ownerName } : profile
     const members = uniqueSharedPeople([
-      resolveCurrentUserName(profile),
+      resolveCurrentUserName(effectiveProfile),
       ...(group.people || []),
     ])
     const groupName = String(group.name || '').trim()
@@ -1629,11 +1655,16 @@ function App() {
       return false
     }
 
+    if (ownerName && normalizePersonName(ownerName) !== normalizePersonName(profile.name)) {
+      setProfile((current) => ({ ...current, name: ownerName }))
+    }
+
     setSharedGroups((current) => [
       createSharedGroup({
         name: groupName,
         people: members,
-        profile,
+        profile: effectiveProfile,
+        purpose: group.purpose,
       }),
       ...current,
     ])
@@ -3593,11 +3624,15 @@ function QuickExpenseEntry({
 
   return (
     <form className={`quick-expense-form ${Object.keys(expenseFieldErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
+      const form = event.currentTarget
       const saved = addExpense(event)
 
       if (saved) {
         onSaved()
+        return
       }
+
+      focusInvalidField(form)
     }}>
       <div className="quick-chip-row compact-quick-row">
         {quickExpenseChips.slice(0, 6).map((chip) => (
@@ -3681,12 +3716,14 @@ function QuickIncomeEntry({ profile, setProfile, onSaved }) {
   const [error, setError] = useState('')
 
   return (
-    <form className="quick-expense-form" onSubmit={(event) => {
+    <form className={`quick-expense-form ${error ? 'form-has-errors' : ''}`} onSubmit={(event) => {
       event.preventDefault()
+      const form = event.currentTarget
       const parsed = normalizeMoney(incomeAmount)
 
       if (!parsed || parsed <= 0) {
         setError('Add a valid income amount.')
+        focusInvalidField(form)
         return
       }
 
@@ -3715,7 +3752,7 @@ function QuickIncomeEntry({ profile, setProfile, onSaved }) {
 function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavingsBucket, onSaved, setActiveTab }) {
   const [bucketId, setBucketId] = useState(savingsBuckets[0]?.id || '')
   const [amount, setAmount] = useState('')
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState({})
   const selectedBucket = savingsBuckets.find((bucket) => bucket.id === bucketId)
 
   if (savingsBuckets.length === 0) {
@@ -3737,17 +3774,23 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
   }
 
   return (
-    <form className="quick-expense-form" onSubmit={(event) => {
+    <form className={`quick-expense-form ${Object.keys(errors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
       event.preventDefault()
+      const form = event.currentTarget
       const parsed = normalizeMoney(amount)
+      const fieldErrors = {}
 
       if (!selectedBucket) {
-        setError('Choose a goal.')
-        return
+        fieldErrors.bucket = 'Choose a goal.'
       }
 
       if (!parsed || parsed <= 0) {
-        setError('Add a valid amount.')
+        fieldErrors.amount = 'Add a positive amount.'
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors)
+        focusInvalidField(form)
         return
       }
 
@@ -3758,9 +3801,13 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
     }}>
       <label>
         <span className="input-label">Goal</span>
-        <select className="month-select" value={bucketId} onChange={(event) => {
+        <select className={`month-select ${errors.bucket ? 'field-invalid' : ''}`} value={bucketId} aria-invalid={errors.bucket ? 'true' : undefined} onChange={(event) => {
           setBucketId(event.target.value)
-          setError('')
+          setErrors((current) => {
+            const next = { ...current }
+            delete next.bucket
+            return next
+          })
         }}>
           {savingsBuckets.map((bucket) => (
             <option key={bucket.id} value={bucket.id}>
@@ -3768,6 +3815,7 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
             </option>
           ))}
         </select>
+        {errors.bucket && <small className="field-helper">{errors.bucket}</small>}
       </label>
       <CurrencyInput
         label="Amount to move"
@@ -3776,9 +3824,13 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
         placeholder="1000"
         onChange={(value) => {
           setAmount(value)
-          setError('')
+          setErrors((current) => {
+            const next = { ...current }
+            delete next.amount
+            return next
+          })
         }}
-        error={error}
+        error={errors.amount}
       />
       <p className="quick-form-note">This updates the saved amount for your goal.</p>
       <button className="primary-button full" type="submit">
@@ -3793,21 +3845,40 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
   const [person, setPerson] = useState('')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState({})
 
   return (
-    <form className="quick-expense-form" onSubmit={(event) => {
+    <form className={`quick-expense-form ${Object.keys(errors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
       event.preventDefault()
+      const form = event.currentTarget
+      const parsedAmount = normalizeMoney(amount)
+      const fieldErrors = {}
+
+      if (!String(person || '').trim()) {
+        fieldErrors.person = 'Add the person name.'
+      }
+
+      if (!parsedAmount || parsedAmount <= 0) {
+        fieldErrors.amount = 'Add a positive amount.'
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors)
+        focusInvalidField(form)
+        return
+      }
+
       const saved = saveMoneyBookEntry({
         kind,
         person,
-        amount,
+        amount: parsedAmount,
         date: todayDateKey(),
         note,
       })
 
       if (!saved) {
-        setError('Add person and amount to save this entry.')
+        setErrors({ form: 'Check the highlighted fields before saving.' })
+        focusInvalidField(form)
         return
       }
 
@@ -3824,15 +3895,21 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
       <label>
         <span className="input-label">Person</span>
         <input
-          className="plain-input"
+          className={`plain-input ${errors.person ? 'field-invalid' : ''}`}
           type="text"
           value={person}
           placeholder="Rahul, Priya..."
+          aria-invalid={errors.person ? 'true' : undefined}
           onChange={(event) => {
             setPerson(event.target.value)
-            setError('')
+            setErrors((current) => {
+              const next = { ...current }
+              delete next.person
+              return next
+            })
           }}
         />
+        {errors.person && <small className="field-helper">{errors.person}</small>}
       </label>
       <CurrencyInput
         label="Amount"
@@ -3841,8 +3918,13 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
         placeholder="500"
         onChange={(value) => {
           setAmount(value)
-          setError('')
+          setErrors((current) => {
+            const next = { ...current }
+            delete next.amount
+            return next
+          })
         }}
+        error={errors.amount}
       />
       <label>
         <span className="input-label">Note</span>
@@ -3857,7 +3939,7 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
       <button className="primary-button full" type="submit">
         Save entry
       </button>
-      {error && <p className="form-message">{error}</p>}
+      {errors.form && <p className="form-message form-message-error">{errors.form}</p>}
     </form>
   )
 }
@@ -3982,46 +4064,43 @@ function HomeFooter() {
 
   return (
     <footer className="home-footer" aria-label="FBPly legal and founder information">
-      <div className="home-footer-main">
+      <section className="home-about-block" aria-labelledby="home-about-title">
         <div className="home-footer-brand">
           <BrandMark size="tiny" />
           <div>
-            <strong>FBPly</strong>
-            <p>Independent personal finance clarity, built with care.</p>
+            <span className="mini-label" id="home-about-title">About FBPly</span>
+            <strong>Founder-led personal finance clarity.</strong>
+            <p>Built independently to make everyday spending, shared costs, and future purchases easier to understand.</p>
           </div>
         </div>
-        <div className="home-footer-actions">
+
+        <div className="home-founder-stack">
+          <span>Founder</span>
+          <strong>{founderName}</strong>
           <a
-            className="home-founder-link"
+            className="home-linkedin-button"
             href={founderLinkedInUrl}
             target="_blank"
             rel="noreferrer noopener"
             aria-label={`${founderName} on LinkedIn`}
           >
             <span className="linkedin-glyph" aria-hidden="true">in</span>
-            <span>{founderName}</span>
-            <ExternalLink size={12} aria-hidden="true" />
-          </a>
-          <a
-            className="home-support-button"
-            href={supportPaymentUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            <Coffee size={14} />
-            Support FBPly
+            <ExternalLink size={11} aria-hidden="true" />
           </a>
         </div>
-      </div>
 
-      <p className="home-footer-note">
-        <strong>Founder note.</strong> FBPly is independently built and continuously improved with care. Some updates may take a little longer, but every suggestion genuinely helps shape the app.
-      </p>
+        <a
+          className="home-support-button"
+          href={supportPaymentUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          <Coffee size={14} />
+          Support FBPly
+        </a>
+      </section>
 
-      <div className="home-feedback-row">
-        <span>Found something to improve?</span>
-        <a href={`mailto:${supportEmail}`}>Suggestions are welcome at {supportEmail}</a>
-      </div>
+      <QuickFeedbackForm />
 
       <div className="home-trust-strip" aria-label="FBPly trust notes">
         {trustItems.map((item) => (
@@ -4040,6 +4119,140 @@ function HomeFooter() {
         ))}
       </nav>
     </footer>
+  )
+}
+
+function QuickFeedbackForm() {
+  const [suggestion, setSuggestion] = useState('')
+  const [email, setEmail] = useState('')
+  const [errors, setErrors] = useState({})
+  const [status, setStatus] = useState('')
+  const [isSending, setIsSending] = useState(false)
+
+  const clearError = (field) => {
+    setErrors((current) => {
+      if (!current[field]) {
+        return current
+      }
+
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
+  }
+
+  const sendViaMailto = (cleanSuggestion, cleanEmail) => {
+    const subject = encodeURIComponent('FBPly feedback')
+    const body = encodeURIComponent(`${cleanSuggestion}${cleanEmail ? `\n\nFrom: ${cleanEmail}` : ''}`)
+    window.location.href = `mailto:${supportEmail}?subject=${subject}&body=${body}`
+  }
+
+  const submitFeedback = async (event) => {
+    event.preventDefault()
+    const form = event.currentTarget
+    const cleanSuggestion = suggestion.trim()
+    const cleanEmail = email.trim()
+    const fieldErrors = {}
+
+    setStatus('')
+
+    if (cleanSuggestion.length < 4) {
+      fieldErrors.suggestion = 'Add a short note so the feedback is useful.'
+    }
+
+    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      fieldErrors.email = 'Use a valid email, or leave this blank.'
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors)
+      focusInvalidField(form)
+      return
+    }
+
+    setIsSending(true)
+
+    try {
+      if (isSupabaseReady) {
+        const { error } = await supabase
+          .from('feedback')
+          .insert({
+            email: cleanEmail || null,
+            message: cleanSuggestion,
+            source: 'footer',
+            page: typeof window === 'undefined' ? '/' : window.location.pathname,
+          })
+
+        if (error) {
+          throw error
+        }
+
+        setStatus('Thanks. Your feedback was sent.')
+      } else {
+        sendViaMailto(cleanSuggestion, cleanEmail)
+        setStatus('Thanks. Your email app has the feedback ready to send.')
+      }
+
+      setSuggestion('')
+      setEmail('')
+      setErrors({})
+    } catch {
+      sendViaMailto(cleanSuggestion, cleanEmail)
+      setStatus('Thanks. Your email app has the feedback ready to send.')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  return (
+    <form className={`home-feedback-card ${Object.keys(errors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={submitFeedback}>
+      <div className="home-feedback-heading">
+        <div>
+          <span className="mini-label">Quick feedback</span>
+          <strong>Tell us what felt unclear.</strong>
+        </div>
+        <MessageCircle size={17} />
+      </div>
+      <label>
+        <span className="input-label">Suggestion / feedback</span>
+        <textarea
+          className={`plain-input textarea-input ${errors.suggestion ? 'field-invalid' : ''}`}
+          value={suggestion}
+          placeholder="One thing FBPly should improve..."
+          rows={3}
+          aria-invalid={errors.suggestion ? 'true' : undefined}
+          onChange={(event) => {
+            setSuggestion(event.target.value)
+            clearError('suggestion')
+            setStatus('')
+          }}
+        />
+        {errors.suggestion && <small className="field-helper">{errors.suggestion}</small>}
+      </label>
+      <div className="home-feedback-actions">
+        <label>
+          <span className="input-label">Email optional</span>
+          <input
+            className={`plain-input ${errors.email ? 'field-invalid' : ''}`}
+            type="email"
+            value={email}
+            placeholder="you@example.com"
+            aria-invalid={errors.email ? 'true' : undefined}
+            onChange={(event) => {
+              setEmail(event.target.value)
+              clearError('email')
+              setStatus('')
+            }}
+          />
+          {errors.email && <small className="field-helper">{errors.email}</small>}
+        </label>
+        <button className="primary-button" type="submit" disabled={isSending}>
+          <Send size={15} />
+          {isSending ? 'Sending...' : 'Send'}
+        </button>
+      </div>
+      {status && <p className="form-message feedback-success">{status}</p>}
+    </form>
   )
 }
 
@@ -4535,6 +4748,7 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
 
   const submitEntry = useCallback((event) => {
     event.preventDefault()
+    const form = event.currentTarget
 
     const fieldErrors = {}
     const parsedAmount = normalizeMoney(amount)
@@ -4558,6 +4772,7 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
 
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors)
+      focusInvalidField(form)
       return
     }
 
@@ -4576,6 +4791,7 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
 
     if (!saved) {
       setErrors({ form: 'Check the highlighted fields before saving.' })
+      focusInvalidField(form)
     }
   }, [amount, date, dueDate, entry, interest, kind, note, onSave, person])
 
@@ -4884,14 +5100,49 @@ function SharedExpensesPanel({
   variant = 'default',
 }) {
   const [name, setName] = useState('')
+  const [ownerName, setOwnerName] = useState(() => resolveCurrentUserName(profile))
   const [people, setPeople] = useState('')
+  const [purpose, setPurpose] = useState('')
   const [paymentDrafts, setPaymentDrafts] = useState({})
-  const [message, setMessage] = useState('')
+  const [groupErrors, setGroupErrors] = useState({})
+  const [paymentErrors, setPaymentErrors] = useState({})
+  const [message, setMessage] = useState({ text: '', tone: 'info' })
   const currentUserName = resolveCurrentUserName(profile)
   const reconciledGroups = useMemo(
     () => groups.map((group) => reconcileSharedGroup(group, profile)),
     [groups, profile],
   )
+
+  const clearGroupError = (field) => {
+    setGroupErrors((current) => {
+      if (!current[field]) {
+        return current
+      }
+
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
+  }
+
+  const clearPaymentError = (groupId, field) => {
+    setPaymentErrors((current) => {
+      const groupFields = current[groupId]
+
+      if (!groupFields?.[field]) {
+        return current
+      }
+
+      const nextGroupFields = { ...groupFields }
+      delete nextGroupFields[field]
+
+      return {
+        ...current,
+        [groupId]: nextGroupFields,
+      }
+    })
+  }
+
   const focusSharedGroupName = () => {
     if (typeof document !== 'undefined') {
       document.getElementById('shared-group-name')?.focus()
@@ -4900,24 +5151,65 @@ function SharedExpensesPanel({
 
   const submitGroup = (event) => {
     event.preventDefault()
-    const peopleList = people
+    const form = event.currentTarget
+    const cleanName = name.trim()
+    const cleanOwnerName = ownerName.trim()
+    const ownNameKey = normalizePersonName(cleanOwnerName)
+    const rawPeopleList = people
       .split(',')
       .map((person) => person.trim())
       .filter(Boolean)
+    const peopleList = uniqueSharedPeople(rawPeopleList)
+      .filter((person) => {
+        const key = normalizePersonName(person)
+        return key && key !== ownNameKey && key !== 'you' && key !== 'me'
+      })
+    const fieldErrors = {}
 
-    const saved = addSharedGroup({
-      name,
-      people: peopleList,
-    })
+    if (!cleanName) {
+      fieldErrors.name = 'Name the trip, group, or shared bill.'
+    }
 
-    if (!saved) {
-      setMessage('Add a group name and at least one participant.')
+    if (!cleanOwnerName) {
+      fieldErrors.ownerName = 'Add your name so payer identity is clear.'
+    }
+
+    if (rawPeopleList.length === 0) {
+      fieldErrors.people = 'Add at least one other participant.'
+    } else if (peopleList.length === 0) {
+      fieldErrors.people = 'Keep your name above. Add one other person here.'
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setGroupErrors(fieldErrors)
+      setMessage({ text: 'Complete the highlighted fields to create the group.', tone: 'error' })
+      focusInvalidField(form)
       return
     }
 
-    setMessage('Shared group created. Add payments as costs happen.')
+    const saved = addSharedGroup({
+      name: cleanName,
+      ownerName: cleanOwnerName,
+      people: peopleList,
+      purpose,
+    })
+
+    if (!saved) {
+      setMessage({ text: 'Add a group name and at least one participant.', tone: 'error' })
+      focusInvalidField(form)
+      return
+    }
+
+    setMessage({
+      text: rawPeopleList.length !== peopleList.length
+        ? 'Group created. Your name stayed separate from participants.'
+        : 'Group created. Add the first shared payment when it happens.',
+      tone: 'success',
+    })
     setName('')
     setPeople('')
+    setPurpose('')
+    setGroupErrors({})
   }
 
   const updatePaymentDraft = (groupId, patch) => {
@@ -4932,19 +5224,46 @@ function SharedExpensesPanel({
 
   const submitPayment = (event, group) => {
     event.preventDefault()
+    const form = event.currentTarget
     const draft = paymentDrafts[group.id] || {}
-    const saved = addSharedPayment(group.id, {
-      label: draft.label,
-      amount: normalizeMoney(draft.amount),
-      paidBy: draft.paidBy || currentUserName,
-    })
+    const fieldErrors = {}
+    const parsedAmount = normalizeMoney(draft.amount)
+    const cleanLabel = String(draft.label || '').trim()
+    const cleanPaidBy = String(draft.paidBy || currentUserName).trim()
 
-    if (!saved) {
-      setMessage('Add what was paid, amount, and who paid.')
+    if (!cleanLabel) {
+      fieldErrors.label = 'Add what this payment was for.'
+    }
+
+    if (!parsedAmount || parsedAmount <= 0) {
+      fieldErrors.amount = 'Add a positive amount.'
+    }
+
+    if (!cleanPaidBy) {
+      fieldErrors.paidBy = 'Choose who paid.'
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setPaymentErrors((current) => ({ ...current, [group.id]: fieldErrors }))
+      setMessage({ text: 'Complete the highlighted payment fields.', tone: 'error' })
+      focusInvalidField(form)
       return
     }
 
-    setMessage(`${draft.label || 'Payment'} added to ${group.name}.`)
+    const saved = addSharedPayment(group.id, {
+      label: cleanLabel,
+      amount: parsedAmount,
+      paidBy: cleanPaidBy,
+    })
+
+    if (!saved) {
+      setMessage({ text: 'Add what was paid, amount, and who paid.', tone: 'error' })
+      focusInvalidField(form)
+      return
+    }
+
+    setMessage({ text: `${cleanLabel} added to ${group.name}.`, tone: 'success' })
+    setPaymentErrors((current) => ({ ...current, [group.id]: {} }))
     setPaymentDrafts((current) => ({
       ...current,
       [group.id]: { label: '', amount: '', paidBy: '' },
@@ -4956,30 +5275,79 @@ function SharedExpensesPanel({
       <div className="screen-heading compact-heading">
         <div>
           <p className="eyebrow">Shared money</p>
-          <h1>{variant === 'planner' ? 'Trips, rent, and group spends.' : 'Track who paid and who owes.'}</h1>
-          <p className="section-note shared-panel-note">Add Goa trips, flat rent splits, office lunches, or group travel. FBPly keeps who owes whom clear.</p>
+          <h1>{variant === 'planner' ? 'Split costs clearly.' : 'Track who paid and who owes.'}</h1>
+          <p className="section-note shared-panel-note">Your name is handled separately. Add only the other people in the group.</p>
         </div>
       </div>
 
-      <form className="shared-form" onSubmit={submitGroup}>
+      <form className={`shared-form ${Object.keys(groupErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={submitGroup}>
+        <div className="shared-identity-note">
+          <User size={16} />
+          <span>
+            <strong>You are added automatically.</strong>
+            <small>Participants should be friends, flatmates, or teammates only.</small>
+          </span>
+        </div>
         <label>
-          <span className="input-label">Shared group name</span>
+          <span className="input-label">Group / Trip Name *</span>
           <input
-            className="plain-input"
+            className={`plain-input ${groupErrors.name ? 'field-invalid' : ''}`}
             id="shared-group-name"
             value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Goa trip, office lunch"
+            aria-invalid={groupErrors.name ? 'true' : undefined}
+            onChange={(event) => {
+              setName(event.target.value)
+              clearGroupError('name')
+            }}
+            placeholder="Goa trip, flat rent"
           />
+          {groupErrors.name && <small className="field-helper">{groupErrors.name}</small>}
         </label>
         <label>
-          <span className="input-label">Participants</span>
-          <input className="plain-input" value={people} onChange={(event) => setPeople(event.target.value)} placeholder="Rahul, Priya, Sam" />
+          <span className="input-label">Your Name *</span>
+          <input
+            className={`plain-input ${groupErrors.ownerName ? 'field-invalid' : ''}`}
+            id="shared-owner-name"
+            value={ownerName}
+            aria-invalid={groupErrors.ownerName ? 'true' : undefined}
+            onChange={(event) => {
+              setOwnerName(event.target.value)
+              clearGroupError('ownerName')
+            }}
+            placeholder="Your name"
+          />
+          {groupErrors.ownerName && <small className="field-helper">{groupErrors.ownerName}</small>}
+        </label>
+        <label>
+          <span className="input-label">Participants *</span>
+          <input
+            className={`plain-input ${groupErrors.people ? 'field-invalid' : ''}`}
+            id="shared-participants"
+            value={people}
+            aria-invalid={groupErrors.people ? 'true' : undefined}
+            onChange={(event) => {
+              setPeople(event.target.value)
+              clearGroupError('people')
+            }}
+            placeholder="Rahul, Priya, Sam"
+          />
+          <small className="field-hint">Separate names with commas. Do not add your own name here.</small>
+          {groupErrors.people && <small className="field-helper">{groupErrors.people}</small>}
+        </label>
+        <label>
+          <span className="input-label">Expense / Purpose</span>
+          <input
+            className="plain-input"
+            id="shared-purpose"
+            value={purpose}
+            onChange={(event) => setPurpose(event.target.value)}
+            placeholder="Hotel, rent, dinner, fuel"
+          />
         </label>
         <button className="primary-button full" type="submit">
           Create group
         </button>
-        {message && <p className="form-message">{message}</p>}
+        {message.text && <p className={`form-message ${message.tone === 'error' ? 'form-message-error' : ''}`}>{message.text}</p>}
       </form>
 
       {sharedSummary?.activeGroups > 0 && (
@@ -5023,38 +5391,52 @@ function SharedExpensesPanel({
               <div className="shared-card-top">
                 <div>
                   <h2>{group.name}</h2>
-                  <p>{group.people.map((person) => displayPersonName(person, profile)).join(', ')}</p>
+                  <p>{group.purpose || 'Shared expenses'}</p>
+                  <small>{group.people.map((person) => displayPersonName(person, profile)).join(', ')}</small>
                 </div>
                 <button className="icon-button" type="button" aria-label={`Remove ${group.name}`} onClick={() => removeSharedGroup(group.id)}>
                   <Trash2 size={16} />
                 </button>
               </div>
 
-              <form className="trip-payment-form" onSubmit={(event) => submitPayment(event, group)}>
+              <form className={`trip-payment-form ${Object.keys(paymentErrors[group.id] || {}).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => submitPayment(event, group)}>
                 <label>
-                  <span className="input-label">What was paid?</span>
+                  <span className="input-label">Expense / Purpose</span>
                   <input
-                    className="plain-input"
+                    className={`plain-input ${paymentErrors[group.id]?.label ? 'field-invalid' : ''}`}
                     value={draft.label || ''}
-                    placeholder="Hotel, petrol, dinner"
-                    onChange={(event) => updatePaymentDraft(group.id, { label: event.target.value })}
+                    placeholder={group.purpose || 'Hotel, petrol, dinner'}
+                    aria-invalid={paymentErrors[group.id]?.label ? 'true' : undefined}
+                    onChange={(event) => {
+                      updatePaymentDraft(group.id, { label: event.target.value })
+                      clearPaymentError(group.id, 'label')
+                    }}
                   />
+                  {paymentErrors[group.id]?.label && <small className="field-helper">{paymentErrors[group.id].label}</small>}
                 </label>
                 <div>
                   <CurrencyInput
                     label="Amount"
                     id={`trip-payment-${slugify(group.id)}`}
                     value={draft.amount || ''}
-                    onChange={(value) => updatePaymentDraft(group.id, { amount: value })}
+                    onChange={(value) => {
+                      updatePaymentDraft(group.id, { amount: value })
+                      clearPaymentError(group.id, 'amount')
+                    }}
                     placeholder="1200"
+                    error={paymentErrors[group.id]?.amount}
                   />
                 </div>
                 <label>
-                  <span className="input-label">Who paid?</span>
+                  <span className="input-label">Paid by</span>
                   <select
-                    className="month-select stable-select"
+                    className={`month-select stable-select ${paymentErrors[group.id]?.paidBy ? 'field-invalid' : ''}`}
                     value={selectedTripPayer}
-                    onChange={(event) => updatePaymentDraft(group.id, { paidBy: event.target.value })}
+                    aria-invalid={paymentErrors[group.id]?.paidBy ? 'true' : undefined}
+                    onChange={(event) => {
+                      updatePaymentDraft(group.id, { paidBy: event.target.value })
+                      clearPaymentError(group.id, 'paidBy')
+                    }}
                   >
                     {payerOptions.map((person) => (
                       <option key={person} value={person}>
@@ -5062,6 +5444,8 @@ function SharedExpensesPanel({
                       </option>
                     ))}
                   </select>
+                  <small className="field-hint">Choose the person who paid first.</small>
+                  {paymentErrors[group.id]?.paidBy && <small className="field-helper">{paymentErrors[group.id].paidBy}</small>}
                 </label>
                 <button className="ghost-button" type="submit">
                   Add shared payment
@@ -5167,15 +5551,152 @@ function PlannerScreen({
   markSharedSettlementReceived,
   removeSharedGroup,
 }) {
+  const [showAdvancedGoalFields, setShowAdvancedGoalFields] = useState(false)
+  const hasPlannerPrice = normalizeMoney(plannerTargetAmount) > 0
+  const hasPlannerName = String(plannerInput || '').trim().length > 0
+  const showOptionalGoalFields = showAdvancedGoalFields || hasPlannerName
+
   return (
     <section className="screen-content goals-screen">
-      <div className="screen-heading">
+      <div className="screen-heading goals-heading">
         <div>
           <p className="eyebrow">Goals</p>
-          <h1>Plan future money calmly.</h1>
-          <p className="section-note">Savings, shared money, and big purchases stay in one simple place.</p>
+          <h1>Plan the next money move.</h1>
+          <p className="section-note">Start with the purchase. Savings and shared costs stay below when you need them.</p>
         </div>
       </div>
+
+      <section className="buy-safely-section">
+        <div className="planner-section-title">
+          <div>
+            <p className="eyebrow">Buy safely</p>
+            <h2>Can I afford this safely?</h2>
+            <p>Answer a few quick inputs. FBPly keeps the deeper math in the background.</p>
+          </div>
+        </div>
+
+        <PlannerRealityCard financialState={financialState} />
+
+        <section className="planner-goal-card goal-flow-card">
+          <div className="goal-step-row">
+            <span className="goal-step-index">1</span>
+            <div className="goal-step-content">
+              <div>
+                <span className="mini-label">Goal type</span>
+                <h2>What are you planning?</h2>
+              </div>
+              <div className="goal-type-strip" aria-label="Goal type">
+                {planCategories.map((category) => {
+                  const Icon = category.icon
+                  return (
+                    <button
+                      className={selectedPlan === category.label ? 'active' : ''}
+                      key={category.label}
+                      type="button"
+                      onClick={() => setSelectedPlan(category.label)}
+                    >
+                      <Icon size={15} />
+                      <span>{category.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="goal-step-row">
+            <span className="goal-step-index">2</span>
+            <div className="goal-step-content">
+              <CurrencyInput
+                label="Price"
+                id="planner-target-amount"
+                ariaLabel="Target purchase amount"
+                value={plannerTargetAmount}
+                placeholder="300000"
+                onChange={setPlannerTargetAmount}
+              />
+              <small className="field-hint">Use the expected total price. Approximate is fine.</small>
+            </div>
+          </div>
+
+          {hasPlannerPrice && (
+            <div className="goal-step-row">
+              <span className="goal-step-index">3</span>
+              <div className="goal-step-content">
+                <CurrencyInput
+                  label="Savings ready"
+                  id="planner-current-savings"
+                  ariaLabel="Current savings available"
+                  value={plannerCurrentSavings}
+                  placeholder="40000"
+                  onChange={setPlannerCurrentSavings}
+                />
+                <small className="field-hint">Money already available for this purchase.</small>
+              </div>
+            </div>
+          )}
+
+          {hasPlannerPrice && (
+            <div className="goal-step-row">
+              <span className="goal-step-index">4</span>
+              <div className="goal-step-content">
+                <span className="input-label">Timeline</span>
+                <div className="timeline-control compact-timeline-control" aria-label="Desired timeline">
+                  {timelineOptions.map((option) => (
+                    <button
+                      className={plannerTimeline === option.key ? 'active' : ''}
+                      key={option.key}
+                      type="button"
+                      onClick={() => setPlannerTimeline(option.key)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {hasPlannerPrice && (
+            <div className="goal-advanced-row">
+              <button
+                className="ghost-button small-button"
+                type="button"
+                onClick={() => setShowAdvancedGoalFields((current) => !current)}
+              >
+                <Sparkles size={15} />
+                {showOptionalGoalFields ? 'Hide optional details' : 'Optional details'}
+              </button>
+            </div>
+          )}
+
+          {hasPlannerPrice && showOptionalGoalFields && (
+            <div className="goal-advanced-fields">
+              <label>
+                <span className="input-label">Goal name</span>
+                <div className="input-with-icon planner-search">
+                  <PiggyBank size={17} />
+                  <input
+                    type="text"
+                    value={plannerInput}
+                    placeholder="Used car, work laptop, family trip"
+                    onChange={(event) => setPlannerInput(event.target.value)}
+                  />
+                </div>
+              </label>
+            </div>
+          )}
+
+          {!hasPlannerPrice && (
+            <p className="goal-flow-hint">Add a price to unlock savings, timeline, and a quick affordability summary.</p>
+          )}
+        </section>
+
+        <RecommendationPanel
+          recommendation={recommendation}
+          financialState={financialState}
+        />
+      </section>
 
       <SavingsBucketsManager
         buckets={savingsBuckets}
@@ -5194,85 +5715,6 @@ function PlannerScreen({
         removeSharedGroup={removeSharedGroup}
         variant="planner"
       />
-
-      <section className="buy-safely-section">
-        <div className="planner-section-title">
-          <div>
-            <p className="eyebrow">Buy safely</p>
-            <h2>Can I afford this safely?</h2>
-            <p>Pick a rough type. FBPly keeps the calculation behind the scenes.</p>
-          </div>
-        </div>
-
-        <PlannerRealityCard financialState={financialState} />
-
-        <div className="plan-grid purchase-type-grid">
-          {planCategories.map((category) => {
-            const Icon = category.icon
-            return (
-              <button
-                className={selectedPlan === category.label ? 'active' : ''}
-                key={category.label}
-                type="button"
-                onClick={() => setSelectedPlan(category.label)}
-              >
-                <Icon size={21} />
-                <span>{category.label}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        <section className="planner-goal-card">
-          <div className="input-with-icon planner-search">
-            <PiggyBank size={18} />
-            <input
-              type="text"
-              value={plannerInput}
-              placeholder="Optional name, like used car or work laptop"
-              onChange={(event) => setPlannerInput(event.target.value)}
-            />
-          </div>
-          <div className="planner-field-grid">
-            <CurrencyInput
-              label="Price"
-              id="planner-target-amount"
-              ariaLabel="Target purchase amount"
-              value={plannerTargetAmount}
-              placeholder="300000"
-              onChange={setPlannerTargetAmount}
-            />
-            <CurrencyInput
-              label="Savings ready"
-              id="planner-current-savings"
-              ariaLabel="Current savings available"
-              value={plannerCurrentSavings}
-              placeholder="40000"
-              onChange={setPlannerCurrentSavings}
-            />
-          </div>
-          <div>
-            <span className="input-label">When do you want it?</span>
-            <div className="timeline-control" aria-label="Desired timeline">
-              {timelineOptions.map((option) => (
-                <button
-                  className={plannerTimeline === option.key ? 'active' : ''}
-                  key={option.key}
-                  type="button"
-                  onClick={() => setPlannerTimeline(option.key)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <RecommendationPanel
-          recommendation={recommendation}
-          financialState={financialState}
-        />
-      </section>
     </section>
   )
 }
@@ -5292,7 +5734,7 @@ function PlannerRealityCard({ financialState }) {
       <div className="planner-reality-heading">
         <div>
           <span className="mini-label">Money status</span>
-          <h2>Can you afford this safely?</h2>
+          <h2>Your monthly room</h2>
         </div>
         <span className={`simulation-pill ${financialState.pressureTone === 'slight-pressure' ? 'warm' : financialState.pressureTone}`}>
           {financialState.pressure}
@@ -5317,8 +5759,8 @@ function RecommendationPanel({ recommendation, financialState }) {
         <article className="planner-empty-card">
           <PiggyBank size={20} />
           <div>
-            <h2>Add a price to see a safe path.</h2>
-            <p>FBPly checks your income, monthly bills, savings style, and timeline quietly.</p>
+            <h2>Add a price to see the safe path.</h2>
+            <p>FBPly checks income, bills, savings style, and timeline without asking for extra work.</p>
           </div>
         </article>
       </section>
@@ -5328,92 +5770,132 @@ function RecommendationPanel({ recommendation, financialState }) {
   const requiredEmiValue = recommendation.financeNeeded === 0 ? 'No EMI needed' : shortRupees(recommendation.requiredEmi)
   const timelineLabel = recommendation.timelineMonths === 0 ? 'Today' : recommendation.timelineLabel
   const delayedTitle = recommendation.timelineMonths === 0 ? 'Selected path' : `Path by ${timelineLabel}`
+  const confidence =
+    recommendation.ownershipTone === 'good'
+      ? { label: 'High', detail: 'Fits current room' }
+      : recommendation.ownershipTone === 'balanced'
+        ? { label: 'Medium', detail: 'Keep an eye on EMI space' }
+        : { label: 'Low', detail: 'Wait or increase savings' }
 
   return (
     <section className="recommendation-stack">
-      <article className="top-insight-card">
-        <PiggyBank size={19} />
+      <article className={`planner-summary-card ${recommendation.ownershipTone}`}>
+        <div className="planner-summary-heading">
+          <div>
+            <span className="mini-label">Smart summary</span>
+            <h2>{recommendation.goalName || `${recommendation.category} purchase`}</h2>
+          </div>
+          <span className={`simulation-pill ${recommendation.ownershipTone}`}>
+            {recommendation.ownershipStatus}
+          </span>
+        </div>
+
+        <div className="planner-summary-grid">
+          <div>
+            <span>Monthly saving</span>
+            <strong>{shortRupees(recommendation.monthlySetAside)}</strong>
+          </div>
+          <div>
+            <span>Affordability</span>
+            <strong>{requiredEmiValue}</strong>
+          </div>
+          <div>
+            <span>Confidence</span>
+            <strong>{confidence.label}</strong>
+            <small>{confidence.detail}</small>
+          </div>
+        </div>
+
         <p>{recommendation.insight}</p>
       </article>
 
-      <article className="finance-structure-card">
-        <div className="finance-structure-heading">
-          <div>
-            <span className="mini-label">{recommendation.category} planning structure</span>
-            <h2>{recommendation.goalName || `${recommendation.category} purchase`}</h2>
+      <details className="planner-details-panel">
+        <summary>
+          <span>Planning details</span>
+          <ChevronRight size={16} />
+        </summary>
+
+        <div className="planner-details-body">
+          <article className="finance-structure-card">
+            <div className="finance-structure-heading">
+              <div>
+                <span className="mini-label">{recommendation.category} structure</span>
+                <h2>{recommendation.goalName || `${recommendation.category} purchase`}</h2>
+              </div>
+              <strong>{shortRupees(recommendation.targetAmount)}</strong>
+            </div>
+            <div className="finance-structure-grid">
+              <div>
+                <span>Down payment</span>
+                <strong>{recommendation.suggestedDownpaymentLabel}</strong>
+                <p>More upfront money keeps monthly pressure lower.</p>
+              </div>
+              <div>
+                <span>May need finance</span>
+                <strong>{recommendation.financeRangeLabel}</strong>
+                <p>Based on the safer down payment range.</p>
+              </div>
+              <div>
+                <span>Easy EMI zone</span>
+                <strong>{recommendation.comfortableEmiLabel}</strong>
+                <p>After keeping monthly safety space.</p>
+              </div>
+              <div>
+                <span>This plan EMI</span>
+                <strong>{requiredEmiValue}</strong>
+                <p>Estimated with a cautious buffer.</p>
+              </div>
+            </div>
+          </article>
+
+          <article className="waiting-card">
+            <CalendarDays size={19} />
+            <p>{recommendation.waitSuggestion}</p>
+          </article>
+
+          <div className="ownership-path-grid">
+            <OwnershipPathCard
+              title="Immediate path"
+              path={recommendation.immediatePath}
+            />
+            <OwnershipPathCard
+              title={delayedTitle}
+              path={recommendation.delayedPath}
+              highlight
+            />
           </div>
-          <strong>{shortRupees(recommendation.targetAmount)}</strong>
+
+          <div className="guidance-grid">
+            <article className="simulation-card">
+              <div className="simulation-heading">
+                <h2>How heavy it may feel</h2>
+                <span className={`simulation-pill ${recommendation.ownershipTone}`}>
+                  {recommendation.ownershipStatus}
+                </span>
+              </div>
+              <div className="simulation-meter" aria-label={`${recommendation.downpaymentCoveragePercent}% downpayment coverage`}>
+                <span style={{ width: `${Math.min(recommendation.downpaymentCoveragePercent, 100)}%` }} />
+              </div>
+              <div className="pressure-list">
+                <span>Monthly set-aside: {shortRupees(recommendation.monthlySetAside)}</span>
+                <span>Downpayment gap: {shortRupees(recommendation.downpaymentGap)}</span>
+                <span>Safe space after EMI: {shortRupees(recommendation.projectedFlexAfterEmi)}</span>
+                <span>Safety savings after EMI: {shortRupees(recommendation.projectedBreathingAfterEmi)}</span>
+              </div>
+            </article>
+            <article className="guidance-card">
+              <h2>Why this feels safer</h2>
+              <p>{recommendation.categorySummary}</p>
+              <div className="pressure-list">
+                {recommendation.rationale.map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+                <span>Current pressure: {financialState.pressure}</span>
+              </div>
+            </article>
+          </div>
         </div>
-        <div className="finance-structure-grid">
-          <div>
-            <span>Suggested down payment</span>
-            <strong>{recommendation.suggestedDownpaymentLabel}</strong>
-            <p>More upfront money keeps monthly pressure lower.</p>
-          </div>
-          <div>
-            <span>May need finance</span>
-            <strong>{recommendation.financeRangeLabel}</strong>
-            <p>Based on the safer down payment range.</p>
-          </div>
-          <div>
-            <span>Easy EMI zone</span>
-            <strong>{recommendation.comfortableEmiLabel}</strong>
-            <p>After keeping some monthly safety space.</p>
-          </div>
-          <div>
-            <span>This plan EMI</span>
-            <strong>{requiredEmiValue}</strong>
-            <p>Estimated with a cautious buffer.</p>
-          </div>
-        </div>
-      </article>
-
-      <article className="waiting-card">
-        <CalendarDays size={19} />
-        <p>{recommendation.waitSuggestion}</p>
-      </article>
-
-      <div className="ownership-path-grid">
-        <OwnershipPathCard
-          title="Immediate path"
-          path={recommendation.immediatePath}
-        />
-        <OwnershipPathCard
-          title={delayedTitle}
-          path={recommendation.delayedPath}
-          highlight
-        />
-      </div>
-
-      <div className="guidance-grid">
-        <article className="simulation-card">
-          <div className="simulation-heading">
-            <h2>How heavy it may feel</h2>
-            <span className={`simulation-pill ${recommendation.ownershipTone}`}>
-              {recommendation.ownershipStatus}
-            </span>
-          </div>
-          <div className="simulation-meter" aria-label={`${recommendation.downpaymentCoveragePercent}% downpayment coverage`}>
-            <span style={{ width: `${Math.min(recommendation.downpaymentCoveragePercent, 100)}%` }} />
-          </div>
-          <div className="pressure-list">
-            <span>Monthly set-aside: {shortRupees(recommendation.monthlySetAside)}</span>
-            <span>Downpayment gap: {shortRupees(recommendation.downpaymentGap)}</span>
-            <span>Safe space after EMI: {shortRupees(recommendation.projectedFlexAfterEmi)}</span>
-            <span>Safety savings after EMI: {shortRupees(recommendation.projectedBreathingAfterEmi)}</span>
-          </div>
-        </article>
-        <article className="guidance-card">
-          <h2>Why this feels safer</h2>
-          <p>{recommendation.categorySummary}</p>
-          <div className="pressure-list">
-            {recommendation.rationale.map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-            <span>Current pressure: {financialState.pressure}</span>
-          </div>
-        </article>
-      </div>
+      </details>
     </section>
   )
 }
@@ -5449,6 +5931,7 @@ function OwnershipPathCard({ title, path, highlight = false }) {
     </article>
   )
 }
+
 
 function ProfileScreen({
   profile,
@@ -5696,7 +6179,14 @@ function ProfileExpenseQuickAdd({
   }
 
   return (
-    <form className={`profile-quick-expense-card ${Object.keys(expenseFieldErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={addExpense}>
+    <form className={`profile-quick-expense-card ${Object.keys(expenseFieldErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
+      const form = event.currentTarget
+      const saved = addExpense(event)
+
+      if (!saved) {
+        focusInvalidField(form)
+      }
+    }}>
       <div className="section-heading-row">
         <div>
           <p className="eyebrow">Quick expense</p>
