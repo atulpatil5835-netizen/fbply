@@ -8,13 +8,17 @@ import {
   ChartPie,
   CheckCircle2,
   ChevronRight,
+  Coffee,
   CreditCard,
   Download,
+  ExternalLink,
+  HeartHandshake,
   House,
   Laptop,
   LogOut,
   LockKeyhole,
   Mail,
+  MessageCircle,
   Mic,
   Moon,
   MoreVertical,
@@ -25,6 +29,7 @@ import {
   Popcorn,
   Receipt,
   ShoppingBag,
+  ShieldCheck,
   Smartphone,
   Sparkles,
   Square,
@@ -125,6 +130,18 @@ const timelineOptions = [
 ]
 
 const supportEmail = 'contact@fbply.com'
+const founderName = 'Atul Sadanand Hinge'
+const founderLinkedInUrl = 'https://www.linkedin.com/in/atul-hinge-304aab155/'
+const supportPaymentUrl = 'https://razorpay.me/@atulsadanandhinge'
+const legalUpdatedLabel = 'Updated May 2026'
+
+const legalLinks = [
+  { label: 'Privacy Policy', href: '/privacy' },
+  { label: 'Terms & Conditions', href: '/terms' },
+  { label: 'Disclaimer', href: '/disclaimer' },
+  { label: 'About FBPly', href: '/about' },
+  { label: 'Contact', href: '/contact' },
+]
 
 const navItems = [
   { key: 'home', label: 'Today', icon: House },
@@ -142,55 +159,55 @@ const legalPages = {
   '/privacy': {
     eyebrow: 'Privacy Policy',
     title: 'Privacy Policy',
-    summary: 'This page explains what FBPly may process and how users stay in control of their data.',
+    summary: 'FBPly is designed to make personal finance tracking clear and respectful. This policy explains what the app may process and how users stay in control.',
     sections: [
       {
-        title: 'Data FBPly Uses',
+        title: 'Information You Provide',
         body: [
-          'FBPly uses the information you enter, such as income, expenses, monthly bills, savings goals, shared expenses, planner inputs, and reviewed statement data.',
-          'Demo or sample entries are treated as user-controlled local data and can be edited or removed at any time.',
+          'FBPly uses the information you enter, such as income, expenses, monthly bills, savings goals, shared expenses, planner inputs, profile details, and reviewed statement data.',
+          'This information is used to calculate personal summaries, reports, reminders, safe-spend estimates, and purchase planning suggestions inside the app.',
         ],
       },
       {
-        title: 'Bank Statement Uploads',
+        title: 'Local Storage And Account Data',
+        body: [
+          'FBPly may use browser or device storage to remember setup status, app data, cookie consent, theme preference, and locally saved entries.',
+          'If sign-in or hosted services are enabled, limited account information such as email may be processed by the authentication or infrastructure providers needed to operate the app.',
+        ],
+      },
+      {
+        title: 'Statement Review',
         body: [
           'Uploaded statements are processed for review and reporting. Raw files and PDF passwords are not saved permanently by default.',
           'Statement totals are based only on readable rows. Users should review detected dates, categories, and money-in or money-out direction before using them.',
         ],
       },
       {
-        title: 'Cookies And Local Storage',
+        title: 'Cookies And Ads',
         body: [
-          'FBPly may use localStorage to remember setup status, cookie consent, theme, and locally saved app data.',
-          'If advertising is enabled later, Google AdSense and related partners may use cookies or similar technologies to show and measure ads.',
+          'FBPly may use local storage and similar browser features for app preferences and basic functionality.',
+          'If advertising is enabled, Google AdSense or related partners may use cookies or similar technologies to show, limit, and measure ads under their own policies.',
         ],
       },
       {
-        title: 'Third-Party Ads',
+        title: 'Your Choices',
         body: [
-          'FBPly may display third-party ads, including Google AdSense. Ad partners may process device, cookie, and usage information under their own policies.',
-          'Users can manage browser cookie settings and ad personalization controls through their browser or Google account settings.',
-        ],
-      },
-      {
-        title: 'User Rights And Contact',
-        body: [
-          'Users may choose not to upload statements, may edit reviewed data, and may clear local browser data from their device.',
+          'You may choose not to upload statements, may edit or remove reviewed data, and may clear locally stored browser data from your device.',
           `For privacy questions, contact ${supportEmail}.`,
         ],
       },
     ],
   },
   '/terms': {
-    eyebrow: 'Terms',
-    title: 'Terms of Service and Disclaimer',
-    summary: 'These terms explain acceptable use, limits, and the role of FBPly as a personal planning tool.',
+    eyebrow: 'Terms & Conditions',
+    title: 'Terms & Conditions',
+    summary: 'These terms explain acceptable use, product limits, and the role of FBPly as a personal planning tool.',
     sections: [
       {
-        title: 'Acceptance Of Terms',
+        title: 'Using FBPly',
         body: [
           'By using FBPly, you agree to use it for lawful personal financial tracking, planning, and review.',
-          'If you do not agree with these terms, do not use the app.',
+          'You are responsible for the information you enter and for using the app in a respectful, lawful way.',
         ],
       },
       {
@@ -208,6 +225,13 @@ const legalPages = {
         ],
       },
       {
+        title: 'Availability And Updates',
+        body: [
+          'FBPly is independently built and continuously improved. Features, calculations, design, and availability may change as the product evolves.',
+          'Some updates may take time, especially for careful fixes that affect reports, privacy, imports, or user data.',
+        ],
+      },
+      {
         title: 'Limitation Of Liability',
         body: [
           'FBPly does not guarantee financial outcomes, savings results, loan eligibility, purchase affordability, or statement parsing accuracy.',
@@ -219,10 +243,10 @@ const legalPages = {
   '/disclaimer': {
     eyebrow: 'Disclaimer',
     title: 'Disclaimer',
-    summary: 'FBPly gives personal finance clarity from user-provided and reviewed data, not professional advice.',
+    summary: 'FBPly provides personal finance clarity from user-provided and reviewed data. It is a planning aid, not professional advice.',
     sections: [
       {
-        title: 'Personal Planning Only',
+        title: 'Personal Planning Estimates',
         body: [
           'FBPly is designed for personal money visibility, expense tracking, purchase planning, and monthly reports.',
           'It does not provide banking, investment, tax, legal, or lending services.',
@@ -235,18 +259,53 @@ const legalPages = {
           'Statement parsing can miss or misread rows when bank PDF or CSV formats are unclear.',
         ],
       },
+      {
+        title: 'No Guarantees',
+        body: [
+          'Planner guidance, comfort labels, summaries, and report insights are estimates, not guarantees of savings, eligibility, repayment ability, or financial outcomes.',
+          'Please use FBPly as one helpful view of your information, not as the only basis for important decisions.',
+        ],
+      },
+      {
+        title: 'Responsible Use',
+        body: [
+          'For major financial, legal, tax, or investment decisions, consult a qualified professional.',
+          `Questions or corrections can be sent to ${supportEmail}.`,
+        ],
+      },
     ],
   },
   '/about': {
     eyebrow: 'About',
     title: 'About FBPly',
-    summary: 'FBPly helps users understand monthly spending, monthly bills, shared expenses, and purchase planning in a simple way.',
+    summary: 'FBPly is a founder-led personal finance clarity app for monthly spending, bills, shared expenses, and purchase planning.',
     sections: [
       {
-        title: 'Purpose',
+        title: 'What FBPly Does',
         body: [
-          'FBPly is a personal financial clarity app. It helps users see what is committed, what is flexible, and how a planned purchase may affect the month.',
-          'The app focuses on simple guidance from saved data, not on promises or aggressive recommendations.',
+          'FBPly helps users see what is committed, what is flexible, and how a planned purchase may affect the month.',
+          'The app focuses on clear, practical guidance from saved data without aggressive recommendations or unrealistic promises.',
+        ],
+      },
+      {
+        title: 'Founder Note',
+        body: [
+          'FBPly is independently built and continuously improved with care by a solo developer.',
+          'Some updates may take a little longer, but every suggestion genuinely helps shape a calmer and more useful product experience.',
+        ],
+      },
+      {
+        title: 'Feedback Matters',
+        body: [
+          'Found something to improve? Suggestions are always welcome, especially around clarity, reports, privacy, accessibility, and everyday usability.',
+          `Feedback can be sent anytime to ${supportEmail}.`,
+        ],
+      },
+      {
+        title: 'Founder',
+        body: [
+          `${founderName} builds and maintains FBPly as an independent product.`,
+          'The goal is to keep the app transparent, useful, and respectful of the real-life financial decisions people make every month.',
         ],
       },
       {
@@ -260,13 +319,34 @@ const legalPages = {
   '/contact': {
     eyebrow: 'Contact',
     title: 'Contact Us',
-    summary: 'Use the email below for support, privacy, product, or general questions.',
+    summary: 'Use the official email below for support, privacy questions, product suggestions, or general inquiries.',
     sections: [
       {
-        title: 'Contact',
+        title: 'Support',
         body: [
-          `Email ${supportEmail} for product, support, privacy, or general questions.`,
-          'Please avoid sending sensitive bank passwords or full statement files by email.',
+          `For app access, saved data, reports, or account questions, email ${supportEmail}.`,
+          'Please avoid sending bank passwords, full statement files, or highly sensitive financial details by email.',
+        ],
+      },
+      {
+        title: 'Privacy Questions',
+        body: [
+          `For privacy questions about local storage, statement review, cookies, or data handling, contact ${supportEmail}.`,
+          'Clear, specific questions help make the answer faster and more useful.',
+        ],
+      },
+      {
+        title: 'Suggestions & Feedback',
+        body: [
+          'Suggestions are always welcome. Feedback about confusing flows, reports, wording, or missing features directly helps improve FBPly.',
+          `Share product feedback at ${supportEmail}.`,
+        ],
+      },
+      {
+        title: 'Founder-Led Response',
+        body: [
+          'FBPly is independently maintained, so some responses and updates may take a little time.',
+          'Every genuine message is appreciated and helps guide what gets improved next.',
         ],
       },
     ],
@@ -2137,19 +2217,42 @@ function OfflineBanner({ isOnline }) {
   )
 }
 
+function LegalText({ text }) {
+  const value = String(text)
+
+  if (!value.includes(supportEmail)) {
+    return value
+  }
+
+  const [before, after] = value.split(supportEmail)
+
+  return (
+    <>
+      {before}
+      <a className="inline-legal-link" href={`mailto:${supportEmail}`}>
+        {supportEmail}
+      </a>
+      {after}
+    </>
+  )
+}
+
 function LegalPage({ page }) {
   const legalContactItems = [
     {
-      title: 'Contact',
-      body: 'Product and general inquiries.',
-    },
-    {
       title: 'Support',
       body: 'Help with app access, saved data, reports, or account questions.',
+      icon: HeartHandshake,
     },
     {
-      title: 'Privacy inquiries',
-      body: 'Questions about data handling, local storage, or statement review.',
+      title: 'Privacy Questions',
+      body: 'Questions about local storage, cookies, statement review, or data handling.',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Suggestions & Feedback',
+      body: 'Ideas and corrections that help shape the app are always welcome.',
+      icon: MessageCircle,
     },
   ]
 
@@ -2161,13 +2264,19 @@ function LegalPage({ page }) {
           <p className="eyebrow">{page.eyebrow}</p>
           <h1>{page.title}</h1>
           <p>{page.summary}</p>
+          <div className="legal-page-meta" aria-label="Legal page details">
+            <span>Official FBPly information</span>
+            <span>{legalUpdatedLabel}</span>
+          </div>
         </div>
         <div className="legal-section-list">
           {page.sections.map((section) => (
             <article className="legal-section" key={section.title}>
               <h2>{section.title}</h2>
               {section.body.map((line) => (
-                <p key={line}>{line}</p>
+                <p key={line}>
+                  <LegalText text={line} />
+                </p>
               ))}
             </article>
           ))}
@@ -2175,11 +2284,15 @@ function LegalPage({ page }) {
         <section className="legal-contact-panel" aria-label="Official FBPly contact">
           {legalContactItems.map((item) => (
             <article key={item.title}>
-              <span>{item.title}</span>
+              <span>
+                <item.icon size={14} />
+                {item.title}
+              </span>
               <p>{item.body}</p>
             </article>
           ))}
           <a className="legal-contact-link" href={`mailto:${supportEmail}`}>
+            <Mail size={15} />
             {supportEmail}
           </a>
         </section>
@@ -2922,6 +3035,7 @@ function MainApp(props) {
             downloadPdf={downloadPdf}
             isExportingPdf={isExportingPdf}
             pdfError={pdfError}
+            showFooter={!addSheetMode && !isSettingsOpen}
           />
         )}
         {activeTab === 'history' && (
@@ -3859,6 +3973,76 @@ function SettingsSheet({
   )
 }
 
+function HomeFooter() {
+  const trustItems = [
+    { label: 'Privacy-aware', icon: ShieldCheck },
+    { label: 'Local-first planning', icon: LockKeyhole },
+    { label: 'Founder-led support', icon: MessageCircle },
+  ]
+
+  return (
+    <footer className="home-footer" aria-label="FBPly legal and founder information">
+      <div className="home-footer-main">
+        <div className="home-footer-brand">
+          <BrandMark size="tiny" />
+          <div>
+            <strong>FBPly</strong>
+            <p>Independent personal finance clarity, built with care.</p>
+          </div>
+        </div>
+        <div className="home-footer-actions">
+          <a
+            className="home-founder-link"
+            href={founderLinkedInUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label={`${founderName} on LinkedIn`}
+          >
+            <span className="linkedin-glyph" aria-hidden="true">in</span>
+            <span>{founderName}</span>
+            <ExternalLink size={12} aria-hidden="true" />
+          </a>
+          <a
+            className="home-support-button"
+            href={supportPaymentUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            <Coffee size={14} />
+            Support FBPly
+          </a>
+        </div>
+      </div>
+
+      <p className="home-footer-note">
+        <strong>Founder note.</strong> FBPly is independently built and continuously improved with care. Some updates may take a little longer, but every suggestion genuinely helps shape the app.
+      </p>
+
+      <div className="home-feedback-row">
+        <span>Found something to improve?</span>
+        <a href={`mailto:${supportEmail}`}>Suggestions are welcome at {supportEmail}</a>
+      </div>
+
+      <div className="home-trust-strip" aria-label="FBPly trust notes">
+        {trustItems.map((item) => (
+          <span key={item.label}>
+            <item.icon size={13} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+
+      <nav className="home-footer-links" aria-label="Legal links">
+        {legalLinks.map((link) => (
+          <a href={link.href} key={link.href}>
+            {link.label}
+          </a>
+        ))}
+      </nav>
+    </footer>
+  )
+}
+
 function HomeScreen({
   profile,
   financialState,
@@ -3870,6 +4054,7 @@ function HomeScreen({
   expenses = [],
   setActiveTab,
   openAddSheet,
+  showFooter = true,
 }) {
   const status = buildDailyMoneyStatus(financialState, safeToSpend)
   const todayKey = todayDateKey()
@@ -3974,6 +4159,8 @@ function HomeScreen({
         <span>{trackedDays > 0 ? `You tracked expenses for ${trackedDays} day${trackedDays === 1 ? '' : 's'}.` : 'Track today to build a simple money habit.'}</span>
         <span>{rupees(safeToSpend.protectedAmount)} kept as safety savings.</span>
       </div>
+
+      {showFooter && <HomeFooter />}
     </section>
   )
 }
