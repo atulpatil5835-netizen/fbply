@@ -141,8 +141,8 @@ const appFooterLinks = [
   { label: 'Terms of Service', href: '/terms' },
   { label: 'Disclaimer', href: '/disclaimer' },
   { label: 'Feedback', href: `mailto:${supportEmail}?subject=FBPly%20Feedback` },
-  { label: 'Support', href: `mailto:${supportEmail}?subject=FBPly%20Support` },
-  { label: 'About FBPLY', href: '/about' },
+  { label: 'Support FBPly', href: supportPaymentUrl, external: true },
+  { label: 'About FBPly', href: '/about' },
 ]
 
 function buildReportExportPrompt(type, request, sharedGroups = []) {
@@ -155,10 +155,10 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
     if (!hasTrip) {
       return {
         type: 'trip',
-        title: 'Trip report ke liye pehle trip add karein',
-        message: 'Abhi tak aapne koi trip add nahi kiya hai. Add karna hai?',
-        detail: 'Activity me Trip section open hoga. Waha trip name, people aur first shared payment add karein.',
-        actionLabel: 'Trip add karein',
+        title: 'Add a trip before exporting',
+        message: 'No trip has been added yet. Would you like to add one now?',
+        detail: 'The Activity trip section will open. Add a trip name, people, and the first shared payment there.',
+        actionLabel: 'Add trip',
         ...tripTarget,
       }
     }
@@ -166,10 +166,10 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
     if (reportGroups.length === 0) {
       return {
         type: 'trip',
-        title: 'Trip me payment add karein',
-        message: 'Trip mil gaya, lekin report banane ke liye abhi koi shared payment nahi hai. Add karna hai?',
-        detail: 'Activity me wahi Trip section open hoga. Existing trip me amount, paid by aur note add karein.',
-        actionLabel: 'Payment add karein',
+        title: 'Add a payment to this trip',
+        message: 'A trip exists, but there is no shared payment to include in the report yet.',
+        detail: 'The Activity trip section will open. Add the amount, who paid, and a short note to the existing trip.',
+        actionLabel: 'Add payment',
         ...tripTarget,
       }
     }
@@ -179,10 +179,10 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
     if (!hasTrip) {
       return {
         type: 'settlement',
-        title: 'Settlement report ke liye trip chahiye',
-        message: 'Abhi tak aapne koi trip add nahi kiya hai. Pehle trip add karna hai?',
-        detail: 'Activity me Trip section open hoga. Trip aur shared payment add karte hi settlement ready hoga.',
-        actionLabel: 'Trip add karein',
+        title: 'Add a trip before settlement export',
+        message: 'No trip has been added yet. Add a trip first to create a settlement report.',
+        detail: 'The Activity trip section will open. After you add a trip and shared payment, FBPly can calculate settlements.',
+        actionLabel: 'Add trip',
         ...tripTarget,
       }
     }
@@ -190,10 +190,10 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
     if (reportGroups.length === 0) {
       return {
         type: 'settlement',
-        title: 'Abhi settlement ready nahi hai',
-        message: 'Trip hai, lekin abhi tak koi settlement amount nahi bana. Shared payment add karna hai?',
-        detail: 'Activity me Trip section open hoga. Payment add hone ke baad FBPly settlement calculate karega.',
-        actionLabel: 'Shared payment add karein',
+        title: 'No settlement is ready yet',
+        message: 'A trip exists, but there is no settlement amount to include yet.',
+        detail: 'The Activity trip section will open. Add a shared payment so FBPly can calculate the settlement.',
+        actionLabel: 'Add shared payment',
         ...tripTarget,
       }
     }
@@ -362,8 +362,15 @@ const legalPages = {
       {
         title: 'Founder',
         body: [
-          `${founderName} builds and maintains FBPly as an independent product.`,
+          `${founderName} (${founderLinkedInUrl}) builds and maintains FBPly as an independent product.`,
           'The goal is to keep the app transparent, useful, and respectful of the real-life financial decisions people make every month.',
+        ],
+      },
+      {
+        title: 'Support FBPly',
+        body: [
+          `You can support independent FBPly development here: ${supportPaymentUrl}.`,
+          'Support helps keep the app improving for practical, everyday money planning.',
         ],
       },
       {
@@ -383,6 +390,7 @@ const legalPages = {
         title: 'Support',
         body: [
           `For app access, saved data, reports, or account questions, email ${supportEmail}.`,
+          `To support FBPly, use ${supportPaymentUrl}.`,
           'Please avoid sending bank passwords, full statement files, or highly sensitive financial details by email.',
         ],
       },
@@ -2158,7 +2166,12 @@ function App() {
     return (
       <div className="app-root" data-energy="full">
         <Suspense fallback={<ScreenFallback eyebrow={legalPage.eyebrow} title={legalPage.title} />}>
-          <LegalScreen page={legalPage} supportEmail={supportEmail} />
+          <LegalScreen
+            page={legalPage}
+            supportEmail={supportEmail}
+            founderLinkedInUrl={founderLinkedInUrl}
+            supportPaymentUrl={supportPaymentUrl}
+          />
         </Suspense>
         <CookieConsentBanner />
       </div>
@@ -2936,7 +2949,12 @@ function LoggedInLegalFooter() {
   return (
     <footer className="app-legal-footer" aria-label="FBPLY legal and support links">
       {appFooterLinks.map((link) => (
-        <a href={link.href} key={link.label}>
+        <a
+          href={link.href}
+          key={link.label}
+          target={link.external ? '_blank' : undefined}
+          rel={link.external ? 'noreferrer noopener' : undefined}
+        >
           {link.label}
         </a>
       ))}
@@ -4101,21 +4119,22 @@ function HomeFooter() {
 
             <div className="home-founder-stack">
               <span>Founder</span>
-              <strong>{founderName}</strong>
+              <div className="home-founder-name">
+                <strong>{founderName}</strong>
+                <a
+                  className="home-founder-link"
+                  href={founderLinkedInUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={`${founderName} on LinkedIn`}
+                >
+                  LinkedIn
+                  <ExternalLink size={11} aria-hidden="true" />
+                </a>
+              </div>
             </div>
 
             <div className="home-about-actions">
-              <a
-                className="home-linkedin-button"
-                href={founderLinkedInUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label={`${founderName} on LinkedIn`}
-              >
-                <span className="linkedin-glyph" aria-hidden="true">in</span>
-                <span>LinkedIn</span>
-                <ExternalLink size={11} aria-hidden="true" />
-              </a>
               <a
                 className="home-support-button"
                 href={supportPaymentUrl}

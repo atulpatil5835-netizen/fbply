@@ -439,7 +439,7 @@ export default function ReportsScreen({
       {reportExportPrompt && (
         <article className="report-export-guidance" aria-live="polite">
           <div>
-            <p className="eyebrow">Report direction</p>
+            <p className="eyebrow">Report setup</p>
             <h2>{reportExportPrompt.title}</h2>
             <p>{reportExportPrompt.message}</p>
             <span>{reportExportPrompt.detail}</span>

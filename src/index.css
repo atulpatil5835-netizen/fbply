@@ -648,9 +648,14 @@ img {
   line-height: 1.45;
 }
 
-.legal-contact-panel .legal-contact-link {
+.legal-contact-panel .legal-contact-actions {
   align-self: center;
   justify-self: end;
+  display: grid;
+  gap: 7px;
+}
+
+.legal-contact-panel .legal-contact-link {
   white-space: nowrap;
 }
 
@@ -4613,17 +4618,40 @@ img {
   min-width: 0;
 }
 
-.home-founder-stack span {
+.home-founder-stack > span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
 }
 
+.home-founder-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
 .home-founder-stack strong {
   color: var(--text);
   font-size: 13px;
   line-height: 1.25;
+}
+
+.home-founder-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.home-founder-link:hover,
+.home-founder-link:focus-visible {
+  text-decoration: underline;
 }
 
 .home-linkedin-button,
@@ -7056,6 +7084,7 @@ img {
     grid-template-columns: 1fr;
   }
 
+  .legal-contact-panel .legal-contact-actions,
   .legal-contact-panel .legal-contact-link {
     justify-self: stretch;
   }

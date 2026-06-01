@@ -3,27 +3,50 @@ import { HeaderLogo } from '../components/AppPrimitives.jsx'
 
 const legalUpdatedLabel = 'Updated May 2026'
 
-function LegalText({ text, supportEmail }) {
-  const value = String(text)
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
-  if (!value.includes(supportEmail)) {
+function LegalText({ text, supportEmail, founderLinkedInUrl, supportPaymentUrl }) {
+  const value = String(text)
+  const links = [
+    supportEmail && { token: supportEmail, href: `mailto:${supportEmail}`, label: supportEmail },
+    founderLinkedInUrl && { token: founderLinkedInUrl, href: founderLinkedInUrl, label: 'LinkedIn', external: true },
+    supportPaymentUrl && { token: supportPaymentUrl, href: supportPaymentUrl, label: 'Support FBPly', external: true },
+  ].filter(Boolean)
+
+  if (!links.some((link) => value.includes(link.token))) {
     return value
   }
 
-  const [before, after] = value.split(supportEmail)
+  const matcher = new RegExp(`(${links.map((link) => escapeRegExp(link.token)).join('|')})`, 'g')
 
   return (
     <>
-      {before}
-      <a className="inline-legal-link" href={`mailto:${supportEmail}`}>
-        {supportEmail}
-      </a>
-      {after}
+      {value.split(matcher).map((part, index) => {
+        const link = links.find((item) => item.token === part)
+
+        if (!link) {
+          return part
+        }
+
+        return (
+          <a
+            className="inline-legal-link"
+            href={link.href}
+            key={`${link.token}-${index}`}
+            target={link.external ? '_blank' : undefined}
+            rel={link.external ? 'noreferrer noopener' : undefined}
+          >
+            {link.label}
+          </a>
+        )
+      })}
     </>
   )
 }
 
-export default function LegalScreen({ page, supportEmail }) {
+export default function LegalScreen({ page, supportEmail, founderLinkedInUrl, supportPaymentUrl }) {
   const legalContactItems = [
     {
       title: 'Support',
@@ -61,7 +84,12 @@ export default function LegalScreen({ page, supportEmail }) {
               <h2>{section.title}</h2>
               {section.body.map((line) => (
                 <p key={line}>
-                  <LegalText text={line} supportEmail={supportEmail} />
+                  <LegalText
+                    text={line}
+                    supportEmail={supportEmail}
+                    founderLinkedInUrl={founderLinkedInUrl}
+                    supportPaymentUrl={supportPaymentUrl}
+                  />
                 </p>
               ))}
             </article>
@@ -77,10 +105,16 @@ export default function LegalScreen({ page, supportEmail }) {
               <p>{item.body}</p>
             </article>
           ))}
-          <a className="legal-contact-link" href={`mailto:${supportEmail}`}>
-            <Mail size={15} />
-            {supportEmail}
-          </a>
+          <div className="legal-contact-actions">
+            <a className="legal-contact-link" href={`mailto:${supportEmail}`}>
+              <Mail size={15} />
+              {supportEmail}
+            </a>
+            <a className="legal-contact-link" href={supportPaymentUrl} target="_blank" rel="noreferrer noopener">
+              <HeartHandshake size={15} />
+              Support FBPly
+            </a>
+          </div>
         </section>
         <a className="legal-back-link" href="/">
           Back to FBPly
