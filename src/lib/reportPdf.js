@@ -25,17 +25,6 @@ const COLORS = {
   white: [255, 255, 255],
 }
 
-const CHART_COLORS = [
-  [37, 99, 235],
-  [14, 165, 233],
-  [16, 185, 129],
-  [245, 158, 11],
-  [168, 85, 247],
-  [236, 72, 153],
-  [20, 184, 166],
-  [100, 116, 139],
-]
-
 function safeAmount(value) {
   return normalizeMoney(value)
 }
@@ -68,19 +57,6 @@ function setFill(doc, color) {
 
 function setStroke(doc, color = COLORS.border) {
   doc.setDrawColor(color[0], color[1], color[2])
-}
-
-function hexToRgb(hex, fallback = COLORS.blue) {
-  const clean = String(hex || '').replace('#', '').trim()
-  if (!/^[0-9a-f]{6}$/i.test(clean)) {
-    return fallback
-  }
-
-  return [
-    parseInt(clean.slice(0, 2), 16),
-    parseInt(clean.slice(2, 4), 16),
-    parseInt(clean.slice(4, 6), 16),
-  ]
 }
 
 function drawRoundedCard(doc, x, y, width, height, { fill = COLORS.white, stroke = COLORS.border } = {}) {
@@ -202,87 +178,6 @@ function addPageIfNeeded(doc, y, height, title) {
   return addPage(doc, title)
 }
 
-function monthlyFeeling(financialState = {}) {
-  if (financialState.pressureTone === 'slight-pressure') {
-    return 'Saved data shows this month carried extra pressure.'
-  }
-
-  if (financialState.pressureTone === 'warm') {
-    return 'Saved data shows the month stayed manageable, with a few areas to watch.'
-  }
-
-  if (financialState.pressureTone === 'comfortable') {
-    return 'Saved data shows the month had useful planning space.'
-  }
-
-  return 'Your month looks balanced from the saved data.'
-}
-
-function buildMetricCards(report, financialState, savingsBuckets = []) {
-  const saved = sumMoney(savingsBuckets, (bucket) => bucket.saved)
-  const target = sumMoney(savingsBuckets, (bucket) => bucket.target)
-  const savingsRhythm = report.snapshot?.find((item) => item.label === 'Savings consistency')?.value || (saved > 0 ? 'Forming' : 'Early')
-  const safeRoom = safeAmount(financialState.safeToSpend ?? financialState.breathingRoom)
-
-  return [
-    {
-      label: 'Money Status',
-      value: financialState.comfort || 'Balanced Month',
-      detail: financialState.pressure || 'Moderate',
-      tone: COLORS.blue,
-      fill: COLORS.blueSoft,
-    },
-    {
-      label: 'Spending Comfort',
-      value: `${financialState.usagePercent || 0}% used`,
-      detail: 'Income used this month',
-      tone: COLORS.cyan,
-      fill: [224, 242, 254],
-    },
-    {
-      label: 'Safe To Spend',
-      value: formatMoney(safeRoom),
-      detail: 'After safety savings',
-      tone: COLORS.green,
-      fill: COLORS.greenSoft,
-    },
-    {
-      label: 'Savings Rhythm',
-      value: savingsRhythm,
-      detail: target > 0 ? `${Math.round((saved / target) * 100)}% goal progress` : 'No savings goal yet',
-      tone: COLORS.orange,
-      fill: COLORS.orangeSoft,
-    },
-    {
-      label: 'Commitment Stability',
-      value: (financialState.emiLoad || 0) > 24 ? 'Needs space' : 'Stable',
-      detail: `${financialState.emiLoad || 0}% EMI load`,
-      tone: (financialState.emiLoad || 0) > 24 ? COLORS.orange : COLORS.green,
-      fill: (financialState.emiLoad || 0) > 24 ? COLORS.orangeSoft : COLORS.greenSoft,
-    },
-  ]
-}
-
-function buildMixItems(expenseBreakdown = [], report = {}) {
-  const fromBreakdown = expenseBreakdown
-    .filter((item) => safeAmount(item.value) > 0)
-    .map((item, index) => ({
-      name: item.name,
-      value: safeAmount(item.value),
-      color: hexToRgb(item.color, CHART_COLORS[index % CHART_COLORS.length]),
-    }))
-
-  if (fromBreakdown.length > 0) {
-    return fromBreakdown
-  }
-
-  return (report.spending?.categories || []).map((item, index) => ({
-    name: item.name,
-    value: safeAmount(item.value),
-    color: CHART_COLORS[index % CHART_COLORS.length],
-  }))
-}
-
 function commitmentItems(profile = {}) {
   const commitments = Array.isArray(profile.commitments) ? profile.commitments : profile.fixedExpenses || []
   return commitments
@@ -295,152 +190,6 @@ function commitmentItems(profile = {}) {
     }))
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value)
-}
-
-function drawArc(doc, cx, cy, radius, startDeg, endDeg, color, width = 3.2) {
-  if (endDeg <= startDeg) {
-    return
-  }
-
-  setStroke(doc, color)
-  doc.setLineWidth(width)
-  const step = Math.max((endDeg - startDeg) / 28, 2)
-  let previous = null
-
-  for (let angle = startDeg; angle <= endDeg; angle += step) {
-    const radians = (Math.min(angle, endDeg) - 90) * (Math.PI / 180)
-    const point = {
-      x: cx + Math.cos(radians) * radius,
-      y: cy + Math.sin(radians) * radius,
-    }
-
-    if (previous) {
-      doc.line(previous.x, previous.y, point.x, point.y)
-    }
-
-    previous = point
-  }
-}
-
-function drawUsageRing(doc, x, y, percent, label, value, color = COLORS.cyan) {
-  const radius = 17
-  const cx = x + radius
-  const cy = y + radius
-
-  drawArc(doc, cx, cy, radius, 0, 360, [226, 232, 240], 3.4)
-  drawArc(doc, cx, cy, radius, 0, Math.min(Math.max(percent, 0), 100) * 3.6, color, 3.4)
-
-  setText(doc, COLORS.text)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text(value, cx, cy + 1.5, { align: 'center' })
-  setText(doc, COLORS.muted)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(6.8)
-  doc.text(label, cx, cy + 7, { align: 'center' })
-}
-
-function drawDonut(doc, x, y, items, totalLabel) {
-  const total = sumMoney(items, (item) => item.value)
-  const radius = 24
-  const cx = x + radius
-  const cy = y + radius
-
-  drawArc(doc, cx, cy, radius, 0, 360, [226, 232, 240], 5.2)
-
-  if (total > 0) {
-    let cursor = 0
-    items.slice(0, 6).forEach((item, index) => {
-      const start = cursor
-      const sweep = (safeAmount(item.value) / total) * 360
-      cursor += sweep
-      drawArc(doc, cx, cy, radius, start, cursor, item.color || CHART_COLORS[index % CHART_COLORS.length], 5.2)
-    })
-  }
-
-  setText(doc, COLORS.text)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text(totalLabel, cx, cy + 1, { align: 'center' })
-  setText(doc, COLORS.muted)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(6.5)
-  doc.text('monthly mix', cx, cy + 6, { align: 'center' })
-}
-
-function drawCoverPage(doc, { profile, report, financialState }) {
-  setFill(doc, COLORS.navy)
-  doc.rect(0, 0, PAGE.width, PAGE.height, 'F')
-  setFill(doc, [18, 44, 90])
-  doc.circle(178, 34, 42, 'F')
-  setFill(doc, [13, 31, 64])
-  doc.circle(38, 246, 58, 'F')
-  setStroke(doc, [56, 189, 248])
-  doc.setLineWidth(0.45)
-  doc.circle(166, 47, 38, 'S')
-
-  drawBrandLockup(doc, PAGE.margin, 18, { color: COLORS.white })
-
-  setText(doc, COLORS.cyan)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.text('MONTHLY FINANCIAL REPORT', PAGE.margin, 78)
-
-  setText(doc, COLORS.white)
-  doc.setFontSize(28)
-  doc.text('Your month,', PAGE.margin, 96)
-  doc.text('shown clearly.', PAGE.margin, 110)
-
-  drawTextBlock(doc, monthlyFeeling(financialState), PAGE.margin, 125, 112, {
-    color: [203, 213, 225],
-    size: 11,
-    lineHeight: 5,
-    maxLines: 3,
-  })
-
-  drawRoundedCard(doc, PAGE.margin, 160, PAGE.width - PAGE.margin * 2, 54, {
-    fill: [15, 28, 59],
-    stroke: [37, 99, 235],
-  })
-  setText(doc, COLORS.white)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(15)
-  drawTextBlock(doc, report.advisory || 'Your month is ready for review.', PAGE.margin + 8, 174, PAGE.width - PAGE.margin * 2 - 16, {
-    color: COLORS.white,
-    weight: 'bold',
-    size: 13,
-    lineHeight: 5.4,
-    maxLines: 4,
-  })
-  setText(doc, [203, 213, 225])
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text(`Prepared for ${profile.name || 'You'} - ${currentMonthLabel()}`, PAGE.margin + 8, 205)
-
-  const cardY = 232
-  const cardWidth = (PAGE.width - PAGE.margin * 2 - 10) / 3
-  const coverCards = [
-    ['Income', formatMoney(financialState.income)],
-    ['Used this month', `${financialState.usagePercent || 0}%`],
-    ['Breathing room', formatMoney(financialState.breathingRoom)],
-  ]
-
-  coverCards.forEach(([label, value], index) => {
-    const x = PAGE.margin + index * (cardWidth + 5)
-    drawRoundedCard(doc, x, cardY, cardWidth, 34, { fill: [248, 250, 252], stroke: [191, 219, 254] })
-    setText(doc, COLORS.muted)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7.5)
-    doc.text(label.toUpperCase(), x + 5, cardY + 10)
-    setText(doc, COLORS.navy)
-    doc.setFontSize(12)
-    doc.text(value, x + 5, cardY + 23, { maxWidth: cardWidth - 10 })
-  })
-
-  setText(doc, [148, 163, 184])
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.text('Personal financial clarity from saved and reviewed data.', PAGE.width / 2, 282, { align: 'center' })
 }
 
 function drawMetricCard(doc, x, y, width, height, metric) {
@@ -457,26 +206,6 @@ function drawMetricCard(doc, x, y, width, height, metric) {
     lineHeight: 3.4,
     maxLines: 2,
   })
-}
-
-function drawHealthSummary(doc, y, metrics) {
-  y = addPageIfNeeded(doc, y, 74, 'Money Status Summary')
-  drawSectionLabel(doc, 'Money Status Summary', y)
-  y += 9
-
-  const gap = 5
-  const width = (PAGE.width - PAGE.margin * 2 - gap * 2) / 3
-  metrics.slice(0, 3).forEach((metric, index) => {
-    drawMetricCard(doc, PAGE.margin + index * (width + gap), y, width, 38, metric)
-  })
-
-  y += 43
-  const wideWidth = (PAGE.width - PAGE.margin * 2 - gap) / 2
-  metrics.slice(3, 5).forEach((metric, index) => {
-    drawMetricCard(doc, PAGE.margin + index * (wideWidth + gap), y, wideWidth, 34, metric)
-  })
-
-  return y + 42
 }
 
 function drawSectionLabel(doc, title, y, subtitle = '') {
@@ -497,289 +226,604 @@ function drawSectionLabel(doc, title, y, subtitle = '') {
   return y + 7
 }
 
-function drawVisualStory(doc, y, { financialState, mixItems }) {
-  y = addPageIfNeeded(doc, y, 76, 'Money Visuals')
-  const cardWidth = (PAGE.width - PAGE.margin * 2 - 7) / 2
+function currencyMoney(value, currency = 'INR') {
+  const amount = safeAmount(value)
 
-  drawRoundedCard(doc, PAGE.margin, y, cardWidth, 70, { fill: COLORS.white })
-  setText(doc, COLORS.navy)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text('Money status', PAGE.margin + 6, y + 9)
-  drawUsageRing(doc, PAGE.margin + 9, y + 19, financialState.usagePercent || 0, 'used', `${financialState.usagePercent || 0}%`, COLORS.cyan)
-  drawTextBlock(doc, 'Lower usage leaves more room for future choices.', PAGE.margin + 50, y + 25, cardWidth - 57, {
-    maxLines: 5,
-    size: 8.2,
+  try {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: String(currency || 'INR').toUpperCase(),
+      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    }).format(amount)
+  } catch {
+    return formatMoney(amount)
+  }
+}
+
+function reportDateLabel(value = new Date().toISOString()) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toLocaleString('en-IN')
+  }
+
+  return date.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
+}
 
-  const x2 = PAGE.margin + cardWidth + 7
-  drawRoundedCard(doc, x2, y, cardWidth, 70, { fill: COLORS.white })
-  setText(doc, COLORS.navy)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text('Spending mix', x2 + 6, y + 9)
-  const total = sumMoney(mixItems, (item) => item.value)
-  drawDonut(doc, x2 + 7, y + 17, mixItems, formatMoney(total))
-  const legendX = x2 + 60
-  mixItems.slice(0, 4).forEach((item, index) => {
-    const rowY = y + 23 + index * 9
-    setFill(doc, item.color || CHART_COLORS[index])
-    doc.circle(legendX, rowY - 1.5, 1.6, 'F')
+function drawProfessionalFooter(doc, meta = {}) {
+  const total = doc.getNumberOfPages()
+
+  for (let page = 1; page <= total; page += 1) {
+    doc.setPage(page)
+    setStroke(doc, [226, 232, 240])
+    doc.setLineWidth(0.2)
+    doc.line(PAGE.margin, PAGE.height - 14, PAGE.width - PAGE.margin, PAGE.height - 14)
     setText(doc, COLORS.muted)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.text(item.name, legendX + 4, rowY, { maxWidth: cardWidth - 66 })
-  })
-
-  return y + 79
-}
-
-function drawInsightCards(doc, y, title, items, { maxItems = 3, titleWidth = 52 } = {}) {
-  const selected = items.slice(0, maxItems)
-  if (selected.length === 0) {
-    return y
+    doc.setFontSize(7.2)
+    doc.text(`Generated with FBPLY | fbply.com | ${meta.reportId || 'Report ID pending'}`, PAGE.margin, PAGE.height - 9)
+    doc.text(`Page ${page} of ${total}`, PAGE.width - PAGE.margin, PAGE.height - 9, { align: 'right' })
   }
-
-  y = addPageIfNeeded(doc, y, 18 + selected.length * 24, title)
-  y = drawSectionLabel(doc, title, y)
-
-  selected.forEach((item) => {
-    y = addPageIfNeeded(doc, y, 24, title)
-    drawRoundedCard(doc, PAGE.margin, y, PAGE.width - PAGE.margin * 2, 22, { fill: COLORS.card })
-    setText(doc, COLORS.navy)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.text(item.title, PAGE.margin + 5, y + 8, { maxWidth: titleWidth })
-    drawTextBlock(doc, item.detail, PAGE.margin + titleWidth + 8, y + 7.5, PAGE.width - PAGE.margin * 2 - titleWidth - 14, {
-      size: 8,
-      lineHeight: 3.8,
-      maxLines: 3,
-    })
-    y += 26
-  })
-
-  return y + 2
 }
 
-function drawSpendingBalance(doc, y, mixItems, financialState) {
-  y = addPageIfNeeded(doc, y, 80, 'Spending Balance')
-  y = drawSectionLabel(doc, 'Spending Balance', y, 'A compact view of what shaped the month.')
-
-  const total = Math.max(sumMoney(mixItems, (item) => item.value), 1)
-  mixItems.slice(0, 6).forEach((item, index) => {
-    const rowY = y + index * 12
-    const share = item.value / total
-    setFill(doc, item.color || CHART_COLORS[index % CHART_COLORS.length])
-    doc.circle(PAGE.margin + 2, rowY + 3, 1.8, 'F')
-    setText(doc, COLORS.navy)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.6)
-    doc.text(item.name, PAGE.margin + 7, rowY + 5, { maxWidth: 50 })
-    setText(doc, COLORS.muted)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.text(formatMoney(item.value), PAGE.margin + 62, rowY + 5)
-    setFill(doc, [226, 232, 240])
-    doc.roundedRect(PAGE.margin + 102, rowY + 1.5, 72, 3.8, 2, 2, 'F')
-    setFill(doc, item.color || COLORS.blue)
-    doc.roundedRect(PAGE.margin + 102, rowY + 1.5, Math.max(72 * share, 2), 3.8, 2, 2, 'F')
-  })
-
-  drawTextBlock(
-    doc,
-    `Monthly bills and tracked spending used ${financialState.usagePercent || 0}% of income. The useful question is not perfection; it is whether the remaining room feels workable.`,
-    PAGE.margin,
-    y + 76,
-    PAGE.width - PAGE.margin * 2,
-    { size: 8.4, lineHeight: 4, maxLines: 3 },
-  )
-
-  return y + 91
-}
-
-function drawCommitments(doc, y, commitments) {
-  if (commitments.length === 0) {
-    return y
-  }
-
-  y = addPageIfNeeded(doc, y, 58, 'Monthly Bills')
-  y = drawSectionLabel(doc, 'Monthly Bills', y, 'Regular payments stay visible because they quietly shape monthly comfort.')
-
-  const width = (PAGE.width - PAGE.margin * 2 - 6) / 2
-  commitments.slice(0, 4).forEach((item, index) => {
-    const x = PAGE.margin + (index % 2) * (width + 6)
-    const top = y + Math.floor(index / 2) * 25
-    drawRoundedCard(doc, x, top, width, 20, { fill: COLORS.white })
-    setText(doc, COLORS.navy)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.text(item.name, x + 5, top + 7, { maxWidth: width - 10 })
-    setText(doc, COLORS.blue)
-    doc.setFontSize(10)
-    doc.text(formatMoney(item.value), x + 5, top + 16)
-    setText(doc, COLORS.muted)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.text(item.type, x + width - 5, top + 16, { align: 'right' })
-  })
-
-  return y + Math.ceil(Math.min(commitments.length, 4) / 2) * 25 + 8
-}
-
-function drawSharedFlow(doc, y, sharedSummary = {}) {
-  if (!sharedSummary?.activeGroups) {
-    return y
-  }
-
-  y = addPageIfNeeded(doc, y, 52, 'Shared Expense Flow')
-  y = drawSectionLabel(doc, 'Shared Expense Flow', y, 'Group payments are included in the same monthly financial picture.')
-
-  const width = (PAGE.width - PAGE.margin * 2 - 9) / 4
-  const items = [
-    ['You paid', sharedSummary.totalPaidByYou],
-    ['Recoverable', sharedSummary.pendingRecoverable],
-    ['Received', sharedSummary.receivedRecoveries],
-    ['Month impact', sharedSummary.netSharedImpact],
-  ]
-
-  items.forEach(([label, value], index) => {
-    const x = PAGE.margin + index * (width + 3)
-    drawRoundedCard(doc, x, y, width, 28, { fill: index === 3 ? COLORS.soft : COLORS.white })
-    setText(doc, COLORS.muted)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.4)
-    doc.text(label, x + 4, y + 8, { maxWidth: width - 8 })
-    setText(doc, index === 3 ? COLORS.blue : COLORS.navy)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9.2)
-    doc.text(formatMoney(value), x + 4, y + 20, { maxWidth: width - 8 })
-  })
-
-  return y + 36
-}
-
-function drawTrend(doc, y, timeline = []) {
-  y = addPageIfNeeded(doc, y, 50, 'Spending Rhythm')
-  y = drawSectionLabel(doc, 'Spending Rhythm', y, 'A light view of how spending entries appeared through the month.')
-
-  drawRoundedCard(doc, PAGE.margin, y, PAGE.width - PAGE.margin * 2, 42, { fill: COLORS.white })
-
-  if (timeline.length < 2) {
-    drawTextBlock(doc, 'More dated expense entries will make this rhythm clearer in future reports.', PAGE.margin + 6, y + 18, PAGE.width - PAGE.margin * 2 - 12, {
-      size: 9,
-      maxLines: 2,
-    })
-    return y + 50
-  }
-
-  const values = timeline.map((point) => safeAmount(point.amount))
-  const max = Math.max(...values, 1)
-  const chart = {
-    x: PAGE.margin + 8,
-    y: y + 10,
-    width: PAGE.width - PAGE.margin * 2 - 16,
-    height: 22,
-  }
-
-  setStroke(doc, [226, 232, 240])
-  doc.setLineWidth(0.2)
-  doc.line(chart.x, chart.y + chart.height, chart.x + chart.width, chart.y + chart.height)
-
-  const points = timeline.map((point, index) => ({
-    x: chart.x + (index / Math.max(timeline.length - 1, 1)) * chart.width,
-    y: chart.y + chart.height - (safeAmount(point.amount) / max) * chart.height,
-  }))
-
-  setStroke(doc, COLORS.cyan)
-  doc.setLineWidth(1.4)
-  points.slice(1).forEach((point, index) => {
-    const previous = points[index]
-    doc.line(previous.x, previous.y, point.x, point.y)
-  })
-  points.forEach((point) => {
-    setFill(doc, COLORS.blue)
-    doc.circle(point.x, point.y, 1.2, 'F')
-  })
-
-  setText(doc, COLORS.muted)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.2)
-  doc.text(timeline[0].label, chart.x, y + 37)
-  doc.text(timeline[timeline.length - 1].label, chart.x + chart.width, y + 37, { align: 'right' })
-
-  return y + 50
-}
-
-function drawPurchaseReadiness(doc, y, report, recommendation) {
-  const purchaseItems = report.purchaseInsights || []
-  y = addPageIfNeeded(doc, y, 78, 'Purchase Readiness')
-  y = drawSectionLabel(doc, 'Purchase Readiness', y, 'A practical look at future buying comfort, not maximum affordability.')
-
-  const width = (PAGE.width - PAGE.margin * 2 - 8) / 2
-  const readinessCards = [
-    {
-      label: 'Financing comfort',
-      value: recommendation?.comfortableEmiLabel || purchaseItems[1]?.title || 'Use Goals',
-      detail: purchaseItems[1]?.detail || 'Add a target purchase in Goals to estimate a safer EMI path.',
-      fill: COLORS.blueSoft,
-      tone: COLORS.blue,
-    },
-    {
-      label: 'Timing signal',
-      value: recommendation?.saferTimingLabel || 'Build slowly',
-      detail: purchaseItems[2]?.detail || 'Waiting can improve downpayment strength and preserve breathing room.',
-      fill: COLORS.greenSoft,
-      tone: COLORS.green,
-    },
-  ]
-
-  readinessCards.forEach((card, index) => {
-    drawMetricCard(doc, PAGE.margin + index * (width + 8), y, width, 46, card)
-  })
-
-  y += 54
-  if (purchaseItems[0]) {
-    drawRoundedCard(doc, PAGE.margin, y, PAGE.width - PAGE.margin * 2, 30, { fill: COLORS.card })
-    setText(doc, COLORS.navy)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text(purchaseItems[0].title, PAGE.margin + 6, y + 9)
-    drawTextBlock(doc, purchaseItems[0].detail, PAGE.margin + 6, y + 17, PAGE.width - PAGE.margin * 2 - 12, {
-      size: 8,
-      lineHeight: 3.8,
-      maxLines: 3,
-    })
-    y += 38
-  }
-
-  return y
-}
-
-function drawClosingReflection(doc, y, report) {
-  y = addPageIfNeeded(doc, y, 50, 'Final Note')
-  y = drawSectionLabel(doc, 'Final Note', y)
-  drawRoundedCard(doc, PAGE.margin, y, PAGE.width - PAGE.margin * 2, 42, {
-    fill: COLORS.navy,
-    stroke: COLORS.navy2,
-  })
+function drawProfessionalCover(doc, meta = {}) {
+  setFill(doc, COLORS.navy)
+  doc.rect(0, 0, PAGE.width, PAGE.height, 'F')
+  drawBrandLockup(doc, PAGE.margin, 18, { color: COLORS.white })
 
   setText(doc, COLORS.cyan)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text('FBPly note', PAGE.margin + 7, y + 10)
-  drawTextBlock(doc, report.advisory, PAGE.margin + 7, y + 20, PAGE.width - PAGE.margin * 2 - 14, {
-    size: 9.2,
-    lineHeight: 4.4,
-    color: COLORS.white,
-    maxLines: 4,
+  doc.setFontSize(9)
+  doc.text(String(meta.typeLabel || 'FINANCIAL REPORT').toUpperCase(), PAGE.margin, 72)
+
+  setText(doc, COLORS.white)
+  doc.setFontSize(24)
+  doc.text(meta.title || 'FBPly Report', PAGE.margin, 92, { maxWidth: 150 })
+  drawTextBlock(doc, meta.subtitle || 'Professional financial document generated from saved and reviewed FBPLY data.', PAGE.margin, 108, 130, {
+    color: [203, 213, 225],
+    size: 10.2,
+    lineHeight: 4.8,
+    maxLines: 3,
   })
 
+  const rows = [
+    ['Prepared for', meta.preparedFor || 'FBPly user'],
+    ['Currency', meta.currency || 'INR'],
+    ['Report period', meta.period || currentMonthLabel()],
+    ['Generated', reportDateLabel(meta.generatedAt)],
+    ['Report ID', meta.reportId || 'FBP-REPORT'],
+  ]
+
+  drawRoundedCard(doc, PAGE.margin, 142, PAGE.width - PAGE.margin * 2, 78, { fill: [15, 28, 59], stroke: [37, 99, 235] })
+  rows.forEach(([label, value], index) => {
+    const rowY = 156 + index * 12
+    setText(doc, [148, 163, 184])
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.4)
+    doc.text(label.toUpperCase(), PAGE.margin + 8, rowY)
+    setText(doc, COLORS.white)
+    doc.setFontSize(9.4)
+    doc.text(String(value), PAGE.margin + 58, rowY, { maxWidth: 110 })
+  })
+
+  setText(doc, [148, 163, 184])
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.text('Generated with FBPLY | fbply.com', PAGE.width / 2, 274, { align: 'center' })
+}
+
+function drawProfessionalHeader(doc, meta = {}) {
+  setFill(doc, COLORS.white)
+  doc.rect(0, 0, PAGE.width, PAGE.height, 'F')
+  drawBrandLockup(doc, PAGE.margin, PAGE.margin - 1, { compact: true })
   setText(doc, COLORS.muted)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
-  doc.text('This report uses saved income, monthly bills, expense entries, planner state, and savings goals only.', PAGE.margin, PAGE.height - 9)
+  doc.text(meta.reportId || '', PAGE.width - PAGE.margin, PAGE.margin + 5, { align: 'right' })
+  setStroke(doc, [232, 238, 247])
+  doc.setLineWidth(0.25)
+  doc.line(PAGE.margin, PAGE.margin + 10, PAGE.width - PAGE.margin, PAGE.margin + 10)
+}
 
-  return y + 50
+function addProfessionalPage(doc, meta = {}) {
+  doc.addPage()
+  drawProfessionalHeader(doc, meta)
+  return PAGE.margin + 22
+}
+
+function drawProfessionalMetrics(doc, y, metrics = [], meta = {}) {
+  if (metrics.length === 0) {
+    return y
+  }
+
+  const compact = meta.template === 'compact'
+  const columns = compact ? 2 : 3
+  const gap = 5
+  const width = (PAGE.width - PAGE.margin * 2 - gap * (columns - 1)) / columns
+
+  metrics.slice(0, compact ? 4 : 6).forEach((metric, index) => {
+    const x = PAGE.margin + (index % columns) * (width + gap)
+    const top = y + Math.floor(index / columns) * 32
+    drawMetricCard(doc, x, top, width, 27, {
+      label: metric.label,
+      value: metric.value,
+      detail: metric.detail || '',
+      fill: metric.fill || COLORS.card,
+      tone: metric.tone || COLORS.blue,
+    })
+  })
+
+  return y + Math.ceil(Math.min(metrics.length, compact ? 4 : 6) / columns) * 32 + 8
+}
+
+function drawProfessionalList(doc, y, title, items = [], meta = {}, { columns = ['label', 'value', 'detail'] } = {}) {
+  const maxItems = meta.template === 'compact' ? 5 : meta.template === 'executive' ? 12 : 10
+  const visible = items.filter(Boolean).slice(0, maxItems)
+
+  if (visible.length === 0) {
+    return y
+  }
+
+  y = addPageIfNeeded(doc, y, 18 + visible.length * 9, title)
+  y = drawSectionLabel(doc, title, y)
+
+  visible.forEach((item, index) => {
+    const rowY = y + index * 9
+    if (index % 2 === 0) {
+      setFill(doc, COLORS.card)
+      doc.roundedRect(PAGE.margin, rowY - 5, PAGE.width - PAGE.margin * 2, 8, 2, 2, 'F')
+    }
+    setText(doc, COLORS.navy)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.2)
+    doc.text(String(item[columns[0]] || item.name || item.title || '-'), PAGE.margin + 4, rowY, { maxWidth: 70 })
+    setText(doc, COLORS.blue)
+    doc.setFontSize(8.2)
+    doc.text(String(item[columns[1]] || item.amount || item.value || ''), PAGE.margin + 80, rowY, { maxWidth: 42 })
+    setText(doc, COLORS.muted)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.6)
+    doc.text(String(item[columns[2]] || item.detail || ''), PAGE.margin + 126, rowY, { maxWidth: 54 })
+  })
+
+  return y + visible.length * 9 + 8
+}
+
+function drawAccuracySummary(doc, y, accuracy = {}, meta = {}) {
+  const metrics = [
+    { label: 'Recognized Transactions', value: String(accuracy.recognizedTransactions ?? 0), detail: 'Readable rows included' },
+    { label: 'Needs Review', value: String(accuracy.needsReviewCount ?? 0), detail: 'Rows requiring user attention', tone: COLORS.orange, fill: COLORS.orangeSoft },
+    { label: 'Confidence', value: `${accuracy.confidenceScore ?? 100}%`, detail: 'Analysis confidence score', tone: COLORS.green, fill: COLORS.greenSoft },
+    { label: 'Coverage', value: `${accuracy.coverage ?? 100}%`, detail: 'Recognized data coverage' },
+    { label: 'User Overrides', value: String(accuracy.userOverrides ?? 0), detail: 'Saved corrections used' },
+  ]
+
+  y = addPageIfNeeded(doc, y, 72, 'Report Accuracy')
+  y = drawSectionLabel(doc, 'Report Accuracy Summary', y)
+  return drawProfessionalMetrics(doc, y, metrics, meta)
+}
+
+function finaliseProfessionalDoc(doc, meta) {
+  drawProfessionalFooter(doc, meta)
+  return doc.output('blob')
+}
+
+function topCategoryItems(expenseBreakdown = [], currency = 'INR') {
+  return expenseBreakdown
+    .filter((item) => safeAmount(item.value) > 0)
+    .slice(0, 8)
+    .map((item) => ({
+      label: item.name,
+      value: currencyMoney(item.value, currency),
+      detail: item.source || 'Tracked category',
+    }))
+}
+
+function buildMonthlySections({ advancedReport, expenseBreakdown, financialState, profile, savingsBuckets, recommendation, moneyBookSummary, currency }) {
+  const commitments = commitmentItems(profile)
+  const saved = sumMoney(savingsBuckets, (bucket) => bucket.saved)
+  const target = sumMoney(savingsBuckets, (bucket) => bucket.target)
+  const storyItems = [
+    ...(advancedReport?.pressureAnalysis || []),
+    ...(advancedReport?.spendingPatterns || []),
+    ...(advancedReport?.purchaseInsights || []),
+    ...(advancedReport?.behaviorInsights || []),
+  ]
+
+  return {
+    metrics: [
+      { label: 'Income', value: currencyMoney(financialState.income, currency), detail: 'Saved monthly income', tone: COLORS.green, fill: COLORS.greenSoft },
+      { label: 'Used', value: `${financialState.usagePercent || 0}%`, detail: 'Income used this month' },
+      { label: 'Safe Room', value: currencyMoney(financialState.safeToSpend ?? financialState.breathingRoom, currency), detail: 'Available after safety buffer', tone: COLORS.cyan, fill: [224, 242, 254] },
+      { label: 'Goals', value: currencyMoney(saved, currency), detail: target > 0 ? `${Math.round((saved / target) * 100)}% of goal targets` : 'No active target' },
+      { label: 'Open Settlements', value: String(moneyBookSummary?.pendingCount || 0), detail: 'Borrow/lend pending items' },
+      { label: 'Comfort', value: financialState.comfort || 'Balanced', detail: financialState.pressure || 'Current pressure' },
+    ],
+    lists: [
+      {
+        title: 'Top Categories',
+        items: topCategoryItems(expenseBreakdown, currency),
+      },
+      {
+        title: 'Bills & Commitments',
+        items: commitments.map((item) => ({
+          label: item.name,
+          value: currencyMoney(item.value, currency),
+          detail: item.type,
+        })),
+      },
+      {
+        title: 'Goals Progress',
+        items: savingsBuckets.filter((bucket) => safeAmount(bucket.target) > 0).map((bucket) => ({
+          label: bucket.name || 'Savings goal',
+          value: `${Math.min(Math.round((safeAmount(bucket.saved) / Math.max(safeAmount(bucket.target), 1)) * 100), 100)}%`,
+          detail: `${currencyMoney(bucket.saved, currency)} of ${currencyMoney(bucket.target, currency)}`,
+        })),
+      },
+      {
+        title: 'Money Story',
+        items: storyItems.map((item) => ({
+          label: item.title,
+          value: item.confidence || '',
+          detail: item.detail,
+        })),
+      },
+      {
+        title: 'Recommendations',
+        items: [
+          {
+            label: recommendation?.decision || 'Keep tracking',
+            value: recommendation?.comfortLabel || '',
+            detail: recommendation?.reason || advancedReport?.advisory || 'Review spending and upcoming commitments before large purchases.',
+          },
+        ],
+      },
+    ],
+  }
+}
+
+function createProfessionalPdfDocument({ meta, metrics = [], lists = [], accuracy = {}, closing = '' }) {
+  const doc = new meta.jsPDF({ unit: 'mm', format: 'a4' })
+  doc.__fbplyLogoDataUrl = meta.logoDataUrl || ''
+  drawProfessionalCover(doc, meta)
+  let y = addProfessionalPage(doc, meta)
+  y = drawProfessionalMetrics(doc, y, metrics, meta)
+
+  lists.forEach((section) => {
+    y = drawProfessionalList(doc, y, section.title, section.items, meta)
+  })
+
+  y = drawAccuracySummary(doc, y, accuracy, meta)
+
+  if (closing) {
+    y = addPageIfNeeded(doc, y, 36, 'Final Summary')
+    y = drawSectionLabel(doc, 'Final Summary', y)
+    drawTextBlock(doc, closing, PAGE.margin, y + 4, PAGE.width - PAGE.margin * 2, {
+      size: 9,
+      lineHeight: 4.2,
+      maxLines: 6,
+    })
+  }
+
+  return finaliseProfessionalDoc(doc, meta)
+}
+
+async function createProfessionalReportBlob({ meta, metrics, lists, accuracy, closing }) {
+  const { jsPDF } = await import('jspdf')
+  const logoDataUrl = await loadLogoDataUrl()
+
+  return createProfessionalPdfDocument({
+    meta: {
+      ...meta,
+      jsPDF,
+      logoDataUrl,
+    },
+    metrics,
+    lists,
+    accuracy,
+    closing,
+  })
+}
+
+export async function createMonthlyBudgetReportPdfBlob(reportData = {}) {
+  const currency = reportData.reportMeta?.currency || reportData.profile?.currency || 'INR'
+  const template = reportData.reportMeta?.template || 'standard'
+  const report = reportData.advancedReport || buildAdvancedReport(reportData)
+  const sections = buildMonthlySections({
+    ...reportData,
+    advancedReport: report,
+    currency,
+  })
+  const executiveHighlights = (report.snapshot || []).map((item) => ({
+    label: item.label,
+    value: item.value,
+    detail: item.detail,
+  }))
+  const executiveWatchlist = [
+    ...(report.pressureAnalysis || []),
+    ...(report.purchaseInsights || []),
+  ].map((item) => ({
+    label: item.title,
+    value: item.confidence || '',
+    detail: item.detail,
+  }))
+  const lists = template === 'compact'
+    ? sections.lists.filter((section) => ['Top Categories', 'Goals Progress', 'Recommendations'].includes(section.title))
+    : template === 'executive'
+      ? [
+        { title: 'Executive Summary', items: executiveHighlights },
+        ...sections.lists,
+        { title: 'Risk & Watchlist', items: executiveWatchlist },
+      ]
+      : sections.lists
+
+  return createProfessionalReportBlob({
+    meta: {
+      title: 'Monthly Budget Report',
+      typeLabel: 'Monthly Budget Report',
+      subtitle: 'Income, spending, commitments, goals, money story, and practical recommendations.',
+      preparedFor: reportData.profile?.name || reportData.profile?.email || 'FBPly user',
+      currency,
+      period: reportData.reportMeta?.period || currentMonthLabel(),
+      reportId: reportData.reportMeta?.reportId,
+      generatedAt: reportData.reportMeta?.generatedAt,
+      template,
+    },
+    metrics: sections.metrics,
+    lists,
+    accuracy: reportData.reportMeta?.accuracy || {
+      recognizedTransactions: Array.isArray(reportData.expenses) ? reportData.expenses.length : 0,
+      needsReviewCount: 0,
+      confidenceScore: 100,
+      userOverrides: 0,
+      coverage: 100,
+    },
+    closing: report.advisory || 'Use this report as a clear monthly review, not as professional financial advice.',
+  })
+}
+
+export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, groups = [] } = {}) {
+  const currency = reportMeta.currency || profile.currency || 'INR'
+  const template = reportMeta.template || 'standard'
+  const group = groups[0] || {}
+  const payments = group.payments || []
+  const settlements = group.settlements || []
+  const totalCost = safeAmount(group.amount)
+  const settledAmount = sumMoney(settlements, (item) => item.settledAmount)
+  const pendingAmount = sumMoney(settlements, (item) => item.remainingAmount)
+  const members = group.people || []
+  const paidBy = payments.reduce((map, payment) => {
+    map[payment.paidBy] = safeAmount(map[payment.paidBy]) + safeAmount(payment.amount)
+    return map
+  }, {})
+  const whoPaidMost = Object.entries(paidBy).sort((a, b) => b[1] - a[1])[0]
+
+  const lists = [
+    {
+      title: 'Expense Breakdown',
+      items: payments.map((payment) => ({
+        label: payment.label || 'Shared payment',
+        value: currencyMoney(payment.amount, currency),
+        detail: `Paid by ${payment.paidBy || 'member'}`,
+      })),
+    },
+    {
+      title: 'Outstanding Balances',
+      items: settlements.map((item) => ({
+        label: item.direction === 'incoming' ? `${item.from} owes You` : `You owe ${item.to}`,
+        value: currencyMoney(item.remainingAmount || item.amount, currency),
+        detail: item.status || 'pending',
+      })),
+    },
+  ]
+
+  if (template === 'executive') {
+    lists.splice(1, 0, {
+      title: 'Members',
+      items: members.map((member) => ({
+        label: member,
+        value: member === whoPaidMost?.[0] ? 'Top payer' : 'Member',
+        detail: paidBy[member] ? currencyMoney(paidBy[member], currency) : 'No upfront payment',
+      })),
+    })
+  }
+
+  return createProfessionalReportBlob({
+    meta: {
+      title: group.name ? `${group.name} Trip Report` : 'Trip Report',
+      typeLabel: 'Trip Report',
+      subtitle: 'Shareable trip cost, member, payer, and settlement summary.',
+      preparedFor: profile.name || profile.email || 'FBPly user',
+      currency,
+      period: reportMeta.period || group.date || currentMonthLabel(),
+      reportId: reportMeta.reportId,
+      generatedAt: reportMeta.generatedAt,
+      template,
+    },
+    metrics: [
+      { label: 'Total Cost', value: currencyMoney(totalCost, currency), detail: 'All shared payments' },
+      { label: 'Members', value: String(members.length || 0), detail: members.join(', ') || 'No members added' },
+      { label: 'Per Person', value: currencyMoney(group.share || totalCost / Math.max(members.length, 1), currency), detail: 'Equal split estimate' },
+      { label: 'Settled', value: `${Math.round((settledAmount / Math.max(totalCost, 1)) * 100)}%`, detail: currencyMoney(settledAmount, currency), tone: COLORS.green, fill: COLORS.greenSoft },
+      { label: 'Pending', value: `${Math.round((pendingAmount / Math.max(totalCost, 1)) * 100)}%`, detail: currencyMoney(pendingAmount, currency), tone: COLORS.orange, fill: COLORS.orangeSoft },
+      { label: 'Paid Most', value: whoPaidMost?.[0] || 'Review', detail: whoPaidMost ? currencyMoney(whoPaidMost[1], currency) : 'No payment yet' },
+    ],
+    lists: template === 'compact' ? lists.slice(1) : lists,
+    accuracy: { recognizedTransactions: payments.length, needsReviewCount: 0, confidenceScore: 100, userOverrides: 0, coverage: 100 },
+    closing: 'This trip report is built from saved shared expense records and settlement status.',
+  })
+}
+
+export async function createSettlementReportPdfBlob({ reportMeta = {}, profile = {}, groups = [] } = {}) {
+  const currency = reportMeta.currency || profile.currency || 'INR'
+  const template = reportMeta.template || 'standard'
+  const settlements = groups.flatMap((group) => (group.settlements || []).map((settlement) => ({
+    ...settlement,
+    groupName: group.name || 'Shared group',
+  })))
+  const paid = settlements.filter((item) => ['received', 'paid', 'settled'].includes(item.status))
+  const pending = settlements.filter((item) => !['received', 'paid', 'settled'].includes(item.status))
+
+  const lists = [
+    {
+      title: 'Settlement Summary',
+      items: settlements.map((item) => ({
+        label: item.direction === 'incoming' ? `${item.from} owes You` : `You owe ${item.to}`,
+        value: currencyMoney(item.remainingAmount || item.settledAmount || item.amount, currency),
+        detail: `${item.groupName} - ${item.status || 'pending'}`,
+      })),
+    },
+  ]
+
+  if (template === 'executive') {
+    lists.push(
+      {
+        title: 'Pending Settlements',
+        items: pending.map((item) => ({
+          label: item.direction === 'incoming' ? `${item.from} owes You` : `You owe ${item.to}`,
+          value: currencyMoney(item.remainingAmount || item.amount, currency),
+          detail: item.groupName,
+        })),
+      },
+      {
+        title: 'Paid Settlements',
+        items: paid.map((item) => ({
+          label: item.direction === 'incoming' ? `${item.from} paid You` : `You paid ${item.to}`,
+          value: currencyMoney(item.settledAmount || item.amount, currency),
+          detail: item.groupName,
+        })),
+      },
+    )
+  }
+
+  return createProfessionalReportBlob({
+    meta: {
+      title: 'Settlement Report',
+      typeLabel: 'Settlement Report',
+      subtitle: 'Focused outstanding balance and settlement status document.',
+      preparedFor: profile.name || profile.email || 'FBPly user',
+      currency,
+      period: reportMeta.period || currentMonthLabel(),
+      reportId: reportMeta.reportId,
+      generatedAt: reportMeta.generatedAt,
+      template,
+    },
+    metrics: [
+      { label: 'Total Settlements', value: String(settlements.length), detail: 'Generated balances' },
+      { label: 'Paid', value: String(paid.length), detail: currencyMoney(sumMoney(paid, (item) => item.settledAmount || item.amount), currency), tone: COLORS.green, fill: COLORS.greenSoft },
+      { label: 'Pending', value: String(pending.length), detail: currencyMoney(sumMoney(pending, (item) => item.remainingAmount || item.amount), currency), tone: COLORS.orange, fill: COLORS.orangeSoft },
+    ],
+    lists,
+    accuracy: { recognizedTransactions: settlements.length, needsReviewCount: 0, confidenceScore: 100, userOverrides: 0, coverage: 100 },
+    closing: 'Paid, pending, and overdue labels are based on saved settlement state.',
+  })
+}
+
+export async function createStatementAnalysisReportPdfBlob({ reportMeta = {}, profile = {}, statementReport = {}, transactions = [] } = {}) {
+  const currency = reportMeta.currency || profile.currency || 'INR'
+  const template = reportMeta.template || 'standard'
+  const needsReview = transactions.filter((item) => item.confidence === 'low' || item.category === 'Other' || !item.date)
+  const recognized = Math.max(statementReport.transactionCount || transactions.length, 0)
+  const confidenceScore = recognized > 0 ? Math.max(0, Math.round(((recognized - needsReview.length) / recognized) * 100)) : 0
+  const statementLists = [
+    {
+      title: 'Top Categories',
+      items: (statementReport.expenseCategories || []).map((item) => ({
+        label: item.name,
+        value: currencyMoney(item.amount, currency),
+        detail: `${item.count || 0} rows`,
+      })),
+    },
+    {
+      title: 'Top Merchants',
+      items: (statementReport.merchants || []).map((item) => ({
+        label: item.name,
+        value: currencyMoney(item.amount, currency),
+        detail: `${item.count || 0} rows`,
+      })),
+    },
+    {
+      title: 'Needs Review',
+      items: needsReview.map((item) => ({
+        label: item.description,
+        value: currencyMoney(item.amount, currency),
+        detail: item.category || 'Needs Review',
+      })),
+    },
+  ]
+
+  if (template === 'executive') {
+    statementLists.splice(1, 0, {
+      title: 'Income Sources',
+      items: (statementReport.incomeSources || []).map((item) => ({
+        label: item.name,
+        value: currencyMoney(item.amount, currency),
+        detail: `${item.count || 0} rows`,
+      })),
+    })
+    statementLists.push({
+      title: 'Statement Insights',
+      items: (statementReport.insights || []).map((insight) => ({
+        label: 'Insight',
+        value: '',
+        detail: insight,
+      })),
+    })
+  }
+
+  return createProfessionalReportBlob({
+    meta: {
+      title: 'Statement Analysis Report',
+      typeLabel: 'Statement Analysis Report',
+      subtitle: 'Statement intelligence with confidence, trends, categories, merchants, and needs-review rows.',
+      preparedFor: profile.name || profile.email || 'FBPly user',
+      currency,
+      period: reportMeta.period || statementReport.dateRange || currentMonthLabel(),
+      reportId: reportMeta.reportId,
+      generatedAt: reportMeta.generatedAt,
+      template,
+    },
+    metrics: [
+      { label: 'Money In', value: currencyMoney(statementReport.totalIncome, currency), detail: `${statementReport.incomeCount || 0} rows`, tone: COLORS.green, fill: COLORS.greenSoft },
+      { label: 'Money Out', value: currencyMoney(statementReport.totalExpense, currency), detail: `${statementReport.expenseCount || 0} rows`, tone: COLORS.orange, fill: COLORS.orangeSoft },
+      { label: 'Net Movement', value: currencyMoney(statementReport.netMovement, currency), detail: statementReport.dateRange || 'Statement period' },
+      { label: 'Confidence', value: `${confidenceScore}%`, detail: `Based on ${recognized} recognized transactions`, tone: COLORS.green, fill: COLORS.greenSoft },
+      { label: 'Needs Review', value: String(needsReview.length), detail: 'Rows to verify before decisions', tone: COLORS.orange, fill: COLORS.orangeSoft },
+    ],
+    lists: template === 'compact'
+      ? statementLists.filter((section) => ['Top Categories', 'Needs Review'].includes(section.title))
+      : statementLists,
+    accuracy: {
+      recognizedTransactions: recognized,
+      needsReviewCount: needsReview.length,
+      confidenceScore,
+      userOverrides: reportMeta.userOverrides || 0,
+      coverage: recognized > 0 ? Math.round(((recognized - needsReview.length) / recognized) * 100) : 0,
+    },
+    closing: 'Statement analysis is based only on readable rows. Review uncertain rows before relying on the report.',
+  })
+}
+
+export async function createReportPdfBlob({ type = 'monthly', payload = {} } = {}) {
+  if (type === 'trip') {
+    return createTripReportPdfBlob(payload)
+  }
+
+  if (type === 'settlement') {
+    return createSettlementReportPdfBlob(payload)
+  }
+
+  if (type === 'statement') {
+    return createStatementAnalysisReportPdfBlob(payload)
+  }
+
+  return createMonthlyBudgetReportPdfBlob(payload)
 }
 
 export async function createMonthlyReportPdfBlob({
@@ -788,47 +832,26 @@ export async function createMonthlyReportPdfBlob({
   expenses = [],
   financialState = {},
   insights = [],
+  moneyBookSummary = {},
   profile = {},
+  reportMeta = {},
   recommendation = null,
   savingsBuckets = [],
   sharedSummary = null,
 }) {
-  const { jsPDF } = await import('jspdf')
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  doc.__fbplyLogoDataUrl = await loadLogoDataUrl()
-  const report = advancedReport || buildAdvancedReport({
+  return createMonthlyBudgetReportPdfBlob({
+    advancedReport,
     expenseBreakdown,
     expenses,
     financialState,
     insights,
+    moneyBookSummary,
     profile,
+    reportMeta,
     recommendation,
     savingsBuckets,
     sharedSummary,
   })
-  const mixItems = buildMixItems(expenseBreakdown, report)
-  const metrics = buildMetricCards(report, financialState, savingsBuckets)
-  const commitments = commitmentItems(profile)
-
-  drawCoverPage(doc, { profile, report, financialState })
-
-  let y = addPage(doc, 'Money Status Summary')
-  y = drawHealthSummary(doc, y, metrics)
-  y = drawVisualStory(doc, y, { financialState, mixItems })
-  drawInsightCards(doc, y, 'What Shaped The Month', [
-    ...(report.spendingPatterns || []).slice(0, 2),
-    ...(report.pressureAnalysis || []).slice(0, 1),
-  ], { maxItems: 3 })
-
-  y = addPage(doc, 'Spending And Planning')
-  y = drawSpendingBalance(doc, y, mixItems, financialState)
-  y = drawCommitments(doc, y, commitments)
-  y = drawSharedFlow(doc, y, report.sharedSummary || sharedSummary)
-  y = drawTrend(doc, y, report.timeline || [])
-  y = drawPurchaseReadiness(doc, y, report, recommendation)
-  drawClosingReflection(doc, y, report)
-
-  return doc.output('blob')
 }
 
 export async function generateMonthlyReportPdf(reportData) {

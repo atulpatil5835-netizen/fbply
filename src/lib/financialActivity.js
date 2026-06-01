@@ -42,6 +42,10 @@ function uniquePeople(people = []) {
     })
 }
 
+export function uniqueSharedPeople(people = []) {
+  return uniquePeople(people)
+}
+
 function findMemberName(members, value, profile = {}) {
   const normalized = normalizePersonName(value)
 
@@ -56,12 +60,13 @@ function settlementId(groupId, from, to) {
   return `${groupId}-${normalizePersonName(from).replace(/\s/g, '-')}-${normalizePersonName(to).replace(/\s/g, '-')}`
 }
 
-export function createSharedPayment({ label, amount, paidBy, date }) {
+export function createSharedPayment({ label, amount, paidBy, date, participants = [] }) {
   return {
     id: `shared-payment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     label: String(label || 'Shared payment').trim() || 'Shared payment',
     amount: safeAmount(amount),
     paidBy: String(paidBy || '').trim(),
+    participants: uniquePeople(participants),
     date: date || new Date().toISOString().slice(0, 10),
   }
 }
@@ -75,6 +80,7 @@ function normalizeSharedPayments(group = {}, members = [], profile = {}) {
       label: String(payment.label || payment.name || group.name || 'Shared payment').trim(),
       amount: safeAmount(payment.amount),
       paidBy: findMemberName(members, payment.paidBy || group.paidBy || currentUserName, profile),
+      participants: uniquePeople(payment.participants || []),
       date: payment.date || group.date || new Date().toISOString().slice(0, 10),
     }))
     .filter((payment) => payment.amount > 0)
@@ -94,6 +100,7 @@ function normalizeSharedPayments(group = {}, members = [], profile = {}) {
     label: group.name || 'Shared payment',
     amount: legacyAmount,
     paidBy: findMemberName(members, group.paidBy || currentUserName, profile),
+    participants: [],
     date: group.date || new Date().toISOString().slice(0, 10),
   }]
 }

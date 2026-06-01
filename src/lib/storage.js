@@ -69,6 +69,10 @@ export function safeStorageSetQueued(key, value, delay = 180) {
     return
   }
 
+  if (queuedStorageWrites.get(key) === value) {
+    return
+  }
+
   queuedStorageWrites.set(key, value)
 
   if (queuedStorageHandle || typeof window === 'undefined') {

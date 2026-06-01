@@ -1,8 +1,6 @@
-import { Component, lazy, memo, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Bike,
   CalendarDays,
   Car,
   ChartPie,
@@ -12,9 +10,7 @@ import {
   CreditCard,
   Download,
   ExternalLink,
-  HeartHandshake,
   House,
-  Laptop,
   LogOut,
   LockKeyhole,
   Mail,
@@ -31,7 +27,6 @@ import {
   ShoppingBag,
   ShieldCheck,
   Send,
-  Smartphone,
   Sparkles,
   Square,
   Sun,
@@ -64,29 +59,49 @@ import { buildUnifiedFinanceEngine } from './lib/financeEngine'
 import {
   buildCashflowTimeline,
   buildMonthlyComparison,
-  buildRelatedTransactionGroups,
   buildSmartReminders,
 } from './lib/financeIntelligence'
 import { getFinanceColor } from './lib/financeColors'
-import { addMoney, normalizeMoney, sumMoney } from './lib/money'
+import { addMoney, getCurrencySymbol, normalizeCurrency, normalizeMoney, setActiveCurrency, sumMoney } from './lib/money'
 import {
   createSharedPayment,
-  displayPersonName,
   normalizePersonName,
   reconcileSharedGroup,
   resolveCurrentUserName,
+  uniqueSharedPeople,
 } from './lib/financialActivity'
 import { flushStorageQueue, safeStorageGet, safeStorageSet, safeStorageSetQueued } from './lib/storage'
+import {
+  buildFinancialCalendarEvents,
+  buildMoneyReminders,
+  buildUpcomingMoney,
+  createRecurringSchedule,
+  normalizeRecurringSchedules,
+} from './lib/recurringSchedule'
+import {
+  createReportHistoryEntry,
+  createReportId,
+  normalizeReportHistory,
+} from './lib/reportHistory'
 import {
   learnVoiceExpense,
   parseVoiceExpense as parseSpokenExpense,
   voiceCategoryOptions,
 } from './lib/voiceExpense'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
+import { AppModal, BrandMark, CurrencyInput, EmptyState, HeaderLogo } from './components/AppPrimitives.jsx'
 import CategoryPicker from './components/CategoryPicker.jsx'
 import FinanceDonut from './components/FinanceDonut.jsx'
+import { CommitmentsEditor, CurrencyPreference } from './components/ProfileSettingsControls.jsx'
+import { SavingsBucketsManager } from './components/SavingsBucketsManager.jsx'
+import { focusInvalidField, slugify, titleCase } from './lib/uiHelpers'
 
+const ActivityScreen = lazy(() => import('./screens/ActivityScreen.jsx'))
+const GoalsScreen = lazy(() => import('./screens/GoalsScreen.jsx'))
+const LegalScreen = lazy(() => import('./screens/LegalScreen.jsx'))
 const ReportsScreen = lazy(() => import('./components/ReportsScreen.jsx'))
+const SettingsScreen = lazy(() => import('./screens/SettingsScreen.jsx'))
+const TodayScreen = lazy(() => import('./screens/TodayScreen.jsx'))
 
 const fadeUp = {
   initial: { opacity: 0, y: 18 },
@@ -94,8 +109,6 @@ const fadeUp = {
   exit: { opacity: 0, y: -14 },
   transition: { duration: 0.22, ease: 'easeOut' },
 }
-
-const HISTORY_GROUP_BATCH_SIZE = 12
 
 const expenseCategories = [
   { label: 'Food', icon: Utensils, tone: 'cyan' },
@@ -113,29 +126,10 @@ const expenseCategories = [
   { label: 'Custom', icon: Plus, tone: 'cyan' },
 ]
 
-const planCategories = [
-  { label: 'Car', icon: Car },
-  { label: 'Bike', icon: Bike },
-  { label: 'Phone', icon: Smartphone },
-  { label: 'Laptop', icon: Laptop },
-  { label: 'Appliance', icon: House },
-  { label: 'Custom', icon: Sparkles },
-]
-
-const timelineOptions = [
-  { key: 'asap', label: 'ASAP' },
-  { key: '3m', label: '3 months' },
-  { key: '6m', label: '6 months' },
-  { key: '12m', label: '1 year' },
-  { key: 'flexible', label: 'Flexible' },
-]
-
 const supportEmail = 'contact@fbply.com'
 const founderName = 'Atul Sadanand Hinge'
 const founderLinkedInUrl = 'https://www.linkedin.com/in/atul-hinge-304aab155/'
 const supportPaymentUrl = 'https://razorpay.me/@atulsadanandhinge'
-const legalUpdatedLabel = 'Updated May 2026'
-
 const legalLinks = [
   { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Terms & Conditions', href: '/terms' },
@@ -147,7 +141,6 @@ const legalLinks = [
 const navItems = [
   { key: 'home', label: 'Today', icon: House },
   { key: 'history', label: 'Activity', icon: CalendarDays },
-  { key: 'add', label: 'Add', icon: Plus, isAdd: true },
   { key: 'planner', label: 'Goals', icon: Target },
   { key: 'reports', label: 'Insights', icon: ChartPie },
 ]
@@ -359,6 +352,8 @@ const emptyProfile = {
   name: '',
   email: '',
   income: 0,
+  currency: 'INR',
+  salaryDay: 1,
   savingsPreference: 'balanced',
   commitments: [],
 }
@@ -569,21 +564,6 @@ function buildMonthOptions({ expenses = [], sharedGroups = [], moneyBookEntries 
     .map((key) => ({ key, label: formatMonthLabel(key) }))
 }
 
-function uniqueSharedPeople(people = []) {
-  const seen = new Set()
-  return people
-    .map((person) => String(person || '').trim())
-    .filter(Boolean)
-    .filter((person) => {
-      const key = normalizePersonName(person)
-      if (seen.has(key)) {
-        return false
-      }
-      seen.add(key)
-      return true
-    })
-}
-
 function createSharedGroup({ name, amount, paidBy, people, profile, purpose = '' }) {
   const id = `shared-${Date.now()}-${Math.random().toString(16).slice(2)}`
   const currentUserName = resolveCurrentUserName(profile)
@@ -791,143 +771,6 @@ function buildEmergencyCushion(buckets, state) {
   }
 }
 
-function buildDailyMoneyStatus(state, safeToSpend) {
-  const safeAmount = normalizeMoney(safeToSpend?.comfortablyUsable)
-
-  if (!normalizeMoney(state.income)) {
-    return {
-      title: 'Add income to see your safe spending.',
-      detail: 'Once income is added, FBPly can guide the month more clearly.',
-      tone: 'learning',
-    }
-  }
-
-  if (state.pressureTone === 'slight-pressure') {
-    return {
-      title: 'This month feels slightly tight.',
-      detail: safeAmount > 0
-        ? `${rupees(safeAmount)} still looks usable with care.`
-        : 'Keep today light and protect the basics first.',
-      tone: 'tight',
-    }
-  }
-
-  if (state.pressureTone === 'warm') {
-    return {
-      title: 'Go a little easy this week.',
-      detail: safeAmount > 0
-        ? `${rupees(safeAmount)} is safer for flexible spends right now.`
-        : 'A small pause can keep the month comfortable.',
-      tone: 'careful',
-    }
-  }
-
-  if (state.pressureTone === 'balanced') {
-    return {
-      title: "You're still in a safe zone.",
-      detail: 'Normal spending looks okay, just keep tracking small spends.',
-      tone: 'steady',
-    }
-  }
-
-  return {
-    title: "You're doing good this month.",
-    detail: 'You have healthy spending room today.',
-    tone: 'good',
-  }
-}
-
-function buildSingleTodayInsight({ smartHomeInsights = [], whatChangedInsights = [], calmSummaries = [], financialState }) {
-  const firstSmart = smartHomeInsights.find((insight) => insight?.title || insight?.detail)
-
-  if (firstSmart) {
-    return {
-      title: firstSmart.title || 'Money note',
-      detail: firstSmart.detail || firstSmart.kicker || 'Your money picture is getting clearer.',
-      tone: firstSmart.tone || 'balanced',
-    }
-  }
-
-  const simpleDetail = whatChangedInsights[0] || calmSummaries[0]
-
-  if (simpleDetail) {
-    return {
-      title: 'Small money note',
-      detail: simpleDetail,
-      tone: financialState?.pressureTone || 'balanced',
-    }
-  }
-
-  return {
-    title: 'Start tracking to unlock smarter notes.',
-    detail: 'Add a few expenses and FBPly will keep the insights short and useful.',
-    tone: 'learning',
-  }
-}
-
-function formatActivityTime(value) {
-  const parsed = new Date(value || Date.now())
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Now'
-  }
-
-  return parsed.toLocaleTimeString('en-IN', {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
-
-function buildTrackedDayCount(expenses = []) {
-  return new Set(
-    expenses
-      .map((expense) => String(expense.date || expense.createdAt || '').slice(0, 10))
-      .filter(Boolean),
-  ).size
-}
-
-function activityVerb(transaction = {}) {
-  if (transaction.tone === 'incoming') {
-    return 'Earned'
-  }
-
-  if (transaction.tone === 'outgoing') {
-    return 'Spent'
-  }
-
-  if (transaction.tone === 'transfer') {
-    return 'Shifted'
-  }
-
-  if (transaction.impactType === 'goal') {
-    return 'Planned'
-  }
-
-  return 'Tracked'
-}
-
-function focusInvalidField(root) {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return
-  }
-
-  window.setTimeout(() => {
-    const scope = root?.querySelector ? root : document
-    const invalidField = scope.querySelector(
-      '.field-invalid input, .field-invalid textarea, .field-invalid select, input.field-invalid, textarea.field-invalid, select.field-invalid, [aria-invalid="true"]',
-    )
-
-    if (!invalidField) {
-      return
-    }
-
-    invalidField.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    if (typeof invalidField.focus === 'function') {
-      invalidField.focus({ preventScroll: true })
-    }
-  }, 0)
-}
-
 function App() {
   const [currentPath, setCurrentPath] = useState(() =>
     typeof window === 'undefined' ? '/' : window.location.pathname || '/',
@@ -941,6 +784,9 @@ function App() {
   const [profile, setProfile] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-profile', emptyProfile) : emptyProfile))
   const [expenses, setExpenses] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-expenses', []) : []))
   const [savingsBuckets, setSavingsBuckets] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-savings-buckets', []) : []))
+  const [recurringSchedules, setRecurringSchedules] = useState(() =>
+    hasCompletedSetup ? normalizeRecurringSchedules(readStoredJson('fbply-recurring-schedules', [])) : [],
+  )
   const [sharedGroups, setSharedGroups] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-shared-groups', []) : []))
   const [moneyBookEntries, setMoneyBookEntries] = useState(() =>
     hasCompletedSetup ? normalizeMoneyBookEntries(readStoredJson('fbply-money-book', [])) : [],
@@ -977,9 +823,14 @@ function App() {
   const [pdfError, setPdfError] = useState('')
   const [exportUnlockUntil, setExportUnlockUntil] = useState(() => Number(safeStorageGet('fbply-export-unlock-until', '0')))
   const [rewardedExport, setRewardedExport] = useState({ open: false, status: 'idle', progress: 0 })
+  const [pendingReportRequest, setPendingReportRequest] = useState(null)
+  const [reportTemplate, setReportTemplate] = useState('standard')
+  const [reportHistory, setReportHistory] = useState(() => normalizeReportHistory(readStoredJson('fbply-report-history', [])))
   const recognitionRef = useRef(null)
   const rewardTimerRef = useRef(null)
   const isOnline = useOnlineStatus()
+  const activeCurrency = normalizeCurrency(profile.currency)
+  setActiveCurrency(activeCurrency)
 
   useEffect(() => {
     const handlePopState = () => setCurrentPath(window.location.pathname || '/')
@@ -1038,6 +889,10 @@ function App() {
   }, [theme])
 
   useEffect(() => {
+    document.documentElement.dataset.currency = activeCurrency
+  }, [activeCurrency])
+
+  useEffect(() => {
     safeStorageSet('fbply-low-energy', 'false')
     safeStorageSet('fbply-haptics', 'false')
     safeStorageSet('fbply-touch-sounds', 'false')
@@ -1082,6 +937,10 @@ function App() {
   }, [savingsBuckets])
 
   useEffect(() => {
+    safeStorageSetQueued('fbply-recurring-schedules', JSON.stringify(recurringSchedules))
+  }, [recurringSchedules])
+
+  useEffect(() => {
     safeStorageSetQueued('fbply-shared-groups', JSON.stringify(sharedGroups))
   }, [sharedGroups])
 
@@ -1096,6 +955,10 @@ function App() {
   useEffect(() => {
     safeStorageSet('fbply-export-unlock-until', String(exportUnlockUntil))
   }, [exportUnlockUntil])
+
+  useEffect(() => {
+    safeStorageSetQueued('fbply-report-history', JSON.stringify(reportHistory))
+  }, [reportHistory])
 
   useEffect(() => {
     return () => {
@@ -1325,6 +1188,25 @@ function App() {
       monthKey: financialActivity.monthKey,
     }),
     [financialActivity.moneyBookSummary, financialActivity.monthKey, profile, recommendation, savingsBuckets],
+  )
+  const financialCalendarEvents = useMemo(
+    () => buildFinancialCalendarEvents({
+      profile,
+      recurringSchedules,
+      savingsBuckets,
+      sharedSummary,
+      moneyBookSummary: financialActivity.moneyBookSummary,
+      days: 35,
+    }),
+    [financialActivity.moneyBookSummary, profile, recurringSchedules, savingsBuckets, sharedSummary],
+  )
+  const moneyReminders = useMemo(
+    () => buildMoneyReminders(financialCalendarEvents),
+    [financialCalendarEvents],
+  )
+  const upcomingMoney = useMemo(
+    () => buildUpcomingMoney(financialCalendarEvents),
+    [financialCalendarEvents],
   )
   const financialHealth = useMemo(
     () => buildFinancialHealthScore({
@@ -1675,6 +1557,7 @@ function App() {
     const label = String(payment.label || '').trim()
     const paidBy = String(payment.paidBy || '').trim()
     const amount = normalizeMoney(payment.amount)
+    const participants = uniqueSharedPeople(payment.participants || [])
 
     if (!label || !paidBy || !amount || amount <= 0) {
       return false
@@ -1690,6 +1573,7 @@ function App() {
                   label,
                   paidBy,
                   amount,
+                  participants,
                 }),
                 ...(group.payments || []),
               ],
@@ -1781,8 +1665,47 @@ function App() {
     setSharedGroups((current) => current.filter((group) => group.id !== id))
   }, [])
 
+  const addRecurringSchedule = useCallback((schedule) => {
+    setRecurringSchedules((current) => [createRecurringSchedule(schedule), ...current])
+  }, [])
+
+  const updateRecurringSchedule = useCallback((id, patch) => {
+    setRecurringSchedules((current) =>
+      normalizeRecurringSchedules(
+        current.map((schedule) => (schedule.id === id ? { ...schedule, ...patch } : schedule)),
+      ),
+    )
+  }, [])
+
+  const removeRecurringSchedule = useCallback((id) => {
+    setRecurringSchedules((current) => current.filter((schedule) => schedule.id !== id))
+  }, [])
+
+  const toggleRecurringSchedule = useCallback((id) => {
+    setRecurringSchedules((current) =>
+      current.map((schedule) => (schedule.id === id ? { ...schedule, paused: !schedule.paused } : schedule)),
+    )
+  }, [])
+
   const addSavingsBucket = useCallback(() => {
     setSavingsBuckets((current) => [createBucket('New goal', 0, 10000), ...current])
+  }, [])
+
+  const createSetupSavingsGoal = useCallback((goal) => {
+    const name = String(goal?.name || '').trim()
+    const target = normalizeMoney(goal?.target)
+
+    if (!name || target <= 0) {
+      return
+    }
+
+    setSavingsBuckets((current) => [
+      {
+        ...createBucket(name, 0, target),
+        deadline: String(goal?.deadline || '').slice(0, 10),
+      },
+      ...current,
+    ])
   }, [])
 
   const openAddSheet = useCallback((mode = 'menu') => {
@@ -1900,16 +1823,69 @@ function App() {
     setVoiceStatus('Voice entry stopped. You can retry whenever it feels easy.')
   }, [])
 
-  const downloadPdf = useCallback(async () => {
-    if (isExportingPdf) {
-      return
+  const buildReportRequest = useCallback((type = 'monthly', overrides = {}) => {
+    const generatedAt = new Date().toISOString()
+    const period = overrides.period || selectedMonthKey
+    const reportId = overrides.reportId || createReportId(type, period)
+    const currency = normalizeCurrency(profile.currency)
+    const reportMeta = {
+      reportId,
+      template: overrides.template || reportTemplate,
+      generatedAt,
+      currency,
+      period,
+      accuracy: overrides.accuracy,
+      userOverrides: overrides.userOverrides || 0,
+    }
+    const reconciledGroups = sharedGroups.map((group) => reconcileSharedGroup(group, profile))
+
+    if (type === 'trip') {
+      return {
+        type,
+        reportId,
+        payload: {
+          reportMeta,
+          profile,
+          groups: reconciledGroups.filter((group) => group.amount > 0 || group.settlements?.length > 0),
+        },
+      }
     }
 
-    setPdfError('')
-    setIsExportingPdf(true)
+    if (type === 'settlement') {
+      return {
+        type,
+        reportId,
+        payload: {
+          reportMeta,
+          profile,
+          groups: reconciledGroups.filter((group) => group.settlements?.length > 0),
+        },
+      }
+    }
 
-    try {
-      const reportData = {
+    if (type === 'statement') {
+      return {
+        type,
+        reportId,
+        payload: {
+          reportMeta: {
+            ...reportMeta,
+            period: overrides.statementReport?.dateRange || period,
+            accuracy: overrides.accuracy,
+            userOverrides: overrides.userOverrides || 0,
+          },
+          profile,
+          statementReport: overrides.statementReport || {},
+          transactions: overrides.transactions || [],
+        },
+      }
+    }
+
+    return {
+      type: 'monthly',
+      reportId,
+      payload: {
+        reportMeta,
         advancedReport: selectedAdvancedReport,
         expenseBreakdown: selectedExpenseBreakdown,
         expenses: selectedFinancialEntries,
@@ -1920,35 +1896,97 @@ function App() {
         savingsBuckets,
         sharedSummary: selectedSharedSummary,
         moneyBookSummary,
-      }
+      },
+    }
+  }, [
+    insights,
+    moneyBookSummary,
+    profile,
+    recommendation,
+    reportTemplate,
+    savingsBuckets,
+    selectedAdvancedReport,
+    selectedExpenseBreakdown,
+    selectedFinancialEntries,
+    selectedFinancialState,
+    selectedMonthKey,
+    selectedSharedSummary,
+    sharedGroups,
+  ])
+
+  const downloadReportRequest = useCallback(async (request, { saveHistory = true } = {}) => {
+    if (isExportingPdf) {
+      return
+    }
+
+    setPdfError('')
+    setIsExportingPdf(true)
+
+    try {
+      const activeRequest = request || buildReportRequest('monthly')
+      const reportId = activeRequest.reportId || activeRequest.payload?.reportMeta?.reportId || createReportId(activeRequest.type)
       const { isNativeMobileApp, sharePdfBlob } = await import('./lib/nativeFileShare')
+      const { createReportPdfBlob } = await import('./lib/reportPdf')
+      const blob = await createReportPdfBlob(activeRequest)
+      const filename = `${reportId}.pdf`
 
       if (isNativeMobileApp()) {
-        const { createMonthlyReportPdfBlob } = await import('./lib/reportPdf')
-        const blob = await createMonthlyReportPdfBlob(reportData)
-        await sharePdfBlob(blob, 'FBPly-financial-report.pdf')
+        await sharePdfBlob(blob, filename)
       } else {
-        const { generateMonthlyReportPdf } = await import('./lib/reportPdf')
-        await generateMonthlyReportPdf(reportData)
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = filename
+        anchor.click()
+        URL.revokeObjectURL(url)
+      }
+
+      if (saveHistory) {
+        setReportHistory((current) => normalizeReportHistory([
+          createReportHistoryEntry({
+            type: activeRequest.type,
+            template: activeRequest.payload?.reportMeta?.template || reportTemplate,
+            profile,
+            period: activeRequest.payload?.reportMeta?.period || selectedMonthKey,
+            currency: activeRequest.payload?.reportMeta?.currency || profile.currency,
+            reportId,
+            payload: activeRequest.payload,
+          }),
+          ...current,
+        ]))
       }
     } catch {
       setPdfError('The report could not be prepared. Please try again in a moment.')
     } finally {
       setIsExportingPdf(false)
     }
-  }, [
-    insights,
-    isExportingPdf,
-    moneyBookSummary,
-    profile,
-    recommendation,
-    savingsBuckets,
-    selectedAdvancedReport,
-    selectedExpenseBreakdown,
-    selectedFinancialEntries,
-    selectedFinancialState,
-    selectedSharedSummary,
-  ])
+  }, [buildReportRequest, isExportingPdf, profile, reportTemplate, selectedMonthKey])
+
+  const requestReportExport = useCallback((type = 'monthly', overrides = {}) => {
+    if (isExportingPdf) {
+      return
+    }
+
+    setPdfError('')
+    setPendingReportRequest(buildReportRequest(type, overrides))
+    setRewardedExport({ open: true, status: 'ready', progress: 0 })
+  }, [buildReportRequest, isExportingPdf])
+
+  const redownloadReport = useCallback((entry) => {
+    if (!entry?.payload) {
+      return
+    }
+
+    downloadReportRequest({
+      type: entry.type,
+      reportId: entry.reportId,
+      payload: entry.payload,
+    }, { saveHistory: false })
+  }, [downloadReportRequest])
+
+  const deleteReportHistoryEntry = useCallback((id) => {
+    setReportHistory((current) => current.filter((entry) => entry.id !== id))
+  }, [])
 
   const closeRewardedExport = useCallback(() => {
     if (rewardTimerRef.current) {
@@ -1957,6 +1995,7 @@ function App() {
     }
 
     setRewardedExport({ open: false, status: 'idle', progress: 0 })
+    setPendingReportRequest(null)
   }, [])
 
   const startRewardedExport = useCallback(() => {
@@ -1979,29 +2018,22 @@ function App() {
       if (progress >= 100) {
         window.clearInterval(rewardTimerRef.current)
         rewardTimerRef.current = null
-        const unlockedUntil = Date.now() + 15 * 60 * 1000
-        setExportUnlockUntil(unlockedUntil)
+        setExportUnlockUntil(0)
         window.setTimeout(() => {
           setRewardedExport({ open: false, status: 'idle', progress: 0 })
-          downloadPdf()
+          const request = pendingReportRequest
+          setPendingReportRequest(null)
+          if (request) {
+            downloadReportRequest(request)
+          }
         }, 450)
       }
     }, 250)
-  }, [downloadPdf, rewardedExport.status])
+  }, [downloadReportRequest, pendingReportRequest, rewardedExport.status])
 
   const requestPdfExport = useCallback(() => {
-    if (isExportingPdf) {
-      return
-    }
-
-    if (exportUnlockUntil > Date.now()) {
-      downloadPdf()
-      return
-    }
-
-    setPdfError('')
-    setRewardedExport({ open: true, status: 'ready', progress: 0 })
-  }, [downloadPdf, exportUnlockUntil, isExportingPdf])
+    requestReportExport('monthly')
+  }, [requestReportExport])
 
   const exportCsv = useCallback(async () => {
     const header = 'date,direction,impact_type,category,title,amount,source_module,note'
@@ -2049,14 +2081,16 @@ function App() {
     return (
       <div className="app-root" data-theme={theme} data-energy="full">
         <ThemeChoice theme={theme} setTheme={setTheme} />
-        <LegalPage page={legalPage} />
+        <Suspense fallback={<ScreenFallback eyebrow={legalPage.eyebrow} title={legalPage.title} />}>
+          <LegalScreen page={legalPage} supportEmail={supportEmail} />
+        </Suspense>
         <CookieConsentBanner />
       </div>
     )
   }
 
   return (
-    <div className="app-root" data-theme={theme} data-energy={lowEnergyMode ? 'low' : 'full'}>
+    <div className="app-root" data-theme={theme} data-energy={lowEnergyMode ? 'low' : 'full'} data-currency={activeCurrency}>
       <ThemeChoice theme={theme} setTheme={setTheme} />
       <OfflineBanner isOnline={isOnline} />
       <RewardedExportModal
@@ -2097,6 +2131,7 @@ function App() {
             key="setup"
             profile={profile}
             setProfile={setProfile}
+            onCreateSavingsGoal={createSetupSavingsGoal}
             onComplete={() => {
               setHasCompletedSetup(true)
               setActiveTab('home')
@@ -2129,6 +2164,10 @@ function App() {
               whatChangedInsights={whatChangedInsights}
               emergencyCushion={emergencyCushion}
               savingsBuckets={savingsBuckets}
+              recurringSchedules={recurringSchedules}
+              financialCalendarEvents={financialCalendarEvents}
+              moneyReminders={moneyReminders}
+              upcomingMoney={upcomingMoney}
               lowEnergyMode={lowEnergyMode}
               advancedReport={selectedAdvancedReport}
               reportExpenseBreakdown={selectedExpenseBreakdown}
@@ -2193,12 +2232,22 @@ function App() {
               setPlannerTimeline={setPlannerTimeline}
               recommendation={recommendation}
               downloadPdf={requestPdfExport}
+              requestReportExport={requestReportExport}
+              reportTemplate={reportTemplate}
+              setReportTemplate={setReportTemplate}
+              reportHistory={reportHistory}
+              redownloadReport={redownloadReport}
+              deleteReportHistoryEntry={deleteReportHistoryEntry}
               exportCsv={exportCsv}
               isExportingPdf={isExportingPdf}
               pdfError={pdfError}
               updateCommitment={updateCommitment}
               addCommitment={addCommitment}
               removeCommitment={removeCommitment}
+              addRecurringSchedule={addRecurringSchedule}
+              updateRecurringSchedule={updateRecurringSchedule}
+              removeRecurringSchedule={removeRecurringSchedule}
+              toggleRecurringSchedule={toggleRecurringSchedule}
               addSavingsBucket={addSavingsBucket}
               updateSavingsBucket={updateSavingsBucket}
               removeSavingsBucket={removeSavingsBucket}
@@ -2248,93 +2297,6 @@ function OfflineBanner({ isOnline }) {
   )
 }
 
-function LegalText({ text }) {
-  const value = String(text)
-
-  if (!value.includes(supportEmail)) {
-    return value
-  }
-
-  const [before, after] = value.split(supportEmail)
-
-  return (
-    <>
-      {before}
-      <a className="inline-legal-link" href={`mailto:${supportEmail}`}>
-        {supportEmail}
-      </a>
-      {after}
-    </>
-  )
-}
-
-function LegalPage({ page }) {
-  const legalContactItems = [
-    {
-      title: 'Support',
-      body: 'Help with app access, saved data, reports, or account questions.',
-      icon: HeartHandshake,
-    },
-    {
-      title: 'Privacy Questions',
-      body: 'Questions about local storage, cookies, statement review, or data handling.',
-      icon: ShieldCheck,
-    },
-    {
-      title: 'Suggestions & Feedback',
-      body: 'Ideas and corrections that help shape the app are always welcome.',
-      icon: MessageCircle,
-    },
-  ]
-
-  return (
-    <main className="legal-page-shell">
-      <section className="legal-page-card">
-        <HeaderLogo />
-        <div className="legal-page-hero">
-          <p className="eyebrow">{page.eyebrow}</p>
-          <h1>{page.title}</h1>
-          <p>{page.summary}</p>
-          <div className="legal-page-meta" aria-label="Legal page details">
-            <span>Official FBPly information</span>
-            <span>{legalUpdatedLabel}</span>
-          </div>
-        </div>
-        <div className="legal-section-list">
-          {page.sections.map((section) => (
-            <article className="legal-section" key={section.title}>
-              <h2>{section.title}</h2>
-              {section.body.map((line) => (
-                <p key={line}>
-                  <LegalText text={line} />
-                </p>
-              ))}
-            </article>
-          ))}
-        </div>
-        <section className="legal-contact-panel" aria-label="Official FBPly contact">
-          {legalContactItems.map((item) => (
-            <article key={item.title}>
-              <span>
-                <item.icon size={14} />
-                {item.title}
-              </span>
-              <p>{item.body}</p>
-            </article>
-          ))}
-          <a className="legal-contact-link" href={`mailto:${supportEmail}`}>
-            <Mail size={15} />
-            {supportEmail}
-          </a>
-        </section>
-        <a className="legal-back-link" href="/">
-          Back to FBPly
-        </a>
-      </section>
-    </main>
-  )
-}
-
 function CookieConsentBanner() {
   const [accepted, setAccepted] = useState(() => safeStorageGet('fbply-cookie-consent', 'false') === 'true')
 
@@ -2375,7 +2337,7 @@ function SplashScreen({ onDone }) {
       </div>
       <div className="coin-loader" role="status" aria-label="Loading FBPly">
         <div className="coin" aria-hidden="true">
-          <span>₹</span>
+          <span>{getCurrencySymbol()}</span>
         </div>
         <p>Spend Smarter. Feel Better.</p>
         <button className="splash-skip-button" type="button" onClick={onDone}>
@@ -2420,14 +2382,9 @@ function WelcomeScreen({ onStart }) {
 function AuthFallback() {
   return (
     <motion.main className="entry-screen" {...fadeUp}>
-      <div className="entry-shell auth-shell">
-        <HeaderLogo />
-        <section className="entry-copy skeleton-text-group">
-          <span className="skeleton-line short" />
-          <span className="skeleton-line wide" />
-          <span className="skeleton-line" />
-        </section>
-        <div className="auth-card skeleton-auth-card" aria-label="Loading login form">
+      <div className="entry-shell auth-shell compact-auth-shell">
+        <div className="auth-card auth-card-compact skeleton-auth-card" aria-label="Loading login form">
+          <HeaderLogo />
           <span className="skeleton-option" />
           <span className="skeleton-line short" />
           <span className="skeleton-block" />
@@ -2445,6 +2402,14 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const isSignup = authMode === 'signup'
+  const authTitle = isSignup ? 'Create account' : 'Welcome back'
+  const authTagline = isSignup ? 'Set up your private money workspace.' : 'Sign in to continue your money system.'
+  const authLegalLinks = legalLinks
+    .filter((link) => ['/privacy', '/terms', '/contact'].includes(link.href))
+    .map((link) => ({
+      ...link,
+      label: link.href === '/terms' ? 'Terms' : link.href === '/privacy' ? 'Privacy' : link.label,
+    }))
 
   const submitAuth = (event) => {
     event.preventDefault()
@@ -2459,28 +2424,14 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
 
   return (
     <motion.main className="entry-screen" {...fadeUp}>
-      <div className="entry-shell auth-shell">
-        <HeaderLogo />
-        <section className="entry-copy">
-          <p className="eyebrow">{isSignup ? 'Create your space' : 'Welcome back'}</p>
-          <h1>Plan purchases with clearer numbers.</h1>
-        </section>
-        <form className="auth-card" onSubmit={submitAuth}>
-          <div className="auth-mode-toggle" aria-label="Authentication mode">
-            <button
-              className={authMode === 'login' ? 'active' : ''}
-              type="button"
-              onClick={() => setAuthMode('login')}
-            >
-              Login
-            </button>
-            <button
-              className={authMode === 'signup' ? 'active' : ''}
-              type="button"
-              onClick={() => setAuthMode('signup')}
-            >
-              Sign up
-            </button>
+      <div className="entry-shell auth-shell compact-auth-shell">
+        <form className="auth-card auth-card-compact" onSubmit={submitAuth}>
+          <div className="auth-brand-block">
+            <HeaderLogo />
+            <div>
+              <h1>{authTitle}</h1>
+              <p>{authTagline}</p>
+            </div>
           </div>
           {isSignup && (
             <>
@@ -2527,17 +2478,32 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
             />
           </div>
           <button className="primary-button full" type="submit" disabled={isAuthBusy}>
-            {isAuthBusy ? 'Please wait...' : isSignup ? 'Create account' : 'Email login'}
+            {isAuthBusy ? 'Please wait...' : isSignup ? 'Create account' : 'Continue'}
           </button>
-          <p className="subtle-note auth-trust-note">Private by design. Your finance data stays yours.</p>
           {authMessage && <p className="form-message">{authMessage}</p>}
+          <p className="auth-switch-line">
+            {isSignup ? 'Already have an account?' : 'New to FBPly?'}
+            <button
+              type="button"
+              onClick={() => setAuthMode(isSignup ? 'login' : 'signup')}
+            >
+              {isSignup ? 'Sign in' : 'Create account'}
+            </button>
+          </p>
         </form>
+        <footer className="auth-legal-footer" aria-label="Legal links">
+          {authLegalLinks.map((link) => (
+            <a key={link.href} href={link.href}>
+              {link.label}
+            </a>
+          ))}
+        </footer>
       </div>
     </motion.main>
   )
 }
 
-function SetupScreen({ profile, setProfile, onComplete }) {
+function SetupScreen({ profile, setProfile, onCreateSavingsGoal, onComplete }) {
   const commitments = normalizeCommitments(profile)
   const isEmiName = (name) => /\b(emi|loan|installment|instalment|finance|bnpl)\b/i.test(String(name || ''))
   const fixedCommitments = commitments.filter((item) => !isEmiName(item.name))
@@ -2548,7 +2514,10 @@ function SetupScreen({ profile, setProfile, onComplete }) {
   const [fixedAmount, setFixedAmount] = useState('')
   const [emiName, setEmiName] = useState('')
   const [emiAmount, setEmiAmount] = useState('')
-  const totalSteps = 6
+  const [goalName, setGoalName] = useState('')
+  const [goalTarget, setGoalTarget] = useState('')
+  const [goalDeadline, setGoalDeadline] = useState('')
+  const totalSteps = 7
   const activeStep = Math.min(step + 1, totalSteps)
 
   const upsertSetupCommitment = (name, amount) => {
@@ -2599,11 +2568,6 @@ function SetupScreen({ profile, setProfile, onComplete }) {
   }
 
   const goNext = () => {
-    if (step === 1 && !normalizeMoney(profile.income)) {
-      setSetupError('Add your monthly income to build a useful financial picture.')
-      return
-    }
-
     setSetupError('')
     setStep((current) => Math.min(current + 1, totalSteps - 1))
   }
@@ -2614,12 +2578,11 @@ function SetupScreen({ profile, setProfile, onComplete }) {
   }
 
   const finishSetup = () => {
-    if (!normalizeMoney(profile.income)) {
-      setSetupError('Add your monthly income to build a useful financial picture.')
-      setStep(1)
-      return
-    }
-
+    onCreateSavingsGoal?.({
+      name: goalName,
+      target: goalTarget,
+      deadline: goalDeadline,
+    })
     setProfile((current) => ({
       ...current,
       commitments: normalizeCommitments(current).filter((item) => item.name && normalizeMoney(item.amount) > 0),
@@ -2648,13 +2611,29 @@ function SetupScreen({ profile, setProfile, onComplete }) {
       return (
         <section className="setup-flow-card">
           <p className="eyebrow">Question {activeStep - 1}</p>
-          <h1>What is your monthly income?</h1>
-          <p className="setup-soft-copy">Use your usual take-home amount. Approximate is okay.</p>
+          <h1>What should FBPly remember first?</h1>
+          <p className="setup-soft-copy">Add what you know now, or skip and fill it later.</p>
           <CurrencyInput
             label="Monthly Income"
             value={profile.income || ''}
             onChange={(value) => setProfile((current) => ({ ...current, income: normalizeMoney(value) }))}
           />
+          <CurrencyPreference profile={profile} setProfile={setProfile} id="setup-currency" />
+          <label>
+            <span className="input-label">Salary day</span>
+            <input
+              className="plain-input"
+              type="number"
+              min="1"
+              max="31"
+              inputMode="numeric"
+              value={profile.salaryDay || 1}
+              onChange={(event) => setProfile((current) => ({
+                ...current,
+                salaryDay: Math.min(Math.max(Number(event.target.value || 1), 1), 31),
+              }))}
+            />
+          </label>
         </section>
       )
     }
@@ -2735,6 +2714,34 @@ function SetupScreen({ profile, setProfile, onComplete }) {
       return (
         <section className="setup-flow-card">
           <p className="eyebrow">Question {activeStep - 1}</p>
+          <h1>Any savings goal to watch?</h1>
+          <p className="setup-soft-copy">Optional. Goals can be added later from the Goals screen.</p>
+          <div className="setup-mini-form setup-goal-form">
+            <input
+              className="plain-input"
+              value={goalName}
+              placeholder="Emergency fund, trip, phone..."
+              onChange={(event) => setGoalName(event.target.value)}
+            />
+            <CurrencyInput label="Target" id="setup-goal-target" value={goalTarget} onChange={setGoalTarget} />
+            <label>
+              <span className="input-label">Deadline</span>
+              <input
+                className="plain-input"
+                type="date"
+                value={goalDeadline}
+                onChange={(event) => setGoalDeadline(event.target.value)}
+              />
+            </label>
+          </div>
+        </section>
+      )
+    }
+
+    if (step === 5) {
+      return (
+        <section className="setup-flow-card">
+          <p className="eyebrow">Question {activeStep - 1}</p>
           <h1>How careful should planner guidance be?</h1>
           <p className="setup-soft-copy">This controls how conservative purchase planning feels.</p>
           <div className="preference-grid">
@@ -2776,6 +2783,10 @@ function SetupScreen({ profile, setProfile, onComplete }) {
             <span>Preference</span>
             <strong>{titleCase(profile.savingsPreference)}</strong>
           </div>
+          <div>
+            <span>Goal</span>
+            <strong>{goalName ? 'Added' : 'Skipped'}</strong>
+          </div>
         </div>
       </section>
     )
@@ -2804,10 +2815,17 @@ function SetupScreen({ profile, setProfile, onComplete }) {
               Enter FBPly
             </button>
           ) : (
-            <button className="primary-button" type="button" onClick={goNext}>
-              {step === 0 ? 'Begin' : 'Continue'}
-              <ChevronRight size={18} />
-            </button>
+            <div className="setup-next-actions">
+              {step > 0 && (
+                <button className="ghost-button" type="button" onClick={goNext}>
+                  Skip
+                </button>
+              )}
+              <button className="primary-button" type="button" onClick={goNext}>
+                {step === 0 ? 'Begin' : 'Continue'}
+                <ChevronRight size={18} />
+              </button>
+            </div>
           )}
         </div>
         {setupError && <p className="form-message setup-error">{setupError}</p>}
@@ -2836,95 +2854,6 @@ function SetupCommitmentList({ items, onRemove, emptyText = 'No fixed item added
   )
 }
 
-function commitmentIconForName(name) {
-  const lowerName = name.toLowerCase()
-
-  if (lowerName.includes('rent') || lowerName.includes('home')) {
-    return House
-  }
-
-  if (lowerName.includes('emi') || lowerName.includes('loan')) {
-    return CreditCard
-  }
-
-  if (lowerName.includes('food')) {
-    return Utensils
-  }
-
-  if (lowerName.includes('family') || lowerName.includes('support')) {
-    return Wallet
-  }
-
-  return Receipt
-}
-
-function CommitmentsEditor({ commitments, updateCommitment, addCommitment, removeCommitment }) {
-  return (
-    <div className="commitment-list">
-      {commitments.length === 0 && (
-        <p className="section-note">No monthly bills added yet. Add only what repeats every month.</p>
-      )}
-
-      {commitments.map((item, index) => {
-        const Icon = commitmentIconForName(item.name)
-
-        return (
-          <article className="commitment-row" key={item.id}>
-            <span className="soft-icon">
-              <Icon size={18} />
-            </span>
-            <label>
-              <span>Bill {index + 1}</span>
-              <input
-                className="plain-input"
-                type="text"
-                value={item.name}
-                placeholder="Rent, Bike EMI, SIP..."
-                onChange={(event) => updateCommitment(item.id, { name: event.target.value })}
-              />
-            </label>
-            <div className="commitment-amount">
-              <CurrencyInput
-                label="Amount"
-                id={`commitment-amount-${slugify(item.id)}`}
-                ariaLabel={`Amount for ${item.name || `bill ${index + 1}`}`}
-                value={item.amount}
-                onChange={(value) => updateCommitment(item.id, { amount: normalizeMoney(value) })}
-              />
-            </div>
-            <label className="commitment-due-day">
-              <span>Due day</span>
-              <input
-                className="plain-input"
-                type="number"
-                min="1"
-                max="31"
-                inputMode="numeric"
-                value={item.dueDay || ''}
-                placeholder="1"
-                onChange={(event) => updateCommitment(item.id, { dueDay: Number(event.target.value || 0) || undefined })}
-              />
-            </label>
-            <button
-              className="icon-button"
-              type="button"
-              aria-label={`Remove ${item.name || 'monthly bill'}`}
-              onClick={() => removeCommitment(item.id)}
-            >
-              <Trash2 size={17} />
-            </button>
-          </article>
-        )
-      })}
-
-      <button className="ghost-button commitment-add" type="button" onClick={addCommitment}>
-        <Plus size={18} />
-        Add monthly bill
-      </button>
-    </div>
-  )
-}
-
 function MainApp(props) {
   const {
     activeTab,
@@ -2948,6 +2877,10 @@ function MainApp(props) {
     whatChangedInsights,
     emergencyCushion,
     savingsBuckets,
+    recurringSchedules,
+    financialCalendarEvents,
+    moneyReminders,
+    upcomingMoney,
     lowEnergyMode,
     advancedReport,
     reportExpenseBreakdown,
@@ -3012,12 +2945,22 @@ function MainApp(props) {
     setPlannerTimeline,
     recommendation,
     downloadPdf,
+    requestReportExport,
+    reportTemplate,
+    setReportTemplate,
+    reportHistory,
+    redownloadReport,
+    deleteReportHistoryEntry,
     exportCsv,
     isExportingPdf,
     pdfError,
     updateCommitment,
     addCommitment,
     removeCommitment,
+    addRecurringSchedule,
+    updateRecurringSchedule,
+    removeRecurringSchedule,
+    toggleRecurringSchedule,
     addSavingsBucket,
     updateSavingsBucket,
     removeSavingsBucket,
@@ -3038,82 +2981,96 @@ function MainApp(props) {
       >
         <User size={18} />
       </button>
+      <QuickAddFab openAddSheet={openAddSheet} />
       <main className="screen-panel">
         {activeTab === 'home' && (
-          <HomeScreen
-            profile={profile}
-            financialState={financialState}
-            insights={insights}
-            smartHomeInsights={smartHomeInsights}
-            smartReminders={smartReminders}
-            financialHealth={financialHealth}
-            safeToSpend={safeToSpend}
-            calmSummaries={calmSummaries}
-            whatChangedInsights={whatChangedInsights}
-            emergencyCushion={emergencyCushion}
-            savingsBuckets={savingsBuckets}
-            todayTransactions={todayTransactions}
-            expenses={expenses}
-            selectedPlan={selectedPlan}
-            plannerInput={plannerInput}
-            plannerTargetAmount={plannerTargetAmount}
-            plannerCurrentSavings={plannerCurrentSavings}
-            plannerTimeline={plannerTimeline}
-            recommendation={recommendation}
-            lowEnergyMode={lowEnergyMode}
-            setActiveTab={setActiveTab}
-            openAddSheet={openAddSheet}
-            downloadPdf={downloadPdf}
-            isExportingPdf={isExportingPdf}
-            pdfError={pdfError}
-            showFooter={!addSheetMode && !isSettingsOpen}
-          />
+          <Suspense fallback={<ScreenFallback eyebrow="Today" title="Preparing your money view" />}>
+            <TodayScreen
+              profile={profile}
+              financialState={financialState}
+              insights={insights}
+              smartHomeInsights={smartHomeInsights}
+              smartReminders={smartReminders}
+              financialHealth={financialHealth}
+              safeToSpend={safeToSpend}
+              calmSummaries={calmSummaries}
+              whatChangedInsights={whatChangedInsights}
+              emergencyCushion={emergencyCushion}
+              savingsBuckets={savingsBuckets}
+              recurringSchedules={recurringSchedules}
+              moneyReminders={moneyReminders}
+              upcomingMoney={upcomingMoney}
+              financialCalendarEvents={financialCalendarEvents}
+              reportHistory={reportHistory}
+              redownloadReport={redownloadReport}
+              sharedGroups={sharedGroups}
+              sharedSummary={sharedSummary}
+              moneyBookSummary={moneyBookSummary}
+              todayTransactions={todayTransactions}
+              expenses={expenses}
+              selectedPlan={selectedPlan}
+              plannerInput={plannerInput}
+              plannerTargetAmount={plannerTargetAmount}
+              plannerCurrentSavings={plannerCurrentSavings}
+              plannerTimeline={plannerTimeline}
+              recommendation={recommendation}
+              lowEnergyMode={lowEnergyMode}
+              setActiveTab={setActiveTab}
+              downloadPdf={downloadPdf}
+              isExportingPdf={isExportingPdf}
+              pdfError={pdfError}
+            />
+          </Suspense>
         )}
         {activeTab === 'history' && (
-          <HistoryScreen
-            groups={historyGroups}
-            summary={transactionSummary}
-            cashflowTimeline={cashflowTimeline}
-            expenses={expenses}
-            moneyBookEntries={moneyBookEntries}
-            moneyBookSummary={moneyBookSummary}
-            onSaveMoneyBookEntry={saveMoneyBookEntry}
-            onToggleMoneyBookSettlement={toggleMoneyBookSettlement}
-            onDeleteMoneyBookEntry={deleteMoneyBookEntry}
-            selectedMonthKey={selectedMonthKey}
-            setSelectedMonthKey={setSelectedMonthKey}
-            monthOptions={monthOptions}
-            onEditExpense={editExpense}
-            setActiveTab={setActiveTab}
-            openAddSheet={openAddSheet}
-          />
+          <Suspense fallback={<ScreenFallback eyebrow="Activity" title="Preparing activity" />}>
+            <ActivityScreen
+              groups={historyGroups}
+              summary={transactionSummary}
+              cashflowTimeline={cashflowTimeline}
+              expenses={expenses}
+              moneyBookEntries={moneyBookEntries}
+              moneyBookSummary={moneyBookSummary}
+              profile={profile}
+              sharedGroups={sharedGroups}
+              sharedSummary={sharedSummary}
+              addSharedGroup={addSharedGroup}
+              addSharedPayment={addSharedPayment}
+              markSharedSettlementReceived={markSharedSettlementReceived}
+              removeSharedGroup={removeSharedGroup}
+              onSaveMoneyBookEntry={saveMoneyBookEntry}
+              onToggleMoneyBookSettlement={toggleMoneyBookSettlement}
+              onDeleteMoneyBookEntry={deleteMoneyBookEntry}
+              selectedMonthKey={selectedMonthKey}
+              setSelectedMonthKey={setSelectedMonthKey}
+              monthOptions={monthOptions}
+              onEditExpense={editExpense}
+              setActiveTab={setActiveTab}
+              openAddSheet={openAddSheet}
+            />
+          </Suspense>
         )}
         {activeTab === 'planner' && (
-          <PlannerScreen
-            plannerInput={plannerInput}
-            setPlannerInput={setPlannerInput}
-            selectedPlan={selectedPlan}
-            setSelectedPlan={setSelectedPlan}
-            plannerTargetAmount={plannerTargetAmount}
-            setPlannerTargetAmount={setPlannerTargetAmount}
-            plannerCurrentSavings={plannerCurrentSavings}
-            setPlannerCurrentSavings={setPlannerCurrentSavings}
-            plannerTimeline={plannerTimeline}
-            setPlannerTimeline={setPlannerTimeline}
-            recommendation={recommendation}
-            financialState={financialState}
-            profile={profile}
-            savingsBuckets={savingsBuckets}
-            addSavingsBucket={addSavingsBucket}
-            updateSavingsBucket={updateSavingsBucket}
-            removeSavingsBucket={removeSavingsBucket}
-            sharedSummary={sharedSummary}
-            sharedGroups={sharedGroups}
-            addSharedGroup={addSharedGroup}
-            addSharedPayment={addSharedPayment}
-            markSharedSettlementReceived={markSharedSettlementReceived}
-            removeSharedGroup={removeSharedGroup}
-          />
+          <Suspense fallback={<ScreenFallback eyebrow="Goals" title="Preparing goals" />}>
+            <GoalsScreen
+              plannerInput={plannerInput}
+              setPlannerInput={setPlannerInput}
+              selectedPlan={selectedPlan}
+              setSelectedPlan={setSelectedPlan}
+              plannerTargetAmount={plannerTargetAmount}
+              setPlannerTargetAmount={setPlannerTargetAmount}
+              plannerCurrentSavings={plannerCurrentSavings}
+              setPlannerCurrentSavings={setPlannerCurrentSavings}
+              plannerTimeline={plannerTimeline}
+              setPlannerTimeline={setPlannerTimeline}
+              recommendation={recommendation}
+              financialState={financialState}
+              savingsBuckets={savingsBuckets}
+              addSavingsBucket={addSavingsBucket}
+              updateSavingsBucket={updateSavingsBucket}
+              removeSavingsBucket={removeSavingsBucket}
+            />
+          </Suspense>
         )}
         {activeTab === 'reports' && (
           <Suspense fallback={<ReportsFallback />}>
@@ -3125,6 +3082,12 @@ function MainApp(props) {
               transactionSummary={reportTransactionSummary}
               monthlyComparison={monthlyComparison}
               downloadPdf={downloadPdf}
+              requestReportExport={requestReportExport}
+              reportTemplate={reportTemplate}
+              setReportTemplate={setReportTemplate}
+              reportHistory={reportHistory}
+              redownloadReport={redownloadReport}
+              deleteReportHistoryEntry={deleteReportHistoryEntry}
               exportCsv={exportCsv}
               isExportingPdf={isExportingPdf}
               selectedMonthKey={selectedMonthKey}
@@ -3218,22 +3181,80 @@ function MainApp(props) {
         />
       )}
       {isSettingsOpen && (
-        <SettingsSheet
-          authUser={authUser}
-          profile={profile}
-          setProfile={setProfile}
-          onClose={() => setIsSettingsOpen(false)}
-          onSignOut={onSignOut}
-          financialState={financialState}
-          fixedDistribution={fixedDistribution}
-          flexibleDistribution={flexibleDistribution}
-          updateCommitment={updateCommitment}
-          addCommitment={addCommitment}
-          removeCommitment={removeCommitment}
-        />
+        <Suspense fallback={null}>
+          <SettingsScreen
+            authUser={authUser}
+            profile={profile}
+            setProfile={setProfile}
+            onClose={() => setIsSettingsOpen(false)}
+            onSignOut={onSignOut}
+            financialState={financialState}
+            fixedDistribution={fixedDistribution}
+            flexibleDistribution={flexibleDistribution}
+            commitments={normalizeMonthlyBillsForEdit(profile)}
+            updateCommitment={updateCommitment}
+            addCommitment={addCommitment}
+            removeCommitment={removeCommitment}
+            recurringSchedules={recurringSchedules}
+            addRecurringSchedule={addRecurringSchedule}
+            updateRecurringSchedule={updateRecurringSchedule}
+            removeRecurringSchedule={removeRecurringSchedule}
+            toggleRecurringSchedule={toggleRecurringSchedule}
+          />
+        </Suspense>
       )}
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} openAddSheet={openAddSheet} />
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
     </motion.div>
+  )
+}
+
+function QuickAddFab({ openAddSheet }) {
+  const longPressTimerRef = useRef(null)
+  const didLongPressRef = useRef(false)
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  const startLongPressTimer = useCallback(() => {
+    didLongPressRef.current = false
+    clearLongPressTimer()
+    longPressTimerRef.current = window.setTimeout(() => {
+      didLongPressRef.current = true
+      openAddSheet('menu')
+    }, 460)
+  }, [clearLongPressTimer, openAddSheet])
+
+  useEffect(() => clearLongPressTimer, [clearLongPressTimer])
+
+  return (
+    <button
+      className="top-quick-add-button"
+      type="button"
+      aria-label="Add expense"
+      title="Add expense"
+      onClick={() => {
+        if (didLongPressRef.current) {
+          didLongPressRef.current = false
+          return
+        }
+
+        openAddSheet('expense')
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        openAddSheet('menu')
+      }}
+      onPointerDown={startLongPressTimer}
+      onPointerLeave={clearLongPressTimer}
+      onPointerCancel={clearLongPressTimer}
+      onPointerUp={clearLongPressTimer}
+    >
+      <Plus size={20} />
+    </button>
   )
 }
 
@@ -3274,22 +3295,17 @@ function ReportsFallback() {
   )
 }
 
-function EmptyState({ title, detail, actionLabel, onAction, icon: Icon = Sparkles }) {
+function ScreenFallback({ eyebrow = 'Loading', title = 'Preparing view' }) {
   return (
-    <div className="empty-state">
-      <span className="empty-visual" aria-hidden="true">
-        <Icon size={20} />
-      </span>
-      <div>
-        <strong>{title}</strong>
-        <p>{detail}</p>
-        {actionLabel && onAction && (
-          <button className="ghost-button small-button empty-state-action" type="button" onClick={onAction}>
-            {actionLabel}
-          </button>
-        )}
+    <section className="screen-content">
+      <div className="screen-heading">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+        </div>
       </div>
-    </div>
+      <article className="chart-card skeleton-card" />
+    </section>
   )
 }
 
@@ -3333,40 +3349,6 @@ class AppErrorBoundary extends Component {
       </main>
     )
   }
-}
-
-function AppModal({ children, onClose, labelledBy, sheetClassName = 'editor-sheet', backdropClassName = 'editor-sheet-backdrop' }) {
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', closeOnEscape)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [onClose])
-
-  return createPortal(
-    <div className={backdropClassName} role="presentation" onClick={onClose}>
-      <section
-        className={sheetClassName}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-        onClick={(event) => event.stopPropagation()}
-      >
-        {children}
-      </section>
-    </div>,
-    document.body,
-  )
 }
 
 function RewardedExportModal({ rewardState, onStart, onClose }) {
@@ -3944,117 +3926,6 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
   )
 }
 
-function SettingsSheet({
-  authUser,
-  profile,
-  setProfile,
-  onClose,
-  onSignOut,
-  financialState,
-  fixedDistribution,
-  flexibleDistribution,
-  updateCommitment,
-  addCommitment,
-  removeCommitment,
-}) {
-  const commitments = normalizeMonthlyBillsForEdit(profile)
-  const balanceMessage = getProfileBalanceMessage(financialState)
-
-  return (
-    <AppModal onClose={onClose} labelledBy="settings-title" sheetClassName="editor-sheet settings-sheet">
-      <div className="editor-sheet-header">
-        <div>
-          <p className="eyebrow">Settings</p>
-          <h2 id="settings-title">Profile and money setup</h2>
-        </div>
-        <button className="icon-button" type="button" aria-label="Close settings" onClick={onClose}>
-          <X size={17} />
-        </button>
-      </div>
-
-      <div className="editor-sheet-body settings-body">
-        <div className="profile-menu-account settings-account">
-          <BrandMark size="small" />
-          <div>
-            <span className="mini-label">Signed in as</span>
-            <strong>{authUser?.email || profile.email || 'Local profile'}</strong>
-            <p>{balanceMessage}</p>
-          </div>
-        </div>
-
-        <label className="input-label" htmlFor="settings-name">
-          Name
-        </label>
-        <input
-          className="plain-input"
-          id="settings-name"
-          type="text"
-          value={profile.name}
-          placeholder="Your name"
-          onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))}
-        />
-        <CurrencyInput
-          label="Monthly income"
-          id="settings-income"
-          value={profile.income}
-          onChange={(value) => setProfile((current) => ({ ...current, income: normalizeMoney(value) }))}
-        />
-
-        <div className="profile-menu-section">
-          <span className="input-label">Planning style</span>
-          <div className="preference-grid compact-preference-grid">
-            {['safe', 'balanced', 'flexible'].map((preference) => (
-              <button
-                className={`preference-card ${profile.savingsPreference === preference ? 'active' : ''}`}
-                key={preference}
-                type="button"
-                onClick={() => setProfile((current) => ({ ...current, savingsPreference: preference }))}
-              >
-                <CheckCircle2 size={16} />
-                <span>{titleCase(preference)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="settings-donut-grid">
-          <FinanceDonut chart={fixedDistribution} />
-          <FinanceDonut chart={flexibleDistribution} />
-        </div>
-
-        <section className="settings-commitments">
-          <div className="section-heading-row">
-            <div>
-              <p className="eyebrow">Monthly bills</p>
-              <h2>Your regular payments</h2>
-            </div>
-          </div>
-          <CommitmentsEditor
-            commitments={commitments}
-            updateCommitment={updateCommitment}
-            addCommitment={addCommitment}
-            removeCommitment={removeCommitment}
-          />
-        </section>
-      </div>
-
-      <div className="editor-sheet-footer profile-menu-footer">
-        <button
-          className="sign-out-button"
-          type="button"
-          onClick={() => {
-            onClose()
-            onSignOut()
-          }}
-        >
-          <LogOut size={17} />
-          Sign out
-        </button>
-      </div>
-    </AppModal>
-  )
-}
-
 function HomeFooter() {
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const trustItems = [
@@ -4280,724 +4151,6 @@ function QuickFeedbackForm() {
   )
 }
 
-function HomeScreen({
-  profile,
-  financialState,
-  smartHomeInsights,
-  safeToSpend,
-  calmSummaries,
-  whatChangedInsights,
-  todayTransactions = [],
-  expenses = [],
-  setActiveTab,
-  openAddSheet,
-  showFooter = true,
-}) {
-  const status = buildDailyMoneyStatus(financialState, safeToSpend)
-  const todayKey = todayDateKey()
-  const todayFeed = useMemo(
-    () => todayTransactions
-      .filter((transaction) => transaction.date === todayKey)
-      .filter((transaction) => transaction.sourceModule !== 'Planner')
-      .slice(0, 6),
-    [todayKey, todayTransactions],
-  )
-  const insight = buildSingleTodayInsight({
-    smartHomeInsights,
-    whatChangedInsights,
-    calmSummaries,
-    financialState,
-  })
-  const trackedDays = buildTrackedDayCount(expenses)
-
-  return (
-    <section className={`screen-content today-screen today-${status.tone}`}>
-      <div className="today-greeting">
-        <div>
-          <p className="eyebrow">{getGreeting(profile.name)}</p>
-          <h1>{status.title}</h1>
-          <p>{status.detail}</p>
-        </div>
-      </div>
-
-      <article className="today-safe-card">
-        <div>
-          <span className="mini-label">Safe to spend</span>
-          <strong>{rupees(safeToSpend.comfortablyUsable)}</strong>
-          <p>This is after keeping safety savings aside for the month.</p>
-        </div>
-        <span className={`today-status-pill ${financialState.pressureTone === 'slight-pressure' ? 'warm' : financialState.pressureTone}`}>
-          {financialState.pressure}
-        </span>
-      </article>
-
-      <div className="today-quick-actions" aria-label="Quick actions">
-        <button type="button" onClick={() => openAddSheet('expense')}>
-          <Receipt size={18} />
-          <span>Add expense</span>
-        </button>
-        <button type="button" onClick={() => openAddSheet('income')}>
-          <Wallet size={18} />
-          <span>Add income</span>
-        </button>
-        <button type="button" onClick={() => setActiveTab('planner')}>
-          <Target size={18} />
-          <span>Create goal</span>
-        </button>
-      </div>
-
-      <section className="today-feed-section" aria-label="Today activity">
-        <div className="section-heading-row">
-          <div>
-            <p className="eyebrow">Today</p>
-            <h2>Money activity</h2>
-          </div>
-          <span>{todayFeed.length} move{todayFeed.length === 1 ? '' : 's'}</span>
-        </div>
-        {todayFeed.length === 0 ? (
-          <EmptyState
-            title="Start adding expenses"
-            detail="Your daily money feed will appear here instantly."
-            actionLabel="Add expense"
-            onAction={() => openAddSheet('expense')}
-            icon={Receipt}
-          />
-        ) : (
-          <div className="today-feed-list">
-            {todayFeed.map((transaction) => (
-              <article className={`today-feed-item ${transaction.tone}`} key={transaction.id}>
-                <span className="today-feed-icon" style={{ color: transaction.color }}>
-                  <HistoryItemIcon transaction={transaction} />
-                </span>
-                <div>
-                  <strong>{transaction.tone === 'incoming' ? '+' : transaction.tone === 'outgoing' ? '-' : ''}{rupees(transaction.amount)}</strong>
-                  <p>{transaction.title || transaction.category}</p>
-                  {transaction.note && <small>{transaction.note}</small>}
-                </div>
-                <time dateTime={transaction.dateTime || transaction.date}>{formatActivityTime(transaction.dateTime)}</time>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <article className={`today-insight-card ${insight.tone}`}>
-        <span className="soft-icon">
-          <Sparkles size={17} />
-        </span>
-        <div>
-          <p className="eyebrow">One insight</p>
-          <h2>{insight.title}</h2>
-          <p>{insight.detail}</p>
-        </div>
-      </article>
-
-      <div className="today-habit-strip">
-        <span>{trackedDays > 0 ? `You tracked expenses for ${trackedDays} day${trackedDays === 1 ? '' : 's'}.` : 'Track today to build a simple money habit.'}</span>
-        <span>{rupees(safeToSpend.protectedAmount)} kept as safety savings.</span>
-      </div>
-
-      {showFooter && <HomeFooter />}
-    </section>
-  )
-}
-
-function MonthSelector({ selectedMonthKey, setSelectedMonthKey, monthOptions = [] }) {
-  return (
-    <label className="month-selector">
-      <span>Month</span>
-      <select
-        aria-label="Month selector"
-        value={selectedMonthKey}
-        onChange={(event) => setSelectedMonthKey(event.target.value)}
-      >
-        {monthOptions.map((month) => (
-          <option key={month.key} value={month.key}>
-            {month.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
-function moneyBookEntryDue(entry = {}) {
-  return addMoney(entry.amount, entry.interest)
-}
-
-function HistoryScreen({
-  groups = [],
-  summary = {},
-  cashflowTimeline = [],
-  expenses = [],
-  moneyBookSummary = {},
-  onSaveMoneyBookEntry,
-  onToggleMoneyBookSettlement,
-  onDeleteMoneyBookEntry,
-  selectedMonthKey,
-  setSelectedMonthKey,
-  monthOptions,
-  onEditExpense,
-  openAddSheet,
-}) {
-  const [moneyBookModalEntry, setMoneyBookModalEntry] = useState(null)
-  const [expandedGroups, setExpandedGroups] = useState({})
-  const [historyWindow, setHistoryWindow] = useState({ key: '', count: HISTORY_GROUP_BATCH_SIZE })
-  const deferredGroups = useDeferredValue(groups)
-  const historyWindowKey = `${selectedMonthKey}-${deferredGroups.length}`
-  const visibleGroupCount = historyWindow.key === historyWindowKey ? historyWindow.count : HISTORY_GROUP_BATCH_SIZE
-  const visibleGroups = useMemo(
-    () => deferredGroups.slice(0, visibleGroupCount),
-    [deferredGroups, visibleGroupCount],
-  )
-  const hasMoreHistory = visibleGroupCount < deferredGroups.length
-  const hasHistory = deferredGroups.some((group) => group.items.length > 0)
-  const expensesById = useMemo(
-    () => new Map(expenses.map((expense) => [String(expense.id), expense])),
-    [expenses],
-  )
-  const relatedGroupsByDate = useMemo(
-    () => new Map(visibleGroups.map((group) => [group.date, buildRelatedTransactionGroups(group.items)])),
-    [visibleGroups],
-  )
-
-  const getExpenseEditHandler = useCallback((transaction) => {
-    if (!transaction.meta?.expenseId || !onEditExpense) {
-      return null
-    }
-
-    return () => {
-      const expense = expensesById.get(String(transaction.meta.expenseId))
-
-      if (expense) {
-        onEditExpense(expense)
-      }
-    }
-  }, [expensesById, onEditExpense])
-  const toggleRelatedGroup = useCallback((key) => {
-    setExpandedGroups((current) => ({
-      ...current,
-      [key]: !current[key],
-    }))
-  }, [])
-  const closeMoneyBookModal = useCallback(() => setMoneyBookModalEntry(null), [])
-  const saveMoneyBookFromModal = useCallback((entry) => {
-    const saved = onSaveMoneyBookEntry?.(entry)
-
-    if (saved) {
-      closeMoneyBookModal()
-    }
-
-    return saved
-  }, [closeMoneyBookModal, onSaveMoneyBookEntry])
-
-  return (
-    <section className="screen-content history-screen">
-      <div className="screen-heading">
-        <div>
-          <p className="eyebrow">Activity</p>
-          <h1>Your money timeline</h1>
-        </div>
-        <MonthSelector
-          monthOptions={monthOptions}
-          selectedMonthKey={selectedMonthKey}
-          setSelectedMonthKey={setSelectedMonthKey}
-        />
-      </div>
-
-      <MoneyBookPanel
-        summary={moneyBookSummary}
-        onAdd={() => setMoneyBookModalEntry({ kind: 'given', date: todayDateKey() })}
-        onEdit={(entry) => setMoneyBookModalEntry(entry)}
-        onToggleSettled={onToggleMoneyBookSettlement}
-        onDelete={onDeleteMoneyBookEntry}
-      />
-
-      <CashflowStrip events={cashflowTimeline} />
-
-      <section className="history-summary-grid" aria-label="Money activity summary">
-        <HistorySummaryCard label="Earned" value={summary.incoming} tone="incoming" />
-        <HistorySummaryCard label="Spent" value={summary.outgoing} tone="outgoing" />
-        <HistorySummaryCard label="Shifted" value={summary.transfers} tone="transfer" />
-      </section>
-
-      <section className="history-feed" aria-label="Unified financial activity timeline">
-        {!hasHistory ? (
-          <EmptyState
-            title="Start adding expenses"
-            detail="Add an expense, income, transfer, or udhar entry and it will appear here automatically."
-            actionLabel="Add expense"
-            onAction={() => openAddSheet('expense')}
-            icon={CalendarDays}
-          />
-        ) : visibleGroups.map((group) => {
-          const relatedNodes = relatedGroupsByDate.get(group.date) || []
-
-          return (
-            <article className="history-day-group" key={group.date}>
-              <div className="history-day-heading">
-                <div>
-                  <span>{group.label}</span>
-                  <strong>{group.items.length} move{group.items.length === 1 ? '' : 's'}</strong>
-                </div>
-                <small>{group.outgoing > 0 ? `${shortRupees(group.outgoing)} out` : `${shortRupees(group.incoming)} in`}</small>
-              </div>
-              <div className="history-item-list">
-                {relatedNodes.map((node) => (
-                  node.kind === 'group' ? (
-                    <MemoHistoryRelatedGroup
-                      group={node}
-                      isOpen={Boolean(expandedGroups[node.key])}
-                      key={node.key}
-                      onToggle={() => toggleRelatedGroup(node.key)}
-                      getExpenseEditHandler={getExpenseEditHandler}
-                    />
-                  ) : (
-                    <MemoHistoryItem
-                      transaction={node.transaction}
-                      key={node.key}
-                      onEditExpense={getExpenseEditHandler(node.transaction)}
-                    />
-                  )
-                ))}
-              </div>
-            </article>
-          )
-        })}
-        {hasMoreHistory && (
-          <button
-            className="history-load-more"
-            type="button"
-            onClick={() => {
-              setHistoryWindow((current) => {
-                const currentCount = current.key === historyWindowKey ? current.count : HISTORY_GROUP_BATCH_SIZE
-                return {
-                  key: historyWindowKey,
-                  count: currentCount + HISTORY_GROUP_BATCH_SIZE,
-                }
-              })
-            }}
-          >
-            Show more activity
-            <span>{Math.max(deferredGroups.length - visibleGroupCount, 0)} date groups left</span>
-          </button>
-        )}
-      </section>
-
-      {moneyBookModalEntry && (
-        <MoneyBookEntryModal
-          entry={moneyBookModalEntry}
-          onClose={closeMoneyBookModal}
-          onSave={saveMoneyBookFromModal}
-        />
-      )}
-    </section>
-  )
-}
-
-function CashflowStrip({ events = [] }) {
-  if (events.length === 0) {
-    return (
-      <section className="cashflow-strip empty" aria-label="Monthly cashflow timeline">
-        <div>
-          <p className="eyebrow">Money flow</p>
-          <h2>No money moves yet</h2>
-        </div>
-        <span>Empty</span>
-      </section>
-    )
-  }
-
-  return (
-    <section className="cashflow-strip" aria-label="Monthly cashflow timeline">
-      <div className="cashflow-strip-header">
-        <div>
-          <p className="eyebrow">Money flow</p>
-          <h2>This month in short</h2>
-        </div>
-        <span>{events.length} flow{events.length === 1 ? '' : 's'}</span>
-      </div>
-      <div className="cashflow-event-row">
-        {events.map((event) => (
-          <article className={`cashflow-event ${event.tone}`} key={event.id}>
-            <span className="cashflow-dot" style={{ backgroundColor: event.color }} />
-            <small>{event.label}</small>
-            <strong>{event.tone === 'incoming' ? '+' : event.tone === 'outgoing' ? '-' : ''}{shortRupees(event.amount)}</strong>
-            <p>{event.title}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function HistoryRelatedGroup({ group, isOpen, onToggle, getExpenseEditHandler }) {
-  const amountPrefix = group.tone === 'incoming' ? '+' : group.tone === 'outgoing' ? '-' : ''
-
-  return (
-    <div className={`history-related-group ${group.tone}`}>
-      <button className="history-related-header" type="button" onClick={onToggle} aria-expanded={isOpen}>
-        <span className="history-related-chevron">
-          <ChevronRight size={15} />
-        </span>
-        <div>
-          <strong>{group.title}</strong>
-          <small>{group.detail}</small>
-        </div>
-        <b>{amountPrefix}{shortRupees(group.amount)}</b>
-      </button>
-      {isOpen && (
-        <div className="history-related-items">
-          {group.items.map((transaction) => (
-            <MemoHistoryItem
-              transaction={transaction}
-              key={transaction.id}
-              onEditExpense={getExpenseEditHandler(transaction)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete }) {
-  const entries = summary.visibleEntries || []
-  const hasEntries = entries.length > 0
-
-  return (
-    <section className="money-book-panel" aria-label="Money Book">
-      <div className="money-book-header">
-        <div>
-          <p className="eyebrow">Money Book</p>
-          <h2>Borrow & lend</h2>
-        </div>
-        <button className="primary-button small-button" type="button" onClick={onAdd}>
-          <Plus size={15} />
-          Add Entry
-        </button>
-      </div>
-
-      <div className="money-book-summary-grid">
-        <HistorySummaryCard label="You Gave" value={summary.totalGiven} tone="outgoing" />
-        <HistorySummaryCard label="To Receive" value={summary.needToReceive} tone="incoming" />
-        <HistorySummaryCard label="Borrowed" value={summary.totalBorrowed} tone="incoming" />
-        <article className="history-summary-card transfer">
-          <span>Pending</span>
-          <strong>{shortRupees(summary.pendingSettlements || 0)}</strong>
-          <small>{summary.pendingCount || 0} open</small>
-        </article>
-      </div>
-
-      {!hasEntries ? (
-        <button className="money-book-empty" type="button" onClick={onAdd}>
-          <span className="soft-icon">
-            <Wallet size={17} />
-          </span>
-          <span>
-            <strong>Track udhar without mental load.</strong>
-            <small>Add money given or taken. Activity and insights update automatically.</small>
-          </span>
-        </button>
-      ) : (
-        <div className="money-book-entry-list">
-          {entries.slice(0, 5).map((entry) => (
-            <MoneyBookEntryCard
-              entry={entry}
-              key={entry.id}
-              onEdit={() => onEdit(entry)}
-              onToggleSettled={() => onToggleSettled(entry.id)}
-              onDelete={() => onDelete(entry.id)}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function MoneyBookEntryCard({ entry, onEdit, onToggleSettled, onDelete }) {
-  const isSettled = entry.status === 'settled'
-  const isGiven = entry.kind === 'given'
-  const due = moneyBookEntryDue(entry)
-
-  return (
-    <article className={`money-book-entry ${isSettled ? 'settled' : 'pending'} ${isGiven ? 'given' : 'taken'}`}>
-      <div className="money-book-entry-main">
-        <span className="money-book-direction">{isGiven ? 'Given' : 'Taken'}</span>
-        <strong>{entry.person}</strong>
-        <p>{entry.note || (isGiven ? 'Money to receive' : 'Money to repay')}</p>
-      </div>
-      <div className="money-book-entry-amount">
-        <strong>{isGiven ? '-' : '+'}{rupees(entry.amount)}</strong>
-        {entry.interest > 0 && <span>Vyaj {rupees(entry.interest)}</span>}
-        <small>{isSettled ? 'Settled' : `${rupees(due)} pending${entry.dueDate ? ` by ${entry.dueDate}` : ''}`}</small>
-      </div>
-      <div className="money-book-entry-actions">
-        <button className="text-action-button" type="button" onClick={onToggleSettled}>
-          {isSettled ? 'Reopen' : 'Settle'}
-        </button>
-        <button className="icon-button mini-icon-button" type="button" aria-label={`Edit ${entry.person}`} onClick={onEdit}>
-          <Pencil size={14} />
-        </button>
-        <button className="icon-button mini-icon-button" type="button" aria-label={`Delete ${entry.person}`} onClick={onDelete}>
-          <Trash2 size={14} />
-        </button>
-      </div>
-    </article>
-  )
-}
-
-function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
-  const [kind, setKind] = useState(entry.kind === 'taken' ? 'taken' : 'given')
-  const [person, setPerson] = useState(entry.person || '')
-  const [amount, setAmount] = useState(entry.amount ? String(entry.amount) : '')
-  const [date, setDate] = useState(entry.date || todayDateKey())
-  const [dueDate, setDueDate] = useState(entry.dueDate || '')
-  const [note, setNote] = useState(entry.note || '')
-  const [interest, setInterest] = useState(entry.interest ? String(entry.interest) : '')
-  const [errors, setErrors] = useState({})
-
-  const clearError = useCallback((field) => {
-    setErrors((current) => {
-      if (!current[field]) {
-        return current
-      }
-
-      const next = { ...current }
-      delete next[field]
-      return next
-    })
-  }, [])
-
-  const submitEntry = useCallback((event) => {
-    event.preventDefault()
-    const form = event.currentTarget
-
-    const fieldErrors = {}
-    const parsedAmount = normalizeMoney(amount)
-    const parsedInterest = normalizeMoney(interest)
-
-    if (!String(person || '').trim()) {
-      fieldErrors.person = 'Add a person name.'
-    }
-
-    if (!parsedAmount || parsedAmount <= 0) {
-      fieldErrors.amount = 'Add a positive amount.'
-    }
-
-    if (!date) {
-      fieldErrors.date = 'Choose a date.'
-    }
-
-    if (parsedInterest < 0) {
-      fieldErrors.interest = 'Interest cannot be negative.'
-    }
-
-    if (Object.keys(fieldErrors).length > 0) {
-      setErrors(fieldErrors)
-      focusInvalidField(form)
-      return
-    }
-
-    const saved = onSave({
-      ...entry,
-      kind,
-      person,
-      amount: parsedAmount,
-      date,
-      dueDate,
-      note,
-      interest: parsedInterest,
-      status: entry.status || 'pending',
-      settledAt: entry.settledAt || '',
-    })
-
-    if (!saved) {
-      setErrors({ form: 'Check the highlighted fields before saving.' })
-      focusInvalidField(form)
-    }
-  }, [amount, date, dueDate, entry, interest, kind, note, onSave, person])
-
-  return (
-    <AppModal onClose={onClose} labelledBy="money-book-entry-title" sheetClassName="editor-sheet money-book-modal">
-      <form className={`money-book-form ${Object.keys(errors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={submitEntry}>
-        <div className="editor-sheet-header">
-          <div>
-            <p className="eyebrow">Money Book</p>
-            <h2 id="money-book-entry-title">{entry.id ? 'Edit udhar entry' : 'Add udhar entry'}</h2>
-          </div>
-          <button className="icon-button" type="button" aria-label="Close money book form" onClick={onClose}>
-            <X size={17} />
-          </button>
-        </div>
-
-        <div className="segmented-control money-book-kind-toggle" aria-label="Money book entry type">
-          <button className={kind === 'given' ? 'active' : ''} type="button" onClick={() => setKind('given')}>
-            Given
-          </button>
-          <button className={kind === 'taken' ? 'active' : ''} type="button" onClick={() => setKind('taken')}>
-            Taken
-          </button>
-        </div>
-
-        <div className="editor-sheet-body money-book-form-body">
-          <label>
-            <span className="input-label">Person Name</span>
-            <input
-              className={`plain-input ${errors.person ? 'field-invalid' : ''}`}
-              type="text"
-              value={person}
-              placeholder="Rahul, Priya, Sam"
-              onChange={(event) => {
-                setPerson(event.target.value)
-                clearError('person')
-              }}
-            />
-            {errors.person && <small className="field-helper">{errors.person}</small>}
-          </label>
-
-          <CurrencyInput
-            label="Amount"
-            id="money-book-amount"
-            value={amount}
-            onChange={(value) => {
-              setAmount(value)
-              clearError('amount')
-            }}
-            error={errors.amount}
-          />
-
-          <label>
-            <span className="input-label">Date</span>
-            <input
-              className={`plain-input ${errors.date ? 'field-invalid' : ''}`}
-              type="date"
-              value={date}
-              onChange={(event) => {
-                setDate(event.target.value)
-                clearError('date')
-              }}
-            />
-            {errors.date && <small className="field-helper">{errors.date}</small>}
-          </label>
-
-          <CurrencyInput
-            label="Interest / Vyaj"
-            id="money-book-interest"
-            value={interest}
-            onChange={(value) => {
-              setInterest(value)
-              clearError('interest')
-            }}
-            error={errors.interest}
-          />
-
-          <label>
-            <span className="input-label">Due Date</span>
-            <input
-              className="plain-input"
-              type="date"
-              value={dueDate}
-              onChange={(event) => setDueDate(event.target.value)}
-            />
-          </label>
-
-          <label>
-            <span className="input-label">Note</span>
-            <input
-              className="plain-input"
-              type="text"
-              value={note}
-              placeholder="Optional"
-              onChange={(event) => setNote(event.target.value)}
-            />
-          </label>
-
-          {errors.form && <p className="form-message">{errors.form}</p>}
-        </div>
-
-        <div className="editor-sheet-footer money-book-form-actions">
-          <button className="ghost-button full" type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="primary-button full" type="submit">
-            Save
-          </button>
-        </div>
-      </form>
-    </AppModal>
-  )
-}
-
-function HistorySummaryCard({ label, value = 0, tone }) {
-  return (
-    <article className={`history-summary-card ${tone}`}>
-      <span>{label}</span>
-      <strong>{shortRupees(value)}</strong>
-    </article>
-  )
-}
-
-function HistoryItemIcon({ transaction }) {
-  if (transaction.sourceModule === 'Money Book') {
-    return <Wallet size={17} />
-  }
-
-  if (transaction.sourceModule === 'Shared') {
-    return <User size={17} />
-  }
-
-  if (transaction.sourceModule === 'Goals' || transaction.category === 'Savings') {
-    return <PiggyBank size={17} />
-  }
-
-  if (transaction.sourceModule === 'Planner' || transaction.category === 'Planner') {
-    return <Target size={17} />
-  }
-
-  if (transaction.source === 'commitment') {
-    return <CreditCard size={17} />
-  }
-
-  if (transaction.tone === 'incoming') {
-    return <Wallet size={17} />
-  }
-
-  return <Receipt size={17} />
-}
-
-function HistoryItem({ transaction, onEditExpense }) {
-  const amountPrefix = transaction.tone === 'incoming' ? '+' : transaction.tone === 'outgoing' ? '-' : ''
-
-  return (
-    <div className={`history-item ${transaction.tone}`}>
-      <span className="history-item-icon" style={{ color: transaction.color }}>
-        <HistoryItemIcon transaction={transaction} />
-      </span>
-      <div className="history-item-main">
-        <div>
-          <strong>{transaction.title}</strong>
-          <span>{activityVerb(transaction)}</span>
-        </div>
-        <p>{transaction.category}{transaction.note ? ` - ${transaction.note}` : ''}</p>
-      </div>
-      <div className="history-item-amount">
-        <strong>{amountPrefix}{rupees(transaction.amount)}</strong>
-        <span>{formatActivityTime(transaction.dateTime)}</span>
-        {onEditExpense && (
-          <button className="text-action-button history-edit-button" type="button" onClick={onEditExpense}>
-            Edit
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-const MemoHistoryRelatedGroup = memo(HistoryRelatedGroup)
-const MemoHistoryItem = memo(HistoryItem)
-
 function VoiceExpenseBox({
   voiceDraft,
   voiceStatus,
@@ -5063,7 +4216,7 @@ function VoiceExpenseBox({
             <label>
               Amount
               <span className="voice-amount-input">
-                ₹
+                {getCurrencySymbol()}
                 <input
                   type="number"
                   min="0"
@@ -5112,850 +4265,6 @@ function VoiceExpenseBox({
     </section>
   )
 }
-
-function SharedExpensesPanel({
-  groups,
-  profile,
-  sharedSummary,
-  addSharedGroup,
-  addSharedPayment,
-  markSharedSettlementReceived,
-  removeSharedGroup,
-  variant = 'default',
-}) {
-  const [name, setName] = useState('')
-  const [ownerName, setOwnerName] = useState(() => resolveCurrentUserName(profile))
-  const [people, setPeople] = useState('')
-  const [purpose, setPurpose] = useState('')
-  const [paymentDrafts, setPaymentDrafts] = useState({})
-  const [groupErrors, setGroupErrors] = useState({})
-  const [paymentErrors, setPaymentErrors] = useState({})
-  const [message, setMessage] = useState({ text: '', tone: 'info' })
-  const currentUserName = resolveCurrentUserName(profile)
-  const reconciledGroups = useMemo(
-    () => groups.map((group) => reconcileSharedGroup(group, profile)),
-    [groups, profile],
-  )
-
-  const clearGroupError = (field) => {
-    setGroupErrors((current) => {
-      if (!current[field]) {
-        return current
-      }
-
-      const next = { ...current }
-      delete next[field]
-      return next
-    })
-  }
-
-  const clearPaymentError = (groupId, field) => {
-    setPaymentErrors((current) => {
-      const groupFields = current[groupId]
-
-      if (!groupFields?.[field]) {
-        return current
-      }
-
-      const nextGroupFields = { ...groupFields }
-      delete nextGroupFields[field]
-
-      return {
-        ...current,
-        [groupId]: nextGroupFields,
-      }
-    })
-  }
-
-  const focusSharedGroupName = () => {
-    if (typeof document !== 'undefined') {
-      document.getElementById('shared-group-name')?.focus()
-    }
-  }
-
-  const submitGroup = (event) => {
-    event.preventDefault()
-    const form = event.currentTarget
-    const cleanName = name.trim()
-    const cleanOwnerName = ownerName.trim()
-    const ownNameKey = normalizePersonName(cleanOwnerName)
-    const rawPeopleList = people
-      .split(',')
-      .map((person) => person.trim())
-      .filter(Boolean)
-    const peopleList = uniqueSharedPeople(rawPeopleList)
-      .filter((person) => {
-        const key = normalizePersonName(person)
-        return key && key !== ownNameKey && key !== 'you' && key !== 'me'
-      })
-    const fieldErrors = {}
-
-    if (!cleanName) {
-      fieldErrors.name = 'Name the trip, group, or shared bill.'
-    }
-
-    if (!cleanOwnerName) {
-      fieldErrors.ownerName = 'Add your name so payer identity is clear.'
-    }
-
-    if (rawPeopleList.length === 0) {
-      fieldErrors.people = 'Add at least one other participant.'
-    } else if (peopleList.length === 0) {
-      fieldErrors.people = 'Keep your name above. Add one other person here.'
-    }
-
-    if (Object.keys(fieldErrors).length > 0) {
-      setGroupErrors(fieldErrors)
-      setMessage({ text: 'Complete the highlighted fields to create the group.', tone: 'error' })
-      focusInvalidField(form)
-      return
-    }
-
-    const saved = addSharedGroup({
-      name: cleanName,
-      ownerName: cleanOwnerName,
-      people: peopleList,
-      purpose,
-    })
-
-    if (!saved) {
-      setMessage({ text: 'Add a group name and at least one participant.', tone: 'error' })
-      focusInvalidField(form)
-      return
-    }
-
-    setMessage({
-      text: rawPeopleList.length !== peopleList.length
-        ? 'Group created. Your name stayed separate from participants.'
-        : 'Group created. Add the first shared payment when it happens.',
-      tone: 'success',
-    })
-    setName('')
-    setPeople('')
-    setPurpose('')
-    setGroupErrors({})
-  }
-
-  const updatePaymentDraft = (groupId, patch) => {
-    setPaymentDrafts((current) => ({
-      ...current,
-      [groupId]: {
-        ...(current[groupId] || {}),
-        ...patch,
-      },
-    }))
-  }
-
-  const submitPayment = (event, group) => {
-    event.preventDefault()
-    const form = event.currentTarget
-    const draft = paymentDrafts[group.id] || {}
-    const fieldErrors = {}
-    const parsedAmount = normalizeMoney(draft.amount)
-    const cleanLabel = String(draft.label || '').trim()
-    const cleanPaidBy = String(draft.paidBy || currentUserName).trim()
-
-    if (!cleanLabel) {
-      fieldErrors.label = 'Add what this payment was for.'
-    }
-
-    if (!parsedAmount || parsedAmount <= 0) {
-      fieldErrors.amount = 'Add a positive amount.'
-    }
-
-    if (!cleanPaidBy) {
-      fieldErrors.paidBy = 'Choose who paid.'
-    }
-
-    if (Object.keys(fieldErrors).length > 0) {
-      setPaymentErrors((current) => ({ ...current, [group.id]: fieldErrors }))
-      setMessage({ text: 'Complete the highlighted payment fields.', tone: 'error' })
-      focusInvalidField(form)
-      return
-    }
-
-    const saved = addSharedPayment(group.id, {
-      label: cleanLabel,
-      amount: parsedAmount,
-      paidBy: cleanPaidBy,
-    })
-
-    if (!saved) {
-      setMessage({ text: 'Add what was paid, amount, and who paid.', tone: 'error' })
-      focusInvalidField(form)
-      return
-    }
-
-    setMessage({ text: `${cleanLabel} added to ${group.name}.`, tone: 'success' })
-    setPaymentErrors((current) => ({ ...current, [group.id]: {} }))
-    setPaymentDrafts((current) => ({
-      ...current,
-      [group.id]: { label: '', amount: '', paidBy: '' },
-    }))
-  }
-
-  return (
-    <section className={`shared-panel ${variant === 'planner' ? 'planner-shared-panel' : ''}`}>
-      <div className="screen-heading compact-heading">
-        <div>
-          <p className="eyebrow">Shared money</p>
-          <h1>{variant === 'planner' ? 'Split costs clearly.' : 'Track who paid and who owes.'}</h1>
-          <p className="section-note shared-panel-note">Your name is handled separately. Add only the other people in the group.</p>
-        </div>
-      </div>
-
-      <form className={`shared-form ${Object.keys(groupErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={submitGroup}>
-        <div className="shared-identity-note">
-          <User size={16} />
-          <span>
-            <strong>You are added automatically.</strong>
-            <small>Participants should be friends, flatmates, or teammates only.</small>
-          </span>
-        </div>
-        <label>
-          <span className="input-label">Group / Trip Name *</span>
-          <input
-            className={`plain-input ${groupErrors.name ? 'field-invalid' : ''}`}
-            id="shared-group-name"
-            value={name}
-            aria-invalid={groupErrors.name ? 'true' : undefined}
-            onChange={(event) => {
-              setName(event.target.value)
-              clearGroupError('name')
-            }}
-            placeholder="Goa trip, flat rent"
-          />
-          {groupErrors.name && <small className="field-helper">{groupErrors.name}</small>}
-        </label>
-        <label>
-          <span className="input-label">Your Name *</span>
-          <input
-            className={`plain-input ${groupErrors.ownerName ? 'field-invalid' : ''}`}
-            id="shared-owner-name"
-            value={ownerName}
-            aria-invalid={groupErrors.ownerName ? 'true' : undefined}
-            onChange={(event) => {
-              setOwnerName(event.target.value)
-              clearGroupError('ownerName')
-            }}
-            placeholder="Your name"
-          />
-          {groupErrors.ownerName && <small className="field-helper">{groupErrors.ownerName}</small>}
-        </label>
-        <label>
-          <span className="input-label">Participants *</span>
-          <input
-            className={`plain-input ${groupErrors.people ? 'field-invalid' : ''}`}
-            id="shared-participants"
-            value={people}
-            aria-invalid={groupErrors.people ? 'true' : undefined}
-            onChange={(event) => {
-              setPeople(event.target.value)
-              clearGroupError('people')
-            }}
-            placeholder="Rahul, Priya, Sam"
-          />
-          <small className="field-hint">Separate names with commas. Do not add your own name here.</small>
-          {groupErrors.people && <small className="field-helper">{groupErrors.people}</small>}
-        </label>
-        <label>
-          <span className="input-label">Expense / Purpose</span>
-          <input
-            className="plain-input"
-            id="shared-purpose"
-            value={purpose}
-            onChange={(event) => setPurpose(event.target.value)}
-            placeholder="Hotel, rent, dinner, fuel"
-          />
-        </label>
-        <button className="primary-button full" type="submit">
-          Create group
-        </button>
-        {message.text && <p className={`form-message ${message.tone === 'error' ? 'form-message-error' : ''}`}>{message.text}</p>}
-      </form>
-
-      {sharedSummary?.activeGroups > 0 && (
-        <div className="shared-metrics-strip" aria-label="Shared expense summary">
-          <span>
-            <small>You paid first</small>
-            <strong>{rupees(sharedSummary.totalPaidByYou)}</strong>
-          </span>
-          <span>
-            <small>Friends owe you</small>
-            <strong>{rupees(sharedSummary.pendingRecoverable)}</strong>
-          </span>
-          <span>
-            <small>Got back</small>
-            <strong>{rupees(sharedSummary.receivedRecoveries)}</strong>
-          </span>
-          <span>
-            <small>Month impact</small>
-            <strong>{rupees(sharedSummary.netSharedImpact)}</strong>
-          </span>
-        </div>
-      )}
-
-      <div className="shared-list">
-        {groups.length === 0 && (
-          <EmptyState
-            title="Split costs without confusion"
-            detail="Add a group, participants, and payments. FBPly will show who owes whom."
-            actionLabel="Create a group"
-            onAction={focusSharedGroupName}
-            icon={User}
-          />
-        )}
-        {reconciledGroups.map((group) => {
-          const draft = paymentDrafts[group.id] || {}
-          const payerOptions = group.people.length > 0 ? group.people : [currentUserName]
-          const selectedTripPayer = draft.paidBy || currentUserName
-
-          return (
-            <article className="shared-card" key={group.id}>
-              <div className="shared-card-top">
-                <div>
-                  <h2>{group.name}</h2>
-                  <p>{group.purpose || 'Shared expenses'}</p>
-                  <small>{group.people.map((person) => displayPersonName(person, profile)).join(', ')}</small>
-                </div>
-                <button className="icon-button" type="button" aria-label={`Remove ${group.name}`} onClick={() => removeSharedGroup(group.id)}>
-                  <Trash2 size={16} />
-                </button>
-              </div>
-
-              <form className={`trip-payment-form ${Object.keys(paymentErrors[group.id] || {}).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => submitPayment(event, group)}>
-                <label>
-                  <span className="input-label">Expense / Purpose</span>
-                  <input
-                    className={`plain-input ${paymentErrors[group.id]?.label ? 'field-invalid' : ''}`}
-                    value={draft.label || ''}
-                    placeholder={group.purpose || 'Hotel, petrol, dinner'}
-                    aria-invalid={paymentErrors[group.id]?.label ? 'true' : undefined}
-                    onChange={(event) => {
-                      updatePaymentDraft(group.id, { label: event.target.value })
-                      clearPaymentError(group.id, 'label')
-                    }}
-                  />
-                  {paymentErrors[group.id]?.label && <small className="field-helper">{paymentErrors[group.id].label}</small>}
-                </label>
-                <div>
-                  <CurrencyInput
-                    label="Amount"
-                    id={`trip-payment-${slugify(group.id)}`}
-                    value={draft.amount || ''}
-                    onChange={(value) => {
-                      updatePaymentDraft(group.id, { amount: value })
-                      clearPaymentError(group.id, 'amount')
-                    }}
-                    placeholder="1200"
-                    error={paymentErrors[group.id]?.amount}
-                  />
-                </div>
-                <label>
-                  <span className="input-label">Paid by</span>
-                  <select
-                    className={`month-select stable-select ${paymentErrors[group.id]?.paidBy ? 'field-invalid' : ''}`}
-                    value={selectedTripPayer}
-                    aria-invalid={paymentErrors[group.id]?.paidBy ? 'true' : undefined}
-                    onChange={(event) => {
-                      updatePaymentDraft(group.id, { paidBy: event.target.value })
-                      clearPaymentError(group.id, 'paidBy')
-                    }}
-                  >
-                    {payerOptions.map((person) => (
-                      <option key={person} value={person}>
-                        {displayPersonName(person, profile)}
-                      </option>
-                    ))}
-                  </select>
-                  <small className="field-hint">Choose the person who paid first.</small>
-                  {paymentErrors[group.id]?.paidBy && <small className="field-helper">{paymentErrors[group.id].paidBy}</small>}
-                </label>
-                <button className="ghost-button" type="submit">
-                  Add shared payment
-                </button>
-              </form>
-
-              {group.payments.length > 0 && (
-                <div className="trip-payment-list">
-                  {group.payments.slice(0, 4).map((payment) => (
-                    <div className="trip-payment-row" key={payment.id}>
-                      <span>
-                        <strong>{payment.label}</strong>
-                        <small>{displayPersonName(payment.paidBy, profile)} paid</small>
-                      </span>
-                      <b>{rupees(payment.amount)}</b>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="shared-card-summary">
-                <span>
-                  <small>Total shared cost</small>
-                  <strong>{rupees(group.amount)}</strong>
-                </span>
-                <span>
-                  <small>Each person share</small>
-                  <strong>{rupees(group.share)}</strong>
-                </span>
-                <span>
-                  <small>Your share impact</small>
-                  <strong>{rupees(group.cashImpact)}</strong>
-                </span>
-              </div>
-              <div className="settlement-list">
-                {group.settlements.length === 0 && (
-                  <span className="settlement-empty">Add a shared payment to see who owes whom.</span>
-                )}
-                {group.settlements.map((item) => {
-                  const isSettled = item.status === 'received'
-                  const isPaid = item.status === 'paid'
-                  const isIncoming = item.direction === 'incoming'
-                  const isOutgoing = item.direction === 'outgoing'
-                  const label = isIncoming
-                    ? `${displayPersonName(item.from, profile)} owes you`
-                    : isOutgoing
-                      ? `You owe ${displayPersonName(item.to, profile)}`
-                      : `${displayPersonName(item.from, profile)} owes ${displayPersonName(item.to, profile)}`
-                  const actionLabel = isOutgoing ? 'Paid' : 'Received'
-                  const displayAmount = item.remainingAmount || item.amount
-
-                  return (
-                    <div className={`settlement-item ${isSettled || isPaid ? 'received' : ''}`} key={item.id}>
-                      <span className="settlement-text">
-                        {label} <strong>{rupees(displayAmount)}</strong>
-                      </span>
-                      {isIncoming || isOutgoing ? (
-                        <button
-                          className="text-action-button"
-                          type="button"
-                          disabled={isSettled || isPaid}
-                          onClick={() => markSharedSettlementReceived(group.id, item.id)}
-                        >
-                          {actionLabel}
-                        </button>
-                      ) : (
-                        <span className="settlement-status">Pending</span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </article>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function PlannerScreen({
-  plannerInput,
-  setPlannerInput,
-  selectedPlan,
-  setSelectedPlan,
-  plannerTargetAmount,
-  setPlannerTargetAmount,
-  plannerCurrentSavings,
-  setPlannerCurrentSavings,
-  plannerTimeline,
-  setPlannerTimeline,
-  recommendation,
-  financialState,
-  profile,
-  savingsBuckets,
-  addSavingsBucket,
-  updateSavingsBucket,
-  removeSavingsBucket,
-  sharedSummary,
-  sharedGroups,
-  addSharedGroup,
-  addSharedPayment,
-  markSharedSettlementReceived,
-  removeSharedGroup,
-}) {
-  const [showAdvancedGoalFields, setShowAdvancedGoalFields] = useState(false)
-  const hasPlannerPrice = normalizeMoney(plannerTargetAmount) > 0
-  const hasPlannerName = String(plannerInput || '').trim().length > 0
-  const showOptionalGoalFields = showAdvancedGoalFields || hasPlannerName
-
-  return (
-    <section className="screen-content goals-screen">
-      <div className="screen-heading goals-heading">
-        <div>
-          <p className="eyebrow">Goals</p>
-          <h1>Plan the next money move.</h1>
-          <p className="section-note">Start with the purchase. Savings and shared costs stay below when you need them.</p>
-        </div>
-      </div>
-
-      <section className="buy-safely-section">
-        <div className="planner-section-title">
-          <div>
-            <p className="eyebrow">Buy safely</p>
-            <h2>Can I afford this safely?</h2>
-            <p>Answer a few quick inputs. FBPly keeps the deeper math in the background.</p>
-          </div>
-        </div>
-
-        <PlannerRealityCard financialState={financialState} />
-
-        <section className="planner-goal-card goal-flow-card">
-          <div className="goal-step-row">
-            <span className="goal-step-index">1</span>
-            <div className="goal-step-content">
-              <div>
-                <span className="mini-label">Goal type</span>
-                <h2>What are you planning?</h2>
-              </div>
-              <div className="goal-type-strip" aria-label="Goal type">
-                {planCategories.map((category) => {
-                  const Icon = category.icon
-                  return (
-                    <button
-                      className={selectedPlan === category.label ? 'active' : ''}
-                      key={category.label}
-                      type="button"
-                      onClick={() => setSelectedPlan(category.label)}
-                    >
-                      <Icon size={15} />
-                      <span>{category.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="goal-step-row">
-            <span className="goal-step-index">2</span>
-            <div className="goal-step-content">
-              <CurrencyInput
-                label="Price"
-                id="planner-target-amount"
-                ariaLabel="Target purchase amount"
-                value={plannerTargetAmount}
-                placeholder="300000"
-                onChange={setPlannerTargetAmount}
-              />
-              <small className="field-hint">Use the expected total price. Approximate is fine.</small>
-            </div>
-          </div>
-
-          {hasPlannerPrice && (
-            <div className="goal-step-row">
-              <span className="goal-step-index">3</span>
-              <div className="goal-step-content">
-                <CurrencyInput
-                  label="Savings ready"
-                  id="planner-current-savings"
-                  ariaLabel="Current savings available"
-                  value={plannerCurrentSavings}
-                  placeholder="40000"
-                  onChange={setPlannerCurrentSavings}
-                />
-                <small className="field-hint">Money already available for this purchase.</small>
-              </div>
-            </div>
-          )}
-
-          {hasPlannerPrice && (
-            <div className="goal-step-row">
-              <span className="goal-step-index">4</span>
-              <div className="goal-step-content">
-                <span className="input-label">Timeline</span>
-                <div className="timeline-control compact-timeline-control" aria-label="Desired timeline">
-                  {timelineOptions.map((option) => (
-                    <button
-                      className={plannerTimeline === option.key ? 'active' : ''}
-                      key={option.key}
-                      type="button"
-                      onClick={() => setPlannerTimeline(option.key)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {hasPlannerPrice && (
-            <div className="goal-advanced-row">
-              <button
-                className="ghost-button small-button"
-                type="button"
-                onClick={() => setShowAdvancedGoalFields((current) => !current)}
-              >
-                <Sparkles size={15} />
-                {showOptionalGoalFields ? 'Hide optional details' : 'Optional details'}
-              </button>
-            </div>
-          )}
-
-          {hasPlannerPrice && showOptionalGoalFields && (
-            <div className="goal-advanced-fields">
-              <label>
-                <span className="input-label">Goal name</span>
-                <div className="input-with-icon planner-search">
-                  <PiggyBank size={17} />
-                  <input
-                    type="text"
-                    value={plannerInput}
-                    placeholder="Used car, work laptop, family trip"
-                    onChange={(event) => setPlannerInput(event.target.value)}
-                  />
-                </div>
-              </label>
-            </div>
-          )}
-
-          {!hasPlannerPrice && (
-            <p className="goal-flow-hint">Add a price to unlock savings, timeline, and a quick affordability summary.</p>
-          )}
-        </section>
-
-        <RecommendationPanel
-          recommendation={recommendation}
-          financialState={financialState}
-        />
-      </section>
-
-      <SavingsBucketsManager
-        buckets={savingsBuckets}
-        addSavingsBucket={addSavingsBucket}
-        updateSavingsBucket={updateSavingsBucket}
-        removeSavingsBucket={removeSavingsBucket}
-      />
-
-      <SharedExpensesPanel
-        groups={sharedGroups}
-        profile={profile}
-        sharedSummary={sharedSummary}
-        addSharedGroup={addSharedGroup}
-        addSharedPayment={addSharedPayment}
-        markSharedSettlementReceived={markSharedSettlementReceived}
-        removeSharedGroup={removeSharedGroup}
-        variant="planner"
-      />
-    </section>
-  )
-}
-
-function PlannerRealityCard({ financialState }) {
-  const safeRoom = normalizeMoney(financialState.safeToSpend ?? financialState.breathingRoom)
-  const realityRows = [
-    { label: 'Income', value: financialState.income },
-    { label: 'Fixed basics', value: financialState.fixedExpensesTotal || 0 },
-    { label: 'EMIs', value: financialState.emiAmount || 0 },
-    { label: 'Daily spends', value: financialState.monthlyVariable || 0 },
-    { label: 'Safe room', value: safeRoom, highlight: true },
-  ]
-
-  return (
-    <article className="planner-reality-card">
-      <div className="planner-reality-heading">
-        <div>
-          <span className="mini-label">Money status</span>
-          <h2>Your monthly room</h2>
-        </div>
-        <span className={`simulation-pill ${financialState.pressureTone === 'slight-pressure' ? 'warm' : financialState.pressureTone}`}>
-          {financialState.pressure}
-        </span>
-      </div>
-      <div className="planner-reality-grid">
-        {realityRows.map((row) => (
-          <div className={row.highlight ? 'highlight' : ''} key={row.label}>
-            <span>{row.label}</span>
-            <strong>{shortRupees(row.value)}</strong>
-          </div>
-        ))}
-      </div>
-    </article>
-  )
-}
-
-function RecommendationPanel({ recommendation, financialState }) {
-  if (!recommendation) {
-    return (
-      <section className="recommendation-stack">
-        <article className="planner-empty-card">
-          <PiggyBank size={20} />
-          <div>
-            <h2>Add a price to see the safe path.</h2>
-            <p>FBPly checks income, bills, savings style, and timeline without asking for extra work.</p>
-          </div>
-        </article>
-      </section>
-    )
-  }
-
-  const requiredEmiValue = recommendation.financeNeeded === 0 ? 'No EMI needed' : shortRupees(recommendation.requiredEmi)
-  const timelineLabel = recommendation.timelineMonths === 0 ? 'Today' : recommendation.timelineLabel
-  const delayedTitle = recommendation.timelineMonths === 0 ? 'Selected path' : `Path by ${timelineLabel}`
-  const confidence =
-    recommendation.ownershipTone === 'good'
-      ? { label: 'High', detail: 'Fits current room' }
-      : recommendation.ownershipTone === 'balanced'
-        ? { label: 'Medium', detail: 'Keep an eye on EMI space' }
-        : { label: 'Low', detail: 'Wait or increase savings' }
-
-  return (
-    <section className="recommendation-stack">
-      <article className={`planner-summary-card ${recommendation.ownershipTone}`}>
-        <div className="planner-summary-heading">
-          <div>
-            <span className="mini-label">Smart summary</span>
-            <h2>{recommendation.goalName || `${recommendation.category} purchase`}</h2>
-          </div>
-          <span className={`simulation-pill ${recommendation.ownershipTone}`}>
-            {recommendation.ownershipStatus}
-          </span>
-        </div>
-
-        <div className="planner-summary-grid">
-          <div>
-            <span>Monthly saving</span>
-            <strong>{shortRupees(recommendation.monthlySetAside)}</strong>
-          </div>
-          <div>
-            <span>Affordability</span>
-            <strong>{requiredEmiValue}</strong>
-          </div>
-          <div>
-            <span>Confidence</span>
-            <strong>{confidence.label}</strong>
-            <small>{confidence.detail}</small>
-          </div>
-        </div>
-
-        <p>{recommendation.insight}</p>
-      </article>
-
-      <details className="planner-details-panel">
-        <summary>
-          <span>Planning details</span>
-          <ChevronRight size={16} />
-        </summary>
-
-        <div className="planner-details-body">
-          <article className="finance-structure-card">
-            <div className="finance-structure-heading">
-              <div>
-                <span className="mini-label">{recommendation.category} structure</span>
-                <h2>{recommendation.goalName || `${recommendation.category} purchase`}</h2>
-              </div>
-              <strong>{shortRupees(recommendation.targetAmount)}</strong>
-            </div>
-            <div className="finance-structure-grid">
-              <div>
-                <span>Down payment</span>
-                <strong>{recommendation.suggestedDownpaymentLabel}</strong>
-                <p>More upfront money keeps monthly pressure lower.</p>
-              </div>
-              <div>
-                <span>May need finance</span>
-                <strong>{recommendation.financeRangeLabel}</strong>
-                <p>Based on the safer down payment range.</p>
-              </div>
-              <div>
-                <span>Easy EMI zone</span>
-                <strong>{recommendation.comfortableEmiLabel}</strong>
-                <p>After keeping monthly safety space.</p>
-              </div>
-              <div>
-                <span>This plan EMI</span>
-                <strong>{requiredEmiValue}</strong>
-                <p>Estimated with a cautious buffer.</p>
-              </div>
-            </div>
-          </article>
-
-          <article className="waiting-card">
-            <CalendarDays size={19} />
-            <p>{recommendation.waitSuggestion}</p>
-          </article>
-
-          <div className="ownership-path-grid">
-            <OwnershipPathCard
-              title="Immediate path"
-              path={recommendation.immediatePath}
-            />
-            <OwnershipPathCard
-              title={delayedTitle}
-              path={recommendation.delayedPath}
-              highlight
-            />
-          </div>
-
-          <div className="guidance-grid">
-            <article className="simulation-card">
-              <div className="simulation-heading">
-                <h2>How heavy it may feel</h2>
-                <span className={`simulation-pill ${recommendation.ownershipTone}`}>
-                  {recommendation.ownershipStatus}
-                </span>
-              </div>
-              <div className="simulation-meter" aria-label={`${recommendation.downpaymentCoveragePercent}% downpayment coverage`}>
-                <span style={{ width: `${Math.min(recommendation.downpaymentCoveragePercent, 100)}%` }} />
-              </div>
-              <div className="pressure-list">
-                <span>Monthly set-aside: {shortRupees(recommendation.monthlySetAside)}</span>
-                <span>Downpayment gap: {shortRupees(recommendation.downpaymentGap)}</span>
-                <span>Safe space after EMI: {shortRupees(recommendation.projectedFlexAfterEmi)}</span>
-                <span>Safety savings after EMI: {shortRupees(recommendation.projectedBreathingAfterEmi)}</span>
-              </div>
-            </article>
-            <article className="guidance-card">
-              <h2>Why this feels safer</h2>
-              <p>{recommendation.categorySummary}</p>
-              <div className="pressure-list">
-                {recommendation.rationale.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
-                <span>Current pressure: {financialState.pressure}</span>
-              </div>
-            </article>
-          </div>
-        </div>
-      </details>
-    </section>
-  )
-}
-
-function OwnershipPathCard({ title, path, highlight = false }) {
-  return (
-    <article className={`ownership-path-card ${highlight ? 'highlight' : ''}`}>
-      <div className="ownership-path-heading">
-        <div>
-          <span className="mini-label">{path.months === 0 ? 'Today' : `${path.months} months`}</span>
-          <h2>{title}</h2>
-        </div>
-        <span className={`simulation-pill ${path.tone}`}>{path.status}</span>
-      </div>
-      <div className="ownership-path-values">
-        <div>
-          <span>Down payment</span>
-          <strong>{shortRupees(path.projectedDownpayment)}</strong>
-        </div>
-        <div>
-          <span>Finance needed</span>
-          <strong>{shortRupees(path.financeNeeded)}</strong>
-        </div>
-        <div>
-          <span>EMI idea</span>
-          <strong>{path.financeNeeded === 0 ? 'None' : shortRupees(path.requiredEmi)}</strong>
-        </div>
-        <div>
-          <span>Space after EMI</span>
-          <strong>{shortRupees(path.flexAfterEmi)}</strong>
-        </div>
-      </div>
-    </article>
-  )
-}
-
 
 function ProfileScreen({
   profile,
@@ -6087,6 +4396,8 @@ function ProfileScreen({
         removeSavingsBucket={removeSavingsBucket}
       />
 
+      <HomeFooter />
+
       {isCommitmentEditorOpen && (
         <CommitmentEditorSheet
           commitments={commitments}
@@ -6146,6 +4457,22 @@ function ProfileMenuSheet({ authUser, profile, setProfile, onClose, onSignOut })
           value={profile.income}
           onChange={(value) => setProfile((current) => ({ ...current, income: normalizeMoney(value) }))}
         />
+        <CurrencyPreference profile={profile} setProfile={setProfile} id="profile-menu-currency" />
+        <label>
+          <span className="input-label">Salary day</span>
+          <input
+            className="plain-input"
+            type="number"
+            min="1"
+            max="31"
+            inputMode="numeric"
+            value={profile.salaryDay || 1}
+            onChange={(event) => setProfile((current) => ({
+              ...current,
+              salaryDay: Math.min(Math.max(Number(event.target.value || 1), 1), 31),
+            }))}
+          />
+        </label>
         <div className="profile-menu-section">
           <span className="input-label">Planning style</span>
           <div className="preference-grid compact-preference-grid">
@@ -6326,184 +4653,18 @@ function CommitmentEditorSheet({ commitments, updateCommitment, addCommitment, r
   )
 }
 
-function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavingsBucket, removeSavingsBucket }) {
-  return (
-    <section className="savings-manager">
-      <div className="section-heading-row">
-        <div>
-          <p className="eyebrow">Savings goals</p>
-          <h2>Small goals, clearer comfort.</h2>
-          <p className="section-note">Emergency fund, bike savings, laptop goal, or anything you want to protect.</p>
-        </div>
-        <button className="ghost-button small-button" type="button" onClick={addSavingsBucket}>
-          <Plus size={17} />
-          Add goal
-        </button>
-      </div>
-      <div className="bucket-grid">
-        {buckets.length === 0 ? (
-          <EmptyState
-            title="Give your next plan a place"
-            detail="A small savings goal makes progress visible without adding pressure."
-            actionLabel="Add goal"
-            onAction={addSavingsBucket}
-            icon={PiggyBank}
-          />
-        ) : (
-          buckets.map((bucket) => (
-            <SavingsBucketEditor
-              bucket={bucket}
-              key={bucket.id}
-              updateSavingsBucket={updateSavingsBucket}
-              removeSavingsBucket={removeSavingsBucket}
-            />
-          ))
-        )}
-      </div>
-    </section>
-  )
-}
-
-function SavingsBucketEditor({ bucket, updateSavingsBucket, removeSavingsBucket }) {
-  return (
-    <article className="bucket-editor">
-      <SavingsBucketCard bucket={bucket} />
-      <input
-        className="plain-input"
-        value={bucket.name}
-        onChange={(event) => updateSavingsBucket(bucket.id, { name: event.target.value })}
-      />
-      <CurrencyInput
-        label="Saved"
-        id={`bucket-saved-${slugify(bucket.id)}`}
-        value={bucket.saved}
-        onChange={(value) => updateSavingsBucket(bucket.id, { saved: normalizeMoney(value) })}
-      />
-      <CurrencyInput
-        label="Target"
-        id={`bucket-target-${slugify(bucket.id)}`}
-        value={bucket.target}
-        onChange={(value) => updateSavingsBucket(bucket.id, { target: normalizeMoney(value) })}
-      />
-      <div className="bucket-recurring-grid">
-        <div className="bucket-recurring-amount">
-          <CurrencyInput
-            label="Monthly add"
-            id={`bucket-monthly-${slugify(bucket.id)}`}
-            value={bucket.monthlyContribution || ''}
-            onChange={(value) => updateSavingsBucket(bucket.id, { monthlyContribution: normalizeMoney(value) })}
-          />
-        </div>
-        <label>
-          <span className="input-label">Due day</span>
-          <input
-            className="plain-input"
-            type="number"
-            min="1"
-            max="31"
-            inputMode="numeric"
-            value={bucket.dueDay || ''}
-            placeholder="1"
-            onChange={(event) => updateSavingsBucket(bucket.id, { dueDay: Number(event.target.value || 0) || undefined })}
-          />
-        </label>
-      </div>
-      <label>
-        <span className="input-label">Deadline</span>
-        <input
-          className="plain-input"
-          type="date"
-          value={bucket.deadline || ''}
-          onChange={(event) => updateSavingsBucket(bucket.id, { deadline: event.target.value })}
-        />
-      </label>
-      <button className="ghost-button" type="button" onClick={() => removeSavingsBucket(bucket.id)}>
-        <Trash2 size={17} />
-        Remove
-      </button>
-    </article>
-  )
-}
-
-function SavingsBucketCard({ bucket, compact = false }) {
-  const saved = normalizeMoney(bucket.saved)
-  const target = normalizeMoney(bucket.target)
-  const progress = target > 0 ? Math.min(Math.round((saved / target) * 100), 100) : 0
-
-  return (
-    <article className={`bucket-card ${compact ? 'compact' : ''}`}>
-      <div>
-        <h3>{bucket.name || 'Savings goal'}</h3>
-        <p>{rupees(saved)} saved of {rupees(target)}</p>
-      </div>
-      <strong>{progress}%</strong>
-      <div className="bucket-progress" aria-label={`${progress}% saved`}>
-        <span style={{ width: `${progress}%` }} />
-      </div>
-    </article>
-  )
-}
-
-function BrandMark({ size = 'default' }) {
-  return (
-    <span className={`brand-mark ${size}`} aria-hidden="true">
-      F
-    </span>
-  )
-}
-
-function HeaderLogo() {
-  return (
-    <div className="header-logo">
-      <BrandMark />
-      <span>FBPly</span>
-    </div>
-  )
-}
-
-function CurrencyInput({ label, value, onChange, placeholder = '0', id = slugify(label), ariaLabel = label, error = '' }) {
-  return (
-    <>
-      <label className="input-label" htmlFor={id}>
-        {label}
-      </label>
-      <div className={`currency-input ${error ? 'field-invalid' : ''}`}>
-        <span>₹</span>
-        <input
-          id={id}
-          min="0"
-          type="number"
-          aria-label={ariaLabel}
-          value={value}
-          placeholder={placeholder}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </div>
-      {error && <small className="field-helper">{error}</small>}
-    </>
-  )
-}
-
-function BottomNav({ activeTab, setActiveTab, openAddSheet }) {
+function BottomNav({ activeTab, setActiveTab }) {
   return (
     <nav className="bottom-nav" aria-label="Main navigation">
       {navItems.map((item) => {
         const Icon = item.icon
-        const isAdd = item.isAdd
         return (
           <button
-            className={`${activeTab === item.key ? 'active' : ''} ${isAdd ? 'nav-add-button' : ''}`}
+            className={activeTab === item.key ? 'active' : ''}
             key={item.key}
             type="button"
-            aria-label={isAdd ? 'Add money entry' : item.label}
-            onClick={() => {
-              if (isAdd) {
-                openAddSheet('menu')
-                return
-              }
-
-              setActiveTab(item.key)
-            }}
+            aria-label={item.label}
+            onClick={() => setActiveTab(item.key)}
           >
             <Icon size={20} />
             <span>{item.label}</span>
@@ -6542,14 +4703,6 @@ function buildExpenseBreakdown(expenses, profile) {
       color: categoryColor(name) || getFinanceColor(name, index),
       source: sources[name] || 'Tracked expense',
     }))
-}
-
-function slugify(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-}
-
-function titleCase(value) {
-  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 function csvCell(value) {

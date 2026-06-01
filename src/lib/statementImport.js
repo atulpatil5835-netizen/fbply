@@ -511,7 +511,24 @@ function extractMerchant(description) {
   return titleCase(words.join(' ')) || 'Unknown merchant'
 }
 
-function categorizeExpense(description, merchant = '') {
+function mappingCategory(description, merchant = '', mappings = {}) {
+  const keys = [
+    normalizeKey(merchant),
+    normalizeKey(description),
+    ...normalizeKey(description).split(' ').filter((part) => part.length >= 3),
+  ].filter(Boolean)
+
+  const match = keys.find((key) => mappings[key])
+  return match ? mappings[match] : ''
+}
+
+function categorizeExpense(description, merchant = '', mappings = {}) {
+  const mapped = mappingCategory(description, merchant, mappings)
+
+  if (mapped) {
+    return mapped
+  }
+
   const text = normalizeKey(`${description} ${merchant}`)
 
   for (const rule of categoryRules) {
@@ -523,7 +540,13 @@ function categorizeExpense(description, merchant = '') {
   return 'Other'
 }
 
-function categorizeIncome(description, merchant = '') {
+function categorizeIncome(description, merchant = '', mappings = {}) {
+  const mapped = mappingCategory(description, merchant, mappings)
+
+  if (mapped) {
+    return mapped
+  }
+
   const text = normalizeKey(`${description} ${merchant}`)
 
   for (const rule of incomeRules) {
@@ -535,9 +558,11 @@ function categorizeIncome(description, merchant = '') {
   return 'Other income'
 }
 
-function buildTransaction({ date, description, amount, direction, fileName, confidence = 'review' }, index) {
+function buildTransaction({ date, description, amount, direction, fileName, confidence = 'review', categoryMappings = {} }, index) {
   const merchant = extractMerchant(description)
-  const category = direction === 'income' ? categorizeIncome(description, merchant) : categorizeExpense(description, merchant)
+  const category = direction === 'income'
+    ? categorizeIncome(description, merchant, categoryMappings)
+    : categorizeExpense(description, merchant, categoryMappings)
 
   return {
     id: `statement-${index}-${date || 'date'}-${String(description).slice(0, 18)}`,
@@ -553,7 +578,7 @@ function buildTransaction({ date, description, amount, direction, fileName, conf
   }
 }
 
-function extractCsvTransactions(text, fileName = '') {
+function extractCsvTransactions(text, fileName = '', categoryMappings = {}) {
   const rows = parseCsvRows(text)
 
   if (rows.length < 2) {
@@ -588,7 +613,7 @@ function extractCsvTransactions(text, fileName = '') {
         description,
       })
 
-      return buildTransaction({ date, description, amount, direction, fileName, confidence: date ? 'review' : 'low' }, index)
+      return buildTransaction({ date, description, amount, direction, fileName, confidence: date ? 'review' : 'low', categoryMappings }, index)
     })
     .filter((transaction) => transaction.amount > 0 && !/opening balance|closing balance/i.test(transaction.description))
     .slice(0, MAX_TRANSACTIONS)
@@ -620,7 +645,7 @@ function cleanPdfDescription(line, dateToken, amountTokens) {
     .trim()
 }
 
-function extractTextTransactions(text, fileName = '') {
+function extractTextTransactions(text, fileName = '', categoryMappings = {}) {
   const lines = String(text || '')
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -661,6 +686,7 @@ function extractTextTransactions(text, fileName = '') {
       direction,
       fileName,
       confidence: 'low',
+      categoryMappings,
     }, index))
   })
 
@@ -801,12 +827,15 @@ export function buildStatementReport(transactions = []) {
     .filter((item) => item.name && item.name !== 'Unknown merchant')
     .slice(0, 8)
   const months = Array.from(new Set(validTransactions.map((item) => item.date?.slice(0, 7)).filter(Boolean))).sort()
-  const lowConfidenceCount = validTransactions.filter((item) => item.confidence === 'low' || !item.date).length
+  const needsReviewCount = validTransactions.filter((item) => item.confidence === 'low' || !item.date || item.category === 'Other').length
   const confidence = validTransactions.length === 0
     ? 'low'
-    : lowConfidenceCount / validTransactions.length > 0.45
+    : needsReviewCount / validTransactions.length > 0.45
       ? 'review'
       : 'good'
+  const confidenceScore = validTransactions.length > 0
+    ? Math.max(0, Math.round(((validTransactions.length - needsReviewCount) / validTransactions.length) * 100))
+    : 0
 
   return {
     transactionCount: validTransactions.length,
@@ -821,6 +850,10 @@ export function buildStatementReport(transactions = []) {
     months,
     dateRange: formatDateRange(validTransactions),
     confidence,
+    confidenceScore,
+    needsReviewCount,
+    recognizedTransactions: validTransactions.length,
+    coverage: confidenceScore,
     insights: buildInsights({ incomes, expenses, incomeSources, expenseCategories, merchants, totalIncome, totalExpense }),
   }
 }
@@ -863,6 +896,7 @@ export async function parseStatementFiles(files = [], mode = 'reflection', optio
   const parsedFiles = []
   const allTransactions = []
   const passwordProvided = Boolean(options.pdfPassword)
+  const categoryMappings = options.categoryMappings || {}
 
   for (const file of fileList) {
     const extension = file.name.split('.').pop()?.toLowerCase() || ''
@@ -873,14 +907,14 @@ export async function parseStatementFiles(files = [], mode = 'reflection', optio
 
     if (isCsv) {
       const text = await readFileText(file)
-      const transactions = extractCsvTransactions(text, file.name)
+      const transactions = extractCsvTransactions(text, file.name, categoryMappings)
       summary = summarizeTransactions(transactions, text)
       status = 'CSV scanned locally. Review dates, money-in, spending categories, and merchants before import.'
     }
 
     if (isPdf) {
       const text = await readPdfText(file, options.pdfPassword)
-      const transactions = extractTextTransactions(text, file.name)
+      const transactions = extractTextTransactions(text, file.name, categoryMappings)
       summary = summarizeTransactions(transactions, text)
       status = passwordProvided
         ? 'PDF password was used temporarily in memory. Text was scanned locally for review.'

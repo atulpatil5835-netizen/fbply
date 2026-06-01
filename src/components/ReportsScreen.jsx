@@ -4,24 +4,13 @@ import {
   useMemo,
   useState,
 } from 'react'
-import {
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart as TrendLineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import { Download, FileText, HeartHandshake, Upload } from 'lucide-react'
+import { ChevronRight, Download, FileText, HeartHandshake, Trash2, Upload } from 'lucide-react'
 import { getFinanceColor } from '../lib/financeColors'
 import { addMoney, normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 
 const StatementUploadSheet = lazy(() => import('./StatementUploadSheet.jsx'))
+const ReportCharts = lazy(() => import('./ReportCharts.jsx'))
 
 function StatementUploadFallback() {
   return (
@@ -101,13 +90,12 @@ function chartDateLabel(value) {
   })
 }
 
-function ChartEmptyState({ message }) {
+function ChartDetailsFallback() {
   return (
-    <div className="report-empty-chart">
-      <span className="report-empty-chart-mark" aria-hidden="true" />
-      <strong>Not enough activity yet</strong>
-      <p>{message}</p>
-    </div>
+    <>
+      <article className="chart-card skeleton-card" />
+      <article className="chart-card skeleton-card" />
+    </>
   )
 }
 
@@ -253,6 +241,20 @@ function ReportSection({ title, items }) {
   )
 }
 
+function reportGeneratedLabel(value) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Recently generated'
+  }
+
+  return date.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
 export default function ReportsScreen({
   advancedReport,
   expenseBreakdown = [],
@@ -261,6 +263,12 @@ export default function ReportsScreen({
   transactionSummary = {},
   monthlyComparison = [],
   downloadPdf,
+  requestReportExport,
+  reportTemplate = 'standard',
+  setReportTemplate,
+  reportHistory = [],
+  redownloadReport,
+  deleteReportHistoryEntry,
   exportCsv,
   isExportingPdf,
   selectedMonthKey,
@@ -269,6 +277,7 @@ export default function ReportsScreen({
 }) {
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [activeCategory, setActiveCategory] = useState('all')
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const report = useMemo(
     () => advancedReport || {
       advisory: 'Add a few entries to build a useful monthly report.',
@@ -302,6 +311,39 @@ export default function ReportsScreen({
   const visibleBreakdown = selectedCategory === 'all'
     ? mixBreakdown
     : mixBreakdown.filter((item) => item.name === selectedCategory)
+  const storyItems = useMemo(
+    () => [
+      ...(report.pressureAnalysis || []),
+      ...(report.spendingPatterns || []),
+      ...(report.purchaseInsights || []),
+      ...(report.behaviorInsights || []),
+    ]
+      .filter((item) => item?.title || item?.detail)
+      .slice(0, 3),
+    [report.behaviorInsights, report.pressureAnalysis, report.purchaseInsights, report.spendingPatterns],
+  )
+  const recentReportHistory = useMemo(
+    () => (Array.isArray(reportHistory) ? reportHistory.slice(0, 6) : []),
+    [reportHistory],
+  )
+
+  const generateStatementReport = (statementPayload = {}) => {
+    if (!requestReportExport) {
+      return
+    }
+
+    setIsImportOpen(false)
+    window.setTimeout(() => {
+      requestReportExport('statement', {
+        template: statementPayload.template || reportTemplate,
+        statementReport: statementPayload.statementReport || {},
+        transactions: statementPayload.transactions || [],
+        userOverrides: statementPayload.userOverrides || 0,
+        accuracy: statementPayload.accuracy,
+        period: statementPayload.statementReport?.dateRange || selectedMonthKey,
+      })
+    }, 0)
+  }
 
   return (
     <section className="screen-content reports-screen advanced-reports-screen">
@@ -333,8 +375,101 @@ export default function ReportsScreen({
 
       {isImportOpen && (
         <Suspense fallback={<StatementUploadFallback />}>
-          <StatementUploadSheet isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} />
+          <StatementUploadSheet
+            isOpen={isImportOpen}
+            onClose={() => setIsImportOpen(false)}
+            onGenerateStatementReport={generateStatementReport}
+            reportTemplate={reportTemplate}
+          />
         </Suspense>
+      )}
+
+      <article className="professional-export-panel">
+        <div className="professional-export-heading">
+          <div>
+            <p className="eyebrow">Professional exports</p>
+            <h2>Share-ready financial documents</h2>
+            <p>New report generation unlocks after the rewarded export step. Saved reports can be downloaded again from history.</p>
+          </div>
+          <label className="report-template-select">
+            <span>Template</span>
+            <select
+              className="month-select compact-month-select"
+              value={reportTemplate}
+              onChange={(event) => setReportTemplate?.(event.target.value)}
+            >
+              <option value="standard">Standard</option>
+              <option value="executive">Executive</option>
+              <option value="compact">Compact</option>
+            </select>
+          </label>
+        </div>
+        <div className="professional-export-actions">
+          <button className="action-button" type="button" onClick={downloadPdf} disabled={isExportingPdf}>
+            <FileText size={18} />
+            {isExportingPdf ? 'Preparing...' : 'Monthly Budget'}
+          </button>
+          <button
+            className="action-button"
+            type="button"
+            onClick={() => requestReportExport?.('trip', { template: reportTemplate })}
+            disabled={isExportingPdf}
+          >
+            <FileText size={18} />
+            Trip Report
+          </button>
+          <button
+            className="action-button"
+            type="button"
+            onClick={() => requestReportExport?.('settlement', { template: reportTemplate })}
+            disabled={isExportingPdf}
+          >
+            <FileText size={18} />
+            Settlement Report
+          </button>
+        </div>
+      </article>
+
+      {recentReportHistory.length > 0 && (
+        <article className="report-history-locker">
+          <div className="report-history-heading">
+            <div>
+              <p className="eyebrow">Report history</p>
+              <h2>Generated reports</h2>
+            </div>
+            <span>{recentReportHistory.length}</span>
+          </div>
+          <div className="report-history-list">
+            {recentReportHistory.map((entry) => (
+              <div className="report-history-row" key={entry.id}>
+                <div>
+                  <strong>{entry.name}</strong>
+                  <p>{entry.reportId} - {entry.currency} - {entry.period}</p>
+                  <span>{reportGeneratedLabel(entry.generatedAt)} - {entry.template}</span>
+                </div>
+                <div className="report-history-actions">
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label={`Download ${entry.name}`}
+                    onClick={() => redownloadReport?.(entry)}
+                    disabled={isExportingPdf}
+                  >
+                    <Download size={15} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label={`Delete ${entry.name} history entry`}
+                    onClick={() => deleteReportHistoryEntry?.(entry.id)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
       )}
 
       <article className="report-advisory-card">
@@ -347,6 +482,39 @@ export default function ReportsScreen({
         </div>
       </article>
 
+      <article className="report-story-card">
+        <div className="report-story-heading">
+          <div>
+            <p className="eyebrow">Money story</p>
+            <h2>This month in plain language</h2>
+          </div>
+          <span>{storyItems.length || 1} note{storyItems.length === 1 ? '' : 's'}</span>
+        </div>
+        <div className="report-story-list">
+          {storyItems.length > 0 ? storyItems.map((item) => (
+            <div className="report-story-row" key={`${item.title}-${item.detail}`}>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </div>
+          )) : (
+            <div className="report-story-row">
+              <strong>Keep adding money moves</strong>
+              <p>Income, expenses, transfers, goals, shared payments, and borrow/lend activity will turn into clearer notes here.</p>
+            </div>
+          )}
+        </div>
+      </article>
+
+      <details
+        className="report-details-panel"
+        onToggle={(event) => setIsDetailsOpen(event.currentTarget.open)}
+      >
+        <summary>
+          <span>Detailed monthly report</span>
+          <ChevronRight size={16} />
+        </summary>
+        {isDetailsOpen && (
+        <div className="report-details-body">
       <article className="report-snapshot-card">
         <h2>This month in short</h2>
         <div className="report-snapshot-grid">
@@ -450,100 +618,17 @@ export default function ReportsScreen({
         </article>
       )}
 
-      <article className="chart-card report-mix-card">
-        <h2>Spending mix</h2>
-        {visibleBreakdown.length > 0 ? (
-          <>
-            <ResponsiveContainer width="100%" height={150}>
-              <PieChart>
-                <Pie
-                  data={visibleBreakdown}
-                  cx="50%"
-                  cy="50%"
-                  dataKey="value"
-                  innerRadius={42}
-                  outerRadius={64}
-                  paddingAngle={4}
-                  isAnimationActive
-                  animationDuration={420}
-                  stroke="var(--card)"
-                  strokeWidth={2}
-                >
-                  {visibleBreakdown.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <RechartsTooltip formatter={(value) => rupees(value)} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="legend-grid compact-legend">
-              <button
-                className={selectedCategory === 'all' ? 'active' : ''}
-                type="button"
-                onClick={() => setActiveCategory('all')}
-              >
-                <i style={{ backgroundColor: getFinanceColor('Other') }} />
-                All
-              </button>
-              {mixBreakdown.slice(0, 8).map((item) => (
-                <button
-                  className={selectedCategory === item.name ? 'active' : ''}
-                  key={item.name}
-                  type="button"
-                  onClick={() => setActiveCategory((current) => (current === item.name ? 'all' : item.name))}
-                >
-                  <i style={{ backgroundColor: item.color }} />
-                  {item.name}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <ChartEmptyState message="Add spending, settlements, or money-book entries to view the mix." />
-        )}
-        {focusedCategory && (
-          <div className="category-focus-card">
-            <span>Category focus</span>
-            <strong>{focusedCategory.name}</strong>
-            <p>{rupees(focusedCategory.value)} tracked, about {Math.round((safeChartAmount(focusedCategory.value) / Math.max(breakdownTotal, 1)) * 100)}% of the mix.</p>
-          </div>
-        )}
-      </article>
-
-      <article className="chart-card report-trend-card">
-        <h2>Spending trend</h2>
-        <p>
-          {trendData.length > 1
-            ? 'Built from your dated money moves this month.'
-            : 'Add more entries to see a clearer trend.'}
-        </p>
-        {trendData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={148}>
-            <TrendLineChart data={trendData} margin={{ left: 4, right: 8, top: 10, bottom: 0 }}>
-              <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
-              <XAxis dataKey="label" stroke="var(--chart-axis)" tick={{ fontSize: 11 }} />
-              <YAxis
-                stroke="var(--chart-axis)"
-                tick={{ fontSize: 11 }}
-                tickFormatter={compactRupees}
-                width={52}
-              />
-              <RechartsTooltip formatter={(value) => rupees(value)} />
-              <Line
-                type="monotone"
-                dataKey="amount"
-                stroke="var(--chart-trend)"
-                strokeWidth={3}
-                dot={trendData.length <= 6}
-                isAnimationActive
-                animationDuration={460}
-              />
-            </TrendLineChart>
-          </ResponsiveContainer>
-        ) : (
-          <ChartEmptyState message="Add transactions to view trends." />
-        )}
-      </article>
+      <Suspense fallback={<ChartDetailsFallback />}>
+        <ReportCharts
+          visibleBreakdown={visibleBreakdown}
+          selectedCategory={selectedCategory}
+          setActiveCategory={setActiveCategory}
+          mixBreakdown={mixBreakdown}
+          focusedCategory={focusedCategory}
+          breakdownTotal={breakdownTotal}
+          trendData={trendData}
+        />
+      </Suspense>
 
       <article className="report-section-card">
         <h2>Money status</h2>
@@ -553,6 +638,9 @@ export default function ReportsScreen({
           <p>{financialState.usagePercent}% of income is already used from saved data.</p>
         </div>
       </article>
+        </div>
+        )}
+      </details>
 
       <div className="action-row">
         <button className="action-button" type="button" onClick={downloadPdf} disabled={isExportingPdf}>

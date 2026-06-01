@@ -1,4 +1,40 @@
 const PAISE_PER_RUPEE = 100
+const supportedCurrencies = new Set(['INR', 'USD', 'EUR', 'GBP', 'AED', 'AUD', 'CAD'])
+const currencyLocales = {
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'en-IE',
+  GBP: 'en-GB',
+  AED: 'en-AE',
+  AUD: 'en-AU',
+  CAD: 'en-CA',
+}
+let activeCurrency = 'INR'
+
+export function normalizeCurrency(value) {
+  const currency = String(value || '').trim().toUpperCase()
+  return supportedCurrencies.has(currency) ? currency : 'INR'
+}
+
+export function setActiveCurrency(value) {
+  activeCurrency = normalizeCurrency(value)
+}
+
+export function getActiveCurrency() {
+  return activeCurrency
+}
+
+export function getCurrencySymbol(value = activeCurrency) {
+  const currency = normalizeCurrency(value)
+  return new Intl.NumberFormat(currencyLocales[currency] || 'en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+    .format(0)
+    .replace(/[0-9,.\s-]/g, '')
+}
 
 function parseMoney(value) {
   if (typeof value === 'number') {
@@ -92,10 +128,11 @@ export function allocateMoney(value, parts) {
 export function formatRupees(value) {
   const amount = normalizeMoney(value, { allowNegative: true })
   const hasPaise = Math.abs(toPaise(amount, { allowNegative: true })) % PAISE_PER_RUPEE !== 0
+  const currency = normalizeCurrency(activeCurrency)
 
-  return new Intl.NumberFormat('en-IN', {
+  return new Intl.NumberFormat(currencyLocales[currency] || 'en-US', {
     style: 'currency',
-    currency: 'INR',
+    currency,
     minimumFractionDigits: hasPaise ? 2 : 0,
     maximumFractionDigits: hasPaise ? 2 : 0,
   }).format(amount)

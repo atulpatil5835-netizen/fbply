@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { ArrowDownLeft, ArrowUpRight, FileSpreadsheet, Files, FileText, LockKeyhole, ShieldCheck, Store, X } from 'lucide-react'
 import { normalizeMoney, sumMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
+import { safeStorageGet, safeStorageSetQueued } from '../lib/storage'
 
 const modes = [
   { key: 'reflection', label: 'Report' },
@@ -29,6 +30,47 @@ const statementPreviewCategories = [
   'Interest',
   'Other',
 ]
+
+function readCategoryMappings() {
+  try {
+    const parsed = JSON.parse(safeStorageGet('fbply-statement-category-mappings', '{}'))
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function monthsForAnalysisWindow(value) {
+  return {
+    '1m': 1,
+    '3m': 3,
+    '6m': 6,
+    '12m': 12,
+  }[value] || 3
+}
+
+function filterTransactionsByAnalysisWindow(transactions = [], windowKey = '3m') {
+  const datedTransactions = transactions
+    .map((transaction) => ({ transaction, date: new Date(`${transaction.date}T00:00:00`) }))
+    .filter((item) => !Number.isNaN(item.date.getTime()))
+
+  if (datedTransactions.length === 0) {
+    return transactions
+  }
+
+  const latestDate = datedTransactions.reduce((latest, item) => (item.date > latest ? item.date : latest), datedTransactions[0].date)
+  const months = monthsForAnalysisWindow(windowKey)
+  const cutoff = new Date(latestDate.getFullYear(), latestDate.getMonth() - months + 1, 1)
+
+  return transactions.filter((transaction) => {
+    const date = new Date(`${transaction.date}T00:00:00`)
+    return Number.isNaN(date.getTime()) || date >= cutoff
+  })
+}
+
+function mappingKey(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
 
 function formatSize(bytes) {
   if (!bytes) {
@@ -104,9 +146,12 @@ function StatementReportSummary({ report }) {
           <p className="eyebrow">Statement report</p>
           <h3>Detected from this file.</h3>
         </div>
-        <span>{report.confidence === 'good' ? 'Dates found' : 'Check rows'}</span>
+        <span>{report.confidenceScore || 0}% confidence</span>
       </div>
-      <p className="statement-truth-note">These totals use readable rows only. Review dates, direction, and categories before using them.</p>
+      <p className="statement-truth-note">
+        Based on {report.recognizedTransactions || report.transactionCount} recognized transactions.
+        {report.needsReviewCount > 0 ? ` ${report.needsReviewCount} row${report.needsReviewCount === 1 ? '' : 's'} need review.` : ' No uncertain rows detected.'}
+      </p>
 
       <div className="statement-money-grid">
         <div>
@@ -170,6 +215,16 @@ function StatementReportSummary({ report }) {
         </div>
       )}
 
+      {report.needsReviewCount > 0 && (
+        <div className="statement-report-block needs-review-block">
+          <strong>Needs Review</strong>
+          <div className="statement-report-row">
+            <span>Uncertain categorization</span>
+            <strong>{report.needsReviewCount}</strong>
+          </div>
+        </div>
+      )}
+
       <div className="statement-insight-list">
         {report.insights.slice(0, 3).map((insight) => (
           <p key={insight}>{insight}</p>
@@ -179,7 +234,7 @@ function StatementReportSummary({ report }) {
   )
 }
 
-export default function StatementUploadSheet({ isOpen, onClose }) {
+export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatementReport, reportTemplate = 'standard' }) {
   const inputRef = useRef(null)
   const [mode, setMode] = useState('reflection')
   const [accept, setAccept] = useState('.pdf,.csv')
@@ -192,6 +247,9 @@ export default function StatementUploadSheet({ isOpen, onClose }) {
   const [pdfPassword, setPdfPassword] = useState('')
   const [importMessage, setImportMessage] = useState('')
   const [error, setError] = useState('')
+  const [analysisWindow, setAnalysisWindow] = useState('3m')
+  const [categoryMappings, setCategoryMappings] = useState(readCategoryMappings)
+  const [userOverrides, setUserOverrides] = useState(0)
 
   if (!isOpen) {
     return null
@@ -212,7 +270,7 @@ export default function StatementUploadSheet({ isOpen, onClose }) {
 
     try {
       const { parseStatementFiles } = await import('../lib/statementImport')
-      const parsed = await parseStatementFiles(files, mode, { pdfPassword: password })
+      const parsed = await parseStatementFiles(files, mode, { pdfPassword: password, categoryMappings })
       setResult(parsed)
       setPreviewTransactions(parsed.transactions || [])
     } catch (parseError) {
@@ -283,12 +341,55 @@ export default function StatementUploadSheet({ isOpen, onClose }) {
     )
   }
 
+  const updatePreviewCategory = (transaction, category) => {
+    updatePreviewTransaction(transaction.id, { category })
+
+    const key = mappingKey(transaction.merchant || transaction.description)
+    if (!key) {
+      return
+    }
+
+    setCategoryMappings((current) => {
+      const next = { ...current, [key]: category }
+      safeStorageSetQueued('fbply-statement-category-mappings', JSON.stringify(next))
+      return next
+    })
+    setUserOverrides((current) => current + 1)
+  }
+
   const confirmPreview = () => {
     setImportMessage(
       result?.historicalOnly
         ? 'Review saved for this session. Older statements are not added to live balance or planner automatically.'
         : 'Review saved for this session. These rows are not added to live balance until import is confirmed.',
     )
+  }
+
+  const generateStatementReport = async () => {
+    if (!result?.statementReport || !onGenerateStatementReport) {
+      return
+    }
+
+    const scopedTransactions = filterTransactionsByAnalysisWindow(previewTransactions, analysisWindow)
+    const { buildStatementReport } = await import('../lib/statementImport')
+    const statementReport = buildStatementReport(scopedTransactions)
+
+    onGenerateStatementReport({
+      statementReport: {
+        ...statementReport,
+        analysisWindow,
+      },
+      transactions: scopedTransactions,
+      userOverrides,
+      template: reportTemplate,
+      accuracy: {
+        recognizedTransactions: statementReport.recognizedTransactions || statementReport.transactionCount,
+        needsReviewCount: statementReport.needsReviewCount || 0,
+        confidenceScore: statementReport.confidenceScore || 0,
+        userOverrides,
+        coverage: statementReport.coverage || statementReport.confidenceScore || 0,
+      },
+    })
   }
 
   return (
@@ -315,18 +416,15 @@ export default function StatementUploadSheet({ isOpen, onClose }) {
           <p>FBPly reads the file for review only. Raw files and PDF passwords are not saved by default.</p>
         </div>
 
-        <div className="statement-mode-row" aria-label="Import mode">
-          {modes.map((item) => (
-            <button
-              className={mode === item.key ? 'active' : ''}
-              key={item.key}
-              type="button"
-              onClick={() => setMode(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <label className="statement-window-select">
+          <span className="input-label">Statement analysis period</span>
+          <select className="month-select" value={analysisWindow} onChange={(event) => setAnalysisWindow(event.target.value)}>
+            <option value="1m">1 Month</option>
+            <option value="3m">3 Month</option>
+            <option value="6m">6 Month</option>
+            <option value="12m">12 Month</option>
+          </select>
+        </label>
 
         <div className="statement-option-grid">
           <button type="button" onClick={() => openPicker({ fileAccept: '.pdf,application/pdf', multiple: false })}>
@@ -342,6 +440,22 @@ export default function StatementUploadSheet({ isOpen, onClose }) {
             <span>Multiple</span>
           </button>
         </div>
+
+        <details className="statement-advanced-options">
+          <summary>Analysis options</summary>
+          <div className="statement-mode-row" aria-label="Import mode">
+            {modes.map((item) => (
+              <button
+                className={mode === item.key ? 'active' : ''}
+                key={item.key}
+                type="button"
+                onClick={() => setMode(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </details>
 
         <input
           ref={inputRef}
@@ -454,7 +568,7 @@ export default function StatementUploadSheet({ isOpen, onClose }) {
                     <select
                       className="month-select"
                       value={transaction.category}
-                      onChange={(event) => updatePreviewTransaction(transaction.id, { category: event.target.value })}
+                      onChange={(event) => updatePreviewCategory(transaction, event.target.value)}
                     >
                       {statementPreviewCategories.map((category) => (
                         <option key={category} value={category}>
@@ -464,12 +578,18 @@ export default function StatementUploadSheet({ isOpen, onClose }) {
                     </select>
                     <span>
                       {transaction.direction === 'income' ? '+' : '-'} {rupees(transaction.amount)}
+                      {(transaction.confidence === 'low' || transaction.category === 'Other') && <small>Needs Review</small>}
                     </span>
                   </article>
                 ))}
-                <button className="primary-button" type="button" onClick={confirmPreview}>
-                  Confirm preview
-                </button>
+                <div className="statement-preview-actions">
+                  <button className="primary-button" type="button" onClick={confirmPreview}>
+                    Confirm preview
+                  </button>
+                  <button className="ghost-button" type="button" onClick={generateStatementReport}>
+                    Generate statement report
+                  </button>
+                </div>
               </div>
             )}
           </div>
