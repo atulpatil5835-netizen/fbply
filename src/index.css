@@ -1,47 +1,47 @@
 :root {
-  --bg: #0B1020;
-  --card: #131A2E;
-  --card-soft: #17213A;
+  --bg: #F8FAFC;
+  --card: #FFFFFF;
+  --card-soft: #EFF6FF;
   --primary: #1D4ED8;
   --accent: #3B82F6;
   --cyan: #38BDF8;
-  --text: #F8FAFC;
-  --muted: #94A3B8;
+  --text: #0F172A;
+  --muted: #64748B;
   --success: #22C55E;
   --warning: #F59E0B;
   --danger: #EF4444;
-  --line: rgba(148, 163, 184, 0.18);
-  --shadow: 0 10px 28px rgba(2, 6, 23, 0.2);
+  --line: rgba(15, 23, 42, 0.12);
+  --shadow: 0 12px 34px rgba(15, 23, 42, 0.1);
   --page-bg:
-    radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.16), transparent 30%),
-    linear-gradient(145deg, #0B1020 0%, #101934 55%, #0B1020 100%);
-  --splash-bg: linear-gradient(145deg, #0B1020 0%, #0F1C3B 54%, #0B1020 100%);
+    radial-gradient(circle at 14% 0%, rgba(56, 189, 248, 0.16), transparent 32%),
+    linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 52%, #EFF6FF 100%);
+  --splash-bg: linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 52%, #EAF3FF 100%);
   --visual-bg:
-    linear-gradient(145deg, rgba(19, 26, 46, 0.92), rgba(23, 33, 58, 0.72)),
-    radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.2), transparent 28%);
-  --surface-bg: rgba(19, 26, 46, 0.8);
-  --soft-bg: rgba(11, 16, 32, 0.42);
-  --input-bg: rgba(11, 16, 32, 0.62);
-  --button-bg: rgba(19, 26, 46, 0.72);
-  --nav-bg: rgba(11, 16, 32, 0.97);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.82)),
+    radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.16), transparent 30%);
+  --surface-bg: rgba(255, 255, 255, 0.92);
+  --soft-bg: rgba(239, 246, 255, 0.78);
+  --input-bg: rgba(255, 255, 255, 0.86);
+  --button-bg: rgba(255, 255, 255, 0.86);
+  --nav-bg: rgba(255, 255, 255, 0.98);
   --comfort-bg:
-    linear-gradient(135deg, rgba(29, 78, 216, 0.38), rgba(19, 26, 46, 0.88)),
-    radial-gradient(circle at 85% 18%, rgba(56, 189, 248, 0.2), transparent 26%);
-  --comfort-detail: #C6D3E4;
-  --placeholder-bg: rgba(148, 163, 184, 0.18);
-  --progress-track: rgba(148, 163, 184, 0.18);
-  --chart-grid: rgba(148, 163, 184, 0.22);
-  --chart-axis: #94A3B8;
-  --chart-trend: #0EA5E9;
-  --status-navy: #DDEBFF;
-  --status-navy-strong: #FFFFFF;
+    linear-gradient(135deg, rgba(219, 234, 254, 0.92), rgba(255, 255, 255, 0.95)),
+    radial-gradient(circle at 85% 18%, rgba(56, 189, 248, 0.18), transparent 28%);
+  --comfort-detail: #334155;
+  --placeholder-bg: rgba(100, 116, 139, 0.16);
+  --progress-track: rgba(30, 41, 59, 0.12);
+  --chart-grid: rgba(100, 116, 139, 0.22);
+  --chart-axis: #64748B;
+  --chart-trend: #2563EB;
+  --status-navy: #0F2B63;
+  --status-navy-strong: #081A44;
   --status-navy-bg:
-    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(29, 78, 216, 0.74));
-  --status-navy-border: rgba(147, 197, 253, 0.34);
+    linear-gradient(135deg, rgba(239, 246, 255, 0.98), rgba(191, 219, 254, 0.86) 48%, rgba(255, 255, 255, 0.94));
+  --status-navy-border: rgba(29, 78, 216, 0.3);
   --status-navy-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 10px 24px rgba(2, 6, 23, 0.22);
-  --status-navy-icon: #93C5FD;
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 10px 24px rgba(30, 64, 175, 0.15);
+  --status-navy-icon: #1D4ED8;
   --android-safe-top: 0px;
   --android-safe-bottom: 0px;
   color: var(--text);
@@ -74,7 +74,7 @@ body {
   min-width: 320px;
   min-height: 100svh;
   margin: 0;
-  background: #0B1020;
+  background: var(--bg);
   overflow-x: hidden;
   overscroll-behavior: none;
 }
@@ -183,46 +183,6 @@ img {
   color: #F8FAFC;
   background: var(--primary);
   font-weight: 900;
-}
-
-.app-root[data-theme="light"] {
-  --bg: #F8FAFC;
-  --card: #FFFFFF;
-  --card-soft: #EFF6FF;
-  --text: #0F172A;
-  --muted: #64748B;
-  --line: rgba(15, 23, 42, 0.12);
-  --shadow: 0 12px 34px rgba(15, 23, 42, 0.1);
-  --page-bg:
-    radial-gradient(circle at 14% 0%, rgba(56, 189, 248, 0.16), transparent 32%),
-    linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 52%, #EFF6FF 100%);
-  --splash-bg: linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 52%, #EAF3FF 100%);
-  --visual-bg:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.82)),
-    radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.16), transparent 30%);
-  --surface-bg: rgba(255, 255, 255, 0.92);
-  --soft-bg: rgba(239, 246, 255, 0.78);
-  --input-bg: rgba(255, 255, 255, 0.86);
-  --button-bg: rgba(255, 255, 255, 0.86);
-  --nav-bg: rgba(255, 255, 255, 0.98);
-  --comfort-bg:
-    linear-gradient(135deg, rgba(219, 234, 254, 0.92), rgba(255, 255, 255, 0.95)),
-    radial-gradient(circle at 85% 18%, rgba(56, 189, 248, 0.18), transparent 28%);
-  --comfort-detail: #334155;
-  --placeholder-bg: rgba(100, 116, 139, 0.16);
-  --progress-track: rgba(30, 41, 59, 0.12);
-  --chart-grid: rgba(100, 116, 139, 0.22);
-  --chart-axis: #64748B;
-  --chart-trend: #2563EB;
-  --status-navy: #0F2B63;
-  --status-navy-strong: #081A44;
-  --status-navy-bg:
-    linear-gradient(135deg, rgba(239, 246, 255, 0.98), rgba(191, 219, 254, 0.86) 48%, rgba(255, 255, 255, 0.94));
-  --status-navy-border: rgba(29, 78, 216, 0.3);
-  --status-navy-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 10px 24px rgba(30, 64, 175, 0.15);
-  --status-navy-icon: #1D4ED8;
 }
 
 .splash-screen,
@@ -493,65 +453,11 @@ img {
     inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 
-.theme-choice {
-  position: fixed;
-  top: 10px;
-  top: calc(10px + env(safe-area-inset-top) + var(--android-safe-top));
-  right: 172px;
-  z-index: 51;
-  width: 48px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--nav-bg);
-  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.16);
-  backdrop-filter: blur(16px);
-}
-
-.theme-toggle-track {
-  position: relative;
-  width: 42px;
-  height: 22px;
-  display: block;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.16);
-  transition: background-color 180ms ease;
-}
-
-.theme-toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: #F8FAFC;
-  background: linear-gradient(135deg, var(--primary), var(--cyan));
-  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.22);
-  transition:
-    transform 190ms cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 180ms ease;
-}
-
-.theme-choice.dark .theme-toggle-track {
-  background: rgba(56, 189, 248, 0.16);
-}
-
-.theme-choice.dark .theme-toggle-thumb {
-  transform: translateX(20px);
-  background: linear-gradient(135deg, #0F172A, #475569);
-}
-
 .app-brand-chip {
   position: fixed;
   top: calc(12px + env(safe-area-inset-top) + var(--android-safe-top));
   left: 14px;
-  z-index: 11;
+  z-index: 52;
   min-height: 34px;
   display: inline-flex;
   align-items: center;
@@ -1136,14 +1042,8 @@ img {
 }
 
 .form-message-error {
-  color: #FEE2E2;
-  border-color: rgba(239, 68, 68, 0.34);
-  background:
-    linear-gradient(135deg, rgba(127, 29, 29, 0.92), rgba(239, 68, 68, 0.28));
-}
-
-.app-root[data-theme="light"] .form-message-error {
   color: #7F1D1D;
+  border-color: rgba(239, 68, 68, 0.34);
   background:
     linear-gradient(135deg, rgba(254, 226, 226, 0.98), rgba(255, 255, 255, 0.94));
 }
@@ -1528,44 +1428,36 @@ img {
 
 .app-shell {
   min-height: 100svh;
+  display: flex;
+  flex-direction: column;
   padding:
     calc(54px + env(safe-area-inset-top) + var(--android-safe-top))
     18px
-    calc(134px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+    calc(18px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
 }
 
 .screen-panel {
   width: min(100%, 1180px);
+  flex: 1 0 auto;
   margin: 0 auto;
 }
 
 .app-legal-footer {
-  position: fixed;
-  left: 50%;
-  bottom: calc(94px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
-  z-index: 9;
-  width: min(calc(100% - 28px), 720px);
+  width: min(100%, 720px);
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 4px;
+  margin: 12px auto calc(104px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
   padding: 5px 6px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--nav-bg);
-  box-shadow: 0 12px 34px rgba(2, 6, 23, 0.18);
-  transform: translateX(-50%);
-  backdrop-filter: blur(16px);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.app-legal-footer::-webkit-scrollbar {
-  display: none;
 }
 
 .app-legal-footer a {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   min-height: 24px;
   display: inline-flex;
   align-items: center;
@@ -4843,13 +4735,8 @@ img {
 }
 
 .feedback-success {
-  border-color: rgba(34, 197, 94, 0.28);
-  background:
-    linear-gradient(135deg, rgba(22, 101, 52, 0.82), rgba(34, 197, 94, 0.16));
-}
-
-.app-root[data-theme="light"] .feedback-success {
   color: #14532D;
+  border-color: rgba(34, 197, 94, 0.28);
   background:
     linear-gradient(135deg, rgba(220, 252, 231, 0.98), rgba(255, 255, 255, 0.94));
 }
@@ -6843,7 +6730,7 @@ img {
   position: fixed;
   left: 50%;
   bottom: calc(16px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
-  z-index: 10;
+  z-index: 11;
   width: min(calc(100% - 28px), 720px);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -7250,12 +7137,12 @@ img {
     padding:
       calc(54px + env(safe-area-inset-top) + var(--android-safe-top))
       12px
-      calc(124px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+      calc(16px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
   }
 
   .app-legal-footer {
-    bottom: calc(82px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
-    justify-content: flex-start;
+    justify-content: center;
+    margin-bottom: calc(94px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
   }
 
   .screen-content {
@@ -7419,10 +7306,6 @@ img {
 }
 
 @media (max-width: 480px) {
-  .theme-choice {
-    right: 10px;
-  }
-
   .splash-screen,
   .entry-screen,
   .setup-page,
@@ -7435,13 +7318,13 @@ img {
     padding:
       calc(56px + env(safe-area-inset-top) + var(--android-safe-top))
       10px
-      calc(114px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+      calc(14px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
   }
 
   .app-legal-footer {
-    width: calc(100% - 18px);
-    bottom: calc(66px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
-    padding: 4px 5px;
+    width: 100%;
+    margin-bottom: calc(82px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+    padding: 5px 6px;
   }
 
   .app-legal-footer a {
@@ -7614,23 +7497,6 @@ img {
 }
 
 @media (max-width: 480px) {
-  .app-brand-chip span {
-    display: none;
-  }
-
-  .theme-choice {
-    right: 150px;
-    width: 44px;
-  }
-
-  .theme-toggle-track {
-    width: 38px;
-  }
-
-  .theme-choice.dark .theme-toggle-thumb {
-    transform: translateX(16px);
-  }
-
   .top-notification-button {
     right: 104px;
     width: 40px;
@@ -7665,5 +7531,43 @@ img {
   .today-feed-item time {
     grid-column: 2;
     justify-self: start;
+  }
+}
+
+.chrome-popover-backdrop {
+  display: block;
+  padding: 0;
+  background: rgba(2, 6, 23, 0.16);
+  backdrop-filter: blur(4px);
+}
+
+.chrome-popover-sheet {
+  position: fixed;
+  top: calc(62px + env(safe-area-inset-top) + var(--android-safe-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: min(calc(100vw - 24px), 460px);
+  max-height: min(78dvh, 720px);
+  border-radius: 20px;
+  transform-origin: top right;
+  animation: chromePopoverIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.notification-popover-sheet {
+  width: min(calc(100vw - 24px), 540px);
+}
+
+.settings-popover-sheet {
+  width: min(calc(100vw - 24px), 700px);
+}
+
+@keyframes chromePopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

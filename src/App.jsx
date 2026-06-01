@@ -16,7 +16,6 @@ import {
   Mail,
   MessageCircle,
   Mic,
-  Moon,
   MoreVertical,
   Pencil,
   PiggyBank,
@@ -29,7 +28,6 @@ import {
   Send,
   Sparkles,
   Square,
-  Sun,
   Trash2,
   Target,
   User,
@@ -174,7 +172,7 @@ const legalPages = {
       {
         title: 'Local Storage And Account Data',
         body: [
-          'FBPly may use browser or device storage to remember setup status, app data, cookie consent, theme preference, and locally saved entries.',
+          'FBPly may use browser or device storage to remember setup status, app data, cookie consent, and locally saved entries.',
           'If sign-in or hosted services are enabled, limited account information such as email may be processed by the authentication or infrastructure providers needed to operate the app.',
         ],
       },
@@ -819,7 +817,6 @@ function App() {
   const [plannerTargetAmount, setPlannerTargetAmount] = useState('')
   const [plannerCurrentSavings, setPlannerCurrentSavings] = useState('')
   const [plannerTimeline, setPlannerTimeline] = useState('6m')
-  const [theme, setTheme] = useState(() => safeStorageGet('fbply-theme', 'light'))
   const lowEnergyMode = false
   const [walkthroughStep, setWalkthroughStep] = useState(() =>
     safeStorageGet('fbply-walkthrough-complete', 'false') === 'true' ? -1 : 0,
@@ -891,11 +888,6 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [phase, activeTab, currentPath])
-
-  useEffect(() => {
-    safeStorageSet('fbply-theme', theme)
-    document.documentElement.dataset.theme = theme
-  }, [theme])
 
   useEffect(() => {
     document.documentElement.dataset.currency = activeCurrency
@@ -2088,8 +2080,7 @@ function App() {
 
   if (legalPage) {
     return (
-      <div className="app-root" data-theme={theme} data-energy="full">
-        <ThemeChoice theme={theme} setTheme={setTheme} />
+      <div className="app-root" data-energy="full">
         <Suspense fallback={<ScreenFallback eyebrow={legalPage.eyebrow} title={legalPage.title} />}>
           <LegalScreen page={legalPage} supportEmail={supportEmail} />
         </Suspense>
@@ -2099,8 +2090,7 @@ function App() {
   }
 
   return (
-    <div className="app-root" data-theme={theme} data-energy={lowEnergyMode ? 'low' : 'full'} data-currency={activeCurrency}>
-      <ThemeChoice theme={theme} setTheme={setTheme} />
+    <div className="app-root" data-energy={lowEnergyMode ? 'low' : 'full'} data-currency={activeCurrency}>
       <OfflineBanner isOnline={isOnline} />
       <RewardedExportModal
         rewardState={rewardedExport}
@@ -3323,27 +3313,6 @@ function QuickAddFab({ openAddSheet }) {
   )
 }
 
-function ThemeChoice({ theme, setTheme }) {
-  const isDark = theme === 'dark'
-
-  return (
-    <button
-      className={`theme-choice ${isDark ? 'dark' : 'light'}`}
-      type="button"
-      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      aria-pressed={isDark}
-      title={isDark ? 'Light mode' : 'Dark mode'}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-    >
-      <span className="theme-toggle-track" aria-hidden="true">
-        <span className="theme-toggle-thumb">
-          {isDark ? <Moon size={13} /> : <Sun size={13} />}
-        </span>
-      </span>
-    </button>
-  )
-}
-
 function ReportsFallback() {
   return (
     <section className="screen-content reports-screen">
@@ -3531,7 +3500,12 @@ function QuickAddSheet({
   }[mode] || 'Add money move'
 
   return (
-    <AppModal onClose={onClose} labelledBy="quick-add-title" sheetClassName="editor-sheet quick-add-sheet">
+    <AppModal
+      onClose={onClose}
+      labelledBy="quick-add-title"
+      sheetClassName="editor-sheet quick-add-sheet chrome-popover-sheet quick-add-popover-sheet"
+      backdropClassName="editor-sheet-backdrop chrome-popover-backdrop"
+    >
       <div className="editor-sheet-header">
         <div>
           <p className="eyebrow">Quick add</p>

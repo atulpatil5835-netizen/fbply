@@ -325,7 +325,12 @@ export default function NotificationCenter({
       </button>
 
       {isOpen && (
-        <AppModal onClose={() => setIsOpen(false)} labelledBy="notification-popup-title" sheetClassName="editor-sheet notification-popup-sheet">
+        <AppModal
+          onClose={() => setIsOpen(false)}
+          labelledBy="notification-popup-title"
+          sheetClassName="editor-sheet notification-popup-sheet chrome-popover-sheet notification-popover-sheet"
+          backdropClassName="editor-sheet-backdrop chrome-popover-backdrop"
+        >
           <div className="editor-sheet-header">
             <div>
               <p className="eyebrow">Notifications</p>

@@ -29,7 +29,12 @@ export default function SettingsScreen({
   const balanceMessage = getProfileBalanceMessage(financialState)
 
   return (
-    <AppModal onClose={onClose} labelledBy="settings-title" sheetClassName="editor-sheet settings-sheet">
+    <AppModal
+      onClose={onClose}
+      labelledBy="settings-title"
+      sheetClassName="editor-sheet settings-sheet chrome-popover-sheet settings-popover-sheet"
+      backdropClassName="editor-sheet-backdrop chrome-popover-backdrop"
+    >
       <div className="editor-sheet-header">
         <div>
           <p className="eyebrow">Settings</p>

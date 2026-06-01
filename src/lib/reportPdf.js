@@ -36,11 +36,16 @@ function formatIndian(value) {
   return new Intl.NumberFormat('en-IN', {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
-  }).format(amount)
+  }).format(amount).replace(/\u00a0/g, ' ')
 }
 
-function formatMoney(value) {
-  return `INR ${formatIndian(value)}`
+function cleanPdfText(value) {
+  return String(value ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function formatMoney(value, currency = 'INR') {
+  const code = cleanPdfText(currency).toUpperCase() || 'INR'
+  return `${code} ${formatIndian(value)}`
 }
 
 function currentMonthLabel() {
@@ -76,7 +81,7 @@ function drawTextBlock(doc, text, x, y, width, {
   setText(doc, color)
   doc.setFont('helvetica', weight)
   doc.setFontSize(size)
-  const lines = doc.splitTextToSize(String(text || ''), width).slice(0, maxLines)
+  const lines = doc.splitTextToSize(cleanPdfText(text), width).slice(0, maxLines)
   if (lines.length === maxLines) {
     const last = lines[maxLines - 1]
     lines[maxLines - 1] = last.length > 4 ? `${last.slice(0, -3)}...` : last
@@ -172,17 +177,7 @@ function commitmentItems(profile = {}) {
 }
 
 function currencyMoney(value, currency = 'INR') {
-  const amount = safeAmount(value)
-
-  try {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: String(currency || 'INR').toUpperCase(),
-      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-    }).format(amount)
-  } catch {
-    return formatMoney(amount)
-  }
+  return formatMoney(value, currency)
 }
 
 function reportDateLabel(value = new Date().toISOString()) {
@@ -392,6 +387,31 @@ function drawMinorHeading(doc, title, y) {
   return y + 9
 }
 
+function drawFittedText(doc, value, x, y, maxWidth, {
+  align = 'left',
+  color = COLORS.text,
+  minSize = 6.5,
+  size = 8,
+  weight = 'normal',
+} = {}) {
+  const text = cleanPdfText(value) || '-'
+  let fontSize = size
+
+  setText(doc, color)
+  doc.setFont('helvetica', weight)
+  doc.setFontSize(fontSize)
+
+  while (fontSize > minSize && doc.getTextWidth(text) > maxWidth) {
+    fontSize -= 0.25
+    doc.setFontSize(fontSize)
+  }
+
+  doc.text(text, align === 'right' ? x + maxWidth : x, y, {
+    align,
+    maxWidth,
+  })
+}
+
 function drawKeyNumbers(doc, y, title, numbers = [], meta = {}, { large = false } = {}) {
   const visible = numbers.filter(Boolean).slice(0, large ? 6 : sectionLimit(meta, 8))
 
@@ -414,11 +434,13 @@ function drawKeyNumbers(doc, y, title, numbers = [], meta = {}, { large = false 
     setText(doc, COLORS.muted)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.1)
-    doc.text(String(item.label || '').toUpperCase(), x, top)
-    setText(doc, item.tone || COLORS.navy)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(large ? 16 : 12.8)
-    doc.text(String(item.value || '-'), x, top + (large ? 9 : 8), { maxWidth: width })
+    doc.text(cleanPdfText(item.label).toUpperCase(), x, top)
+    drawFittedText(doc, item.value || '-', x, top + (large ? 9 : 8), width, {
+      color: item.tone || COLORS.navy,
+      minSize: large ? 10 : 8,
+      size: large ? 16 : 12.8,
+      weight: 'bold',
+    })
     if (item.detail) {
       drawTextBlock(doc, item.detail, x, top + (large ? 15 : 14), width, {
         size: 7.3,
@@ -491,30 +513,43 @@ function drawHorizontalBars(doc, y, section, meta = {}) {
     }) + 3
   }
 
-  const barWidth = 82
-  const amountX = PAGE.width - PAGE.margin - 42
+  const contentRight = PAGE.width - PAGE.margin
+  const labelWidth = 58
+  const percentX = PAGE.margin + labelWidth + 5
+  const percentWidth = 19
+  const amountWidth = 38
+  const amountX = contentRight - amountWidth
+  const barX = percentX + percentWidth + 5
+  const barWidth = Math.max(50, amountX - barX - 7)
 
   visible.forEach((item, index) => {
     const rowY = y + index * 14
     const barY = rowY + 4.5
     const percent = Math.max(0, Math.min(safeAmount(item.barValue ?? item.percentage), 100))
 
-    setText(doc, COLORS.navy)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.3)
-    doc.text(String(item.label || '-'), PAGE.margin, rowY, { maxWidth: 56 })
-    setText(doc, COLORS.text)
-    doc.setFontSize(8.2)
-    doc.text(String(item.value || ''), amountX, rowY, { maxWidth: 42 })
-    setText(doc, COLORS.muted)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.2)
-    doc.text(item.percentage != null ? percentLabel(item.percentage) : String(item.detail || ''), PAGE.margin + 61, rowY, { maxWidth: 22 })
+    drawFittedText(doc, item.label || '-', PAGE.margin, rowY, labelWidth, {
+      color: COLORS.navy,
+      minSize: 6.8,
+      size: 8.3,
+      weight: 'bold',
+    })
+    drawFittedText(doc, item.percentage != null ? percentLabel(item.percentage) : item.detail || '', percentX, rowY, percentWidth, {
+      color: COLORS.muted,
+      minSize: 6.2,
+      size: 7.2,
+    })
+    drawFittedText(doc, item.value || '', amountX, rowY, amountWidth, {
+      align: 'right',
+      color: COLORS.text,
+      minSize: 6.8,
+      size: 8.2,
+      weight: 'bold',
+    })
 
     setFill(doc, [226, 232, 240])
-    doc.roundedRect(PAGE.margin + 84, barY, barWidth, 2.6, 1.3, 1.3, 'F')
+    doc.roundedRect(barX, barY, barWidth, 2.6, 1.3, 1.3, 'F')
     setFill(doc, item.tone || COLORS.blue)
-    doc.roundedRect(PAGE.margin + 84, barY, Math.max(2, (barWidth * percent) / 100), 2.6, 1.3, 1.3, 'F')
+    doc.roundedRect(barX, barY, Math.max(2, (barWidth * percent) / 100), 2.6, 1.3, 1.3, 'F')
   })
 
   return y + visible.length * 14 + 4
@@ -528,9 +563,9 @@ function drawDocumentTable(doc, y, section, meta = {}) {
   }
 
   const columns = section.columns || [
-    { key: 'label', label: 'Item', width: 72 },
-    { key: 'value', label: 'Amount', width: 42 },
-    { key: 'detail', label: 'Notes', width: 58 },
+    { key: 'label', label: 'Item', width: 70 },
+    { key: 'value', label: 'Amount', width: 44, align: 'right' },
+    { key: 'detail', label: 'Notes', width: 68 },
   ]
 
   y = addPageIfNeeded(doc, y, 20 + visible.length * 10, meta)
@@ -549,7 +584,10 @@ function drawDocumentTable(doc, y, section, meta = {}) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.2)
     columns.forEach((column) => {
-      doc.text(String(column.label || '').toUpperCase(), x, y)
+      const label = cleanPdfText(column.label).toUpperCase()
+      doc.text(label, column.align === 'right' ? x + column.width - 4 : x, y, {
+        align: column.align || 'left',
+      })
       x += column.width
     })
     setStroke(doc, [203, 213, 225])
@@ -567,19 +605,48 @@ function drawDocumentTable(doc, y, section, meta = {}) {
       drawHeader()
     }
 
+    const preparedColumns = columns.map((column) => {
+      const text = cleanPdfText(item[column.key])
+      const lines = column.align === 'right'
+        ? [text]
+        : doc.splitTextToSize(text, column.width - 5).slice(0, 2)
+
+      return { column, lines: lines.length > 0 ? lines : [''] }
+    })
+    const maxLines = Math.max(1, ...preparedColumns.map(({ lines }) => lines.length))
+    const rowHeight = Math.max(10, maxLines * 4 + 4)
+
+    if (y + rowHeight + 4 > PAGE.height - PAGE.margin) {
+      y = addProfessionalPage(doc, meta)
+      y = drawMinorHeading(doc, section.title, y)
+      drawHeader()
+    }
+
     let x = PAGE.margin
-    columns.forEach((column, columnIndex) => {
-      setText(doc, columnIndex === 1 ? COLORS.blue : COLORS.text)
-      doc.setFont('helvetica', columnIndex === 0 ? 'bold' : 'normal')
-      doc.setFontSize(8)
-      const lines = doc.splitTextToSize(String(item[column.key] || ''), column.width - 5).slice(0, 2)
-      doc.text(lines, x, y)
+    preparedColumns.forEach(({ column, lines }, columnIndex) => {
+      const color = column.align === 'right' ? COLORS.blue : COLORS.text
+
+      if (column.align === 'right') {
+        drawFittedText(doc, lines[0], x, y, column.width - 4, {
+          align: 'right',
+          color,
+          minSize: 6.5,
+          size: 8,
+          weight: 'bold',
+        })
+      } else {
+        setText(doc, color)
+        doc.setFont('helvetica', columnIndex === 0 ? 'bold' : 'normal')
+        doc.setFontSize(8)
+        doc.text(lines, x, y)
+      }
+
       x += column.width
     })
     setStroke(doc, [226, 232, 240])
     doc.setLineWidth(0.16)
-    doc.line(PAGE.margin, y + 5.5, PAGE.width - PAGE.margin, y + 5.5)
-    y += 10
+    doc.line(PAGE.margin, y + rowHeight - 3, PAGE.width - PAGE.margin, y + rowHeight - 3)
+    y += rowHeight
   })
 
   return y + 4
