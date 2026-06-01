@@ -138,6 +138,14 @@ const legalLinks = [
   { label: 'About FBPly', href: '/about' },
   { label: 'Contact', href: '/contact' },
 ]
+const appFooterLinks = [
+  { label: 'Privacy Policy', href: '/privacy' },
+  { label: 'Terms of Service', href: '/terms' },
+  { label: 'Disclaimer', href: '/disclaimer' },
+  { label: 'Feedback', href: `mailto:${supportEmail}?subject=FBPly%20Feedback` },
+  { label: 'Support', href: `mailto:${supportEmail}?subject=FBPly%20Support` },
+  { label: 'About FBPLY', href: '/about' },
+]
 
 const navItems = [
   { key: 'home', label: 'Today', icon: House },
@@ -2855,6 +2863,18 @@ function SetupCommitmentList({ items, onRemove, emptyText = 'No fixed item added
   )
 }
 
+function LoggedInLegalFooter() {
+  return (
+    <footer className="app-legal-footer" aria-label="FBPLY legal and support links">
+      {appFooterLinks.map((link) => (
+        <a href={link.href} key={link.label}>
+          {link.label}
+        </a>
+      ))}
+    </footer>
+  )
+}
+
 function MainApp(props) {
   const {
     activeTab,
@@ -3185,6 +3205,7 @@ function MainApp(props) {
           />
         )}
       </main>
+      <LoggedInLegalFooter />
       {addSheetMode && (
         <QuickAddSheet
           mode={addSheetMode}

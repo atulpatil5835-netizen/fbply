@@ -1531,12 +1531,62 @@ img {
   padding:
     calc(54px + env(safe-area-inset-top) + var(--android-safe-top))
     18px
-    calc(94px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+    calc(134px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
 }
 
 .screen-panel {
   width: min(100%, 1180px);
   margin: 0 auto;
+}
+
+.app-legal-footer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(94px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+  z-index: 9;
+  width: min(calc(100% - 28px), 720px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--nav-bg);
+  box-shadow: 0 12px 34px rgba(2, 6, 23, 0.18);
+  transform: translateX(-50%);
+  backdrop-filter: blur(16px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-legal-footer::-webkit-scrollbar {
+  display: none;
+}
+
+.app-legal-footer a {
+  flex: 0 0 auto;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.app-legal-footer a:focus-visible,
+.app-legal-footer a:hover {
+  color: var(--text);
+  border-color: rgba(56, 189, 248, 0.28);
+  background: rgba(56, 189, 248, 0.1);
 }
 
 .screen-content {
@@ -7200,7 +7250,12 @@ img {
     padding:
       calc(54px + env(safe-area-inset-top) + var(--android-safe-top))
       12px
-      calc(88px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+      calc(124px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+  }
+
+  .app-legal-footer {
+    bottom: calc(82px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+    justify-content: flex-start;
   }
 
   .screen-content {
@@ -7380,7 +7435,19 @@ img {
     padding:
       calc(56px + env(safe-area-inset-top) + var(--android-safe-top))
       10px
-      calc(82px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+      calc(114px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+  }
+
+  .app-legal-footer {
+    width: calc(100% - 18px);
+    bottom: calc(66px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+    padding: 4px 5px;
+  }
+
+  .app-legal-footer a {
+    min-height: 22px;
+    padding: 0 7px;
+    font-size: 9px;
   }
 
   .recurring-form-grid,
