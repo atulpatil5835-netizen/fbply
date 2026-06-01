@@ -271,6 +271,10 @@ export default function ReportsScreen({
   deleteReportHistoryEntry,
   exportCsv,
   isExportingPdf,
+  exportingReportType = '',
+  reportExportPrompt = null,
+  onReportPromptAction,
+  clearReportExportPrompt,
   selectedMonthKey,
   setSelectedMonthKey,
   monthOptions = [],
@@ -326,6 +330,8 @@ export default function ReportsScreen({
     () => (Array.isArray(reportHistory) ? reportHistory.slice(0, 6) : []),
     [reportHistory],
   )
+  const activeExportType = exportingReportType || (isExportingPdf ? 'monthly' : '')
+  const isPreparingReport = (type) => isExportingPdf && activeExportType === type
 
   const generateStatementReport = (statementPayload = {}) => {
     if (!requestReportExport) {
@@ -407,7 +413,7 @@ export default function ReportsScreen({
         <div className="professional-export-actions">
           <button className="action-button" type="button" onClick={downloadPdf} disabled={isExportingPdf}>
             <FileText size={18} />
-            {isExportingPdf ? 'Preparing...' : 'Monthly Budget'}
+            {isPreparingReport('monthly') ? 'Preparing...' : 'Monthly Budget'}
           </button>
           <button
             className="action-button"
@@ -416,7 +422,7 @@ export default function ReportsScreen({
             disabled={isExportingPdf}
           >
             <FileText size={18} />
-            Trip Report
+            {isPreparingReport('trip') ? 'Preparing...' : 'Trip Report'}
           </button>
           <button
             className="action-button"
@@ -425,10 +431,33 @@ export default function ReportsScreen({
             disabled={isExportingPdf}
           >
             <FileText size={18} />
-            Settlement Report
+            {isPreparingReport('settlement') ? 'Preparing...' : 'Settlement Report'}
           </button>
         </div>
       </article>
+
+      {reportExportPrompt && (
+        <article className="report-export-guidance" aria-live="polite">
+          <div>
+            <p className="eyebrow">Report direction</p>
+            <h2>{reportExportPrompt.title}</h2>
+            <p>{reportExportPrompt.message}</p>
+            <span>{reportExportPrompt.detail}</span>
+          </div>
+          <div className="report-export-guidance-actions">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => onReportPromptAction?.(reportExportPrompt)}
+            >
+              {reportExportPrompt.actionLabel}
+            </button>
+            <button className="ghost-button" type="button" onClick={clearReportExportPrompt}>
+              Later
+            </button>
+          </div>
+        </article>
+      )}
 
       {recentReportHistory.length > 0 && (
         <article className="report-history-locker">
@@ -645,7 +674,7 @@ export default function ReportsScreen({
       <div className="action-row">
         <button className="action-button" type="button" onClick={downloadPdf} disabled={isExportingPdf}>
           <FileText size={20} />
-          {isExportingPdf ? 'Preparing...' : 'Export PDF'}
+          {isPreparingReport('monthly') ? 'Preparing...' : 'Export PDF'}
         </button>
         <button className="action-button" type="button" onClick={exportCsv}>
           <Download size={20} />

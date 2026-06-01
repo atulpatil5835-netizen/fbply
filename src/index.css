@@ -5656,6 +5656,63 @@ img {
   gap: 8px;
 }
 
+.report-export-guidance {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.09), transparent 64%),
+    var(--surface-bg);
+}
+
+.report-export-guidance h2,
+.report-export-guidance p,
+.report-export-guidance span {
+  margin: 0;
+}
+
+.report-export-guidance h2 {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.report-export-guidance p {
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 850;
+}
+
+.report-export-guidance span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 750;
+}
+
+.report-export-guidance-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-export-guidance-actions .primary-button,
+.report-export-guidance-actions .ghost-button {
+  min-width: 116px;
+  min-height: 40px;
+  padding: 0 13px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .report-history-heading > span {
   min-width: 32px;
   min-height: 32px;
@@ -7211,6 +7268,24 @@ img {
 
   .professional-export-actions {
     grid-template-columns: 1fr;
+  }
+
+  .report-export-guidance,
+  .report-export-guidance-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .report-export-guidance {
+    align-items: stretch;
+  }
+
+  .report-export-guidance-actions {
+    display: grid;
+  }
+
+  .report-export-guidance-actions .primary-button,
+  .report-export-guidance-actions .ghost-button {
+    width: 100%;
   }
 
   .report-history-actions {

@@ -145,6 +145,63 @@ const appFooterLinks = [
   { label: 'About FBPLY', href: '/about' },
 ]
 
+function buildReportExportPrompt(type, request, sharedGroups = []) {
+  const requestedType = type || request?.type || 'monthly'
+  const reportGroups = Array.isArray(request?.payload?.groups) ? request.payload.groups : []
+  const hasTrip = Array.isArray(sharedGroups) && sharedGroups.length > 0
+  const tripTarget = { tab: 'history', targetId: 'shared-expenses-section' }
+
+  if (requestedType === 'trip') {
+    if (!hasTrip) {
+      return {
+        type: 'trip',
+        title: 'Trip report ke liye pehle trip add karein',
+        message: 'Abhi tak aapne koi trip add nahi kiya hai. Add karna hai?',
+        detail: 'Activity me Trip section open hoga. Waha trip name, people aur first shared payment add karein.',
+        actionLabel: 'Trip add karein',
+        ...tripTarget,
+      }
+    }
+
+    if (reportGroups.length === 0) {
+      return {
+        type: 'trip',
+        title: 'Trip me payment add karein',
+        message: 'Trip mil gaya, lekin report banane ke liye abhi koi shared payment nahi hai. Add karna hai?',
+        detail: 'Activity me wahi Trip section open hoga. Existing trip me amount, paid by aur note add karein.',
+        actionLabel: 'Payment add karein',
+        ...tripTarget,
+      }
+    }
+  }
+
+  if (requestedType === 'settlement') {
+    if (!hasTrip) {
+      return {
+        type: 'settlement',
+        title: 'Settlement report ke liye trip chahiye',
+        message: 'Abhi tak aapne koi trip add nahi kiya hai. Pehle trip add karna hai?',
+        detail: 'Activity me Trip section open hoga. Trip aur shared payment add karte hi settlement ready hoga.',
+        actionLabel: 'Trip add karein',
+        ...tripTarget,
+      }
+    }
+
+    if (reportGroups.length === 0) {
+      return {
+        type: 'settlement',
+        title: 'Abhi settlement ready nahi hai',
+        message: 'Trip hai, lekin abhi tak koi settlement amount nahi bana. Shared payment add karna hai?',
+        detail: 'Activity me Trip section open hoga. Payment add hone ke baad FBPly settlement calculate karega.',
+        actionLabel: 'Shared payment add karein',
+        ...tripTarget,
+      }
+    }
+  }
+
+  return null
+}
+
 const navItems = [
   { key: 'home', label: 'Today', icon: House },
   { key: 'history', label: 'Activity', icon: CalendarDays },
@@ -826,10 +883,12 @@ function App() {
   const [isAuthBusy, setIsAuthBusy] = useState(false)
   const [isSessionChecking, setIsSessionChecking] = useState(() => isSupabaseReady)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [exportingReportType, setExportingReportType] = useState('')
   const [pdfError, setPdfError] = useState('')
   const [exportUnlockUntil, setExportUnlockUntil] = useState(() => Number(safeStorageGet('fbply-export-unlock-until', '0')))
   const [rewardedExport, setRewardedExport] = useState({ open: false, status: 'idle', progress: 0 })
   const [pendingReportRequest, setPendingReportRequest] = useState(null)
+  const [reportExportPrompt, setReportExportPrompt] = useState(null)
   const [reportTemplate, setReportTemplate] = useState('standard')
   const [reportHistory, setReportHistory] = useState(() => normalizeReportHistory(readStoredJson('fbply-report-history', [])))
   const recognitionRef = useRef(null)
@@ -1922,9 +1981,11 @@ function App() {
 
     setPdfError('')
     setIsExportingPdf(true)
+    let activeRequest = null
 
     try {
-      const activeRequest = request || buildReportRequest('monthly')
+      activeRequest = request || buildReportRequest('monthly')
+      setExportingReportType(activeRequest.type || 'monthly')
       const reportId = activeRequest.reportId || activeRequest.payload?.reportMeta?.reportId || createReportId(activeRequest.type)
       const { isNativeMobileApp, sharePdfBlob } = await import('./lib/nativeFileShare')
       const { createReportPdfBlob } = await import('./lib/reportPdf')
@@ -1960,6 +2021,7 @@ function App() {
       setPdfError('The report could not be prepared. Please try again in a moment.')
     } finally {
       setIsExportingPdf(false)
+      setExportingReportType('')
     }
   }, [buildReportRequest, isExportingPdf, profile, reportTemplate, selectedMonthKey])
 
@@ -1969,9 +2031,19 @@ function App() {
     }
 
     setPdfError('')
-    setPendingReportRequest(buildReportRequest(type, overrides))
+    const reportRequest = buildReportRequest(type, overrides)
+    const prompt = buildReportExportPrompt(type, reportRequest, sharedGroups)
+
+    if (prompt) {
+      setPendingReportRequest(null)
+      setReportExportPrompt(prompt)
+      return
+    }
+
+    setReportExportPrompt(null)
+    setPendingReportRequest(reportRequest)
     setRewardedExport({ open: true, status: 'ready', progress: 0 })
-  }, [buildReportRequest, isExportingPdf])
+  }, [buildReportRequest, isExportingPdf, sharedGroups])
 
   const redownloadReport = useCallback((entry) => {
     if (!entry?.payload) {
@@ -2035,6 +2107,10 @@ function App() {
   const requestPdfExport = useCallback(() => {
     requestReportExport('monthly')
   }, [requestReportExport])
+
+  const clearReportExportPrompt = useCallback(() => {
+    setReportExportPrompt(null)
+  }, [])
 
   const exportCsv = useCallback(async () => {
     const header = 'date,direction,impact_type,category,title,amount,source_module,note'
@@ -2239,7 +2315,10 @@ function App() {
               deleteReportHistoryEntry={deleteReportHistoryEntry}
               exportCsv={exportCsv}
               isExportingPdf={isExportingPdf}
+              exportingReportType={exportingReportType}
               pdfError={pdfError}
+              reportExportPrompt={reportExportPrompt}
+              clearReportExportPrompt={clearReportExportPrompt}
               updateCommitment={updateCommitment}
               addCommitment={addCommitment}
               removeCommitment={removeCommitment}
@@ -2964,7 +3043,10 @@ function MainApp(props) {
     deleteReportHistoryEntry,
     exportCsv,
     isExportingPdf,
+    exportingReportType,
     pdfError,
+    reportExportPrompt,
+    clearReportExportPrompt,
     updateCommitment,
     addCommitment,
     removeCommitment,
@@ -3006,6 +3088,14 @@ function MainApp(props) {
     setActiveTab(tab)
     scrollToTargetId(targetId)
   }, [scrollToTargetId, setActiveTab])
+  const handleReportPromptAction = useCallback((prompt) => {
+    if (!prompt?.tab || !prompt?.targetId) {
+      return
+    }
+
+    clearReportExportPrompt?.()
+    navigateToTarget(prompt.tab, prompt.targetId)
+  }, [clearReportExportPrompt, navigateToTarget])
 
   return (
     <motion.div className="app-shell" {...fadeUp}>
@@ -3144,6 +3234,10 @@ function MainApp(props) {
               deleteReportHistoryEntry={deleteReportHistoryEntry}
               exportCsv={exportCsv}
               isExportingPdf={isExportingPdf}
+              exportingReportType={exportingReportType}
+              reportExportPrompt={reportExportPrompt}
+              onReportPromptAction={handleReportPromptAction}
+              clearReportExportPrompt={clearReportExportPrompt}
               selectedMonthKey={selectedMonthKey}
               setSelectedMonthKey={setSelectedMonthKey}
               monthOptions={monthOptions}
