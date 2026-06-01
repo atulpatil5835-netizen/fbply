@@ -384,7 +384,7 @@ export default function ReportsScreen({
         </Suspense>
       )}
 
-      <article className="professional-export-panel">
+      <article className="professional-export-panel" id="reports-export-section">
         <div className="professional-export-heading">
           <div>
             <p className="eyebrow">Professional exports</p>

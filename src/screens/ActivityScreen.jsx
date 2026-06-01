@@ -429,7 +429,7 @@ function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete
   const hasEntries = entries.length > 0
 
   return (
-    <section className="money-book-panel" aria-label="Money Book">
+    <section className="money-book-panel" id="money-book-section" aria-label="Money Book">
       <div className="money-book-header">
         <div>
           <p className="eyebrow">Money Book</p>

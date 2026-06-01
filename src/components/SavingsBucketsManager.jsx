@@ -6,7 +6,7 @@ import { slugify } from '../lib/uiHelpers'
 
 export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavingsBucket, removeSavingsBucket }) {
   return (
-    <section className="savings-manager">
+    <section className="savings-manager" id="savings-goals-section">
       <div className="section-heading-row">
         <div>
           <p className="eyebrow">Savings goals</p>

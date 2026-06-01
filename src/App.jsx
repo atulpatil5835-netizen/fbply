@@ -99,6 +99,7 @@ import { focusInvalidField, slugify, titleCase } from './lib/uiHelpers'
 const ActivityScreen = lazy(() => import('./screens/ActivityScreen.jsx'))
 const GoalsScreen = lazy(() => import('./screens/GoalsScreen.jsx'))
 const LegalScreen = lazy(() => import('./screens/LegalScreen.jsx'))
+const NotificationCenter = lazy(() => import('./components/NotificationCenter.jsx'))
 const ReportsScreen = lazy(() => import('./components/ReportsScreen.jsx'))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen.jsx'))
 const TodayScreen = lazy(() => import('./screens/TodayScreen.jsx'))
@@ -2966,6 +2967,35 @@ function MainApp(props) {
     removeSavingsBucket,
   } = props
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const scrollToTargetId = useCallback((targetId) => {
+    if (!targetId || typeof window === 'undefined' || typeof document === 'undefined') {
+      return
+    }
+
+    let attempts = 0
+    const tryScroll = () => {
+      const target = document.getElementById(targetId)
+
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        target.classList.add('section-focus-pulse')
+        window.setTimeout(() => target.classList.remove('section-focus-pulse'), 1200)
+        return
+      }
+
+      attempts += 1
+
+      if (attempts < 16) {
+        window.setTimeout(tryScroll, 90)
+      }
+    }
+
+    window.setTimeout(tryScroll, 60)
+  }, [])
+  const navigateToTarget = useCallback((tab, targetId) => {
+    setActiveTab(tab)
+    scrollToTargetId(targetId)
+  }, [scrollToTargetId, setActiveTab])
 
   return (
     <motion.div className="app-shell" {...fadeUp}>
@@ -2981,6 +3011,19 @@ function MainApp(props) {
       >
         <User size={18} />
       </button>
+      <Suspense fallback={null}>
+        <NotificationCenter
+          moneyReminders={moneyReminders}
+          savingsBuckets={savingsBuckets}
+          sharedGroups={sharedGroups}
+          sharedSummary={sharedSummary}
+          moneyBookSummary={moneyBookSummary}
+          reportHistory={reportHistory}
+          profile={profile}
+          navigateToTarget={navigateToTarget}
+          redownloadReport={redownloadReport}
+        />
+      </Suspense>
       <QuickAddFab openAddSheet={openAddSheet} />
       <main className="screen-panel">
         {activeTab === 'home' && (
@@ -3019,6 +3062,7 @@ function MainApp(props) {
               downloadPdf={downloadPdf}
               isExportingPdf={isExportingPdf}
               pdfError={pdfError}
+              navigateToTarget={navigateToTarget}
             />
           </Suspense>
         )}
@@ -4341,7 +4385,7 @@ function ProfileScreen({
         </span>
       </article>
 
-      <div className="finance-visual-grid">
+      <div className="finance-visual-grid" id="profile-bills-section">
         <FinanceDonut
           chart={fixedDistribution}
           action={(

@@ -1,13 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  Bell,
   CalendarDays,
   ChartPie,
-  Check,
-  CheckCheck,
-  ChevronDown,
   CreditCard,
   FileText,
   PiggyBank,
@@ -18,7 +14,6 @@ import {
   Target,
   TrendingUp,
   Wallet,
-  X,
 } from 'lucide-react'
 import { getFinanceColor } from '../lib/financeColors'
 import { reconcileSharedGroup } from '../lib/financialActivity'
@@ -533,161 +528,8 @@ function buildFinancialPulseItems({ moneyReminders = [], importantItems = [], ac
   ].filter(Boolean).slice(0, 6)
 }
 
-const notificationPriorityRank = {
-  High: 0,
-  Medium: 1,
-  Low: 2,
-}
-
-function notificationPriorityForReminder(reminder = {}) {
-  if (reminder.urgency === 'today' || reminder.dueLabel === 'Today' || reminder.dueLabel === 'Tomorrow') {
-    return reminder.direction === 'outgoing' || reminder.type === 'Settlement' ? 'High' : 'Medium'
-  }
-
-  if (reminder.urgency === 'soon') {
-    return 'Medium'
-  }
-
-  return 'Low'
-}
-
-function notificationTypeForReminder(reminder = {}) {
-  if (reminder.type === 'EMI' || reminder.type === 'Settlement' || reminder.direction === 'outgoing') {
-    return reminder.urgency === 'today' ? 'CRITICAL' : 'ACTION REQUIRED'
-  }
-
-  if (reminder.type === 'Salary') {
-    return 'INSIGHT'
-  }
-
-  return reminder.type === 'Goal' ? 'INSIGHT' : 'ACTION REQUIRED'
-}
-
-function notificationTabForReminder(reminder = {}) {
-  if (reminder.type === 'Goal') {
-    return 'planner'
-  }
-
-  if (reminder.type === 'Settlement' || reminder.type === 'Borrow/Lend') {
-    return 'history'
-  }
-
-  return 'profile'
-}
-
-function buildSmartNotifications({
-  moneyReminders = [],
-  activeGoals = [],
-  activeTrips = [],
-  latestReport,
-  monthlyReplay = {},
-  moneyFeed = [],
-} = {}) {
-  const notifications = moneyReminders.map((reminder) => ({
-    id: `money-${reminder.reminderId || reminder.id}`,
-    type: notificationTypeForReminder(reminder),
-    priority: notificationPriorityForReminder(reminder),
-    title: reminder.dueLabel === 'Open'
-      ? reminder.title
-      : `${reminder.title} ${String(reminder.dueLabel || 'soon').toLowerCase()}`,
-    message: reminder.message || `${reminder.type || 'Money'} needs attention.`,
-    amount: reminder.amount,
-    tone: eventTone(reminder),
-    tab: notificationTabForReminder(reminder),
-    icon: calendarEventIcon(reminder),
-  }))
-
-  if (activeTrips[0]?.pending > 0) {
-    notifications.push({
-      id: `trip-${activeTrips[0].id}`,
-      type: 'ACTION REQUIRED',
-      priority: 'Medium',
-      title: `${activeTrips[0].name || 'Trip'} settlement pending`,
-      message: `${rupees(activeTrips[0].pending)} is still unsettled across this trip.`,
-      amount: activeTrips[0].pending,
-      tone: 'transfer',
-      tab: 'history',
-      icon: Plane,
-    })
-  }
-
-  const goalNearFinish = activeGoals.find((goal) => goal.progress >= 70)
-
-  if (goalNearFinish) {
-    notifications.push({
-      id: `goal-${goalNearFinish.id}`,
-      type: 'INSIGHT',
-      priority: goalNearFinish.progress >= 90 ? 'High' : 'Medium',
-      title: `${goalNearFinish.name || 'Goal'} is ${goalNearFinish.progress}% complete`,
-      message: `${rupees(goalNearFinish.saved)} saved toward ${rupees(goalNearFinish.target)}.`,
-      amount: goalNearFinish.saved,
-      tone: 'transfer',
-      tab: 'planner',
-      icon: Target,
-    })
-  }
-
-  if (latestReport) {
-    notifications.push({
-      id: `report-${latestReport.reportId}`,
-      type: 'REPORT',
-      priority: 'Low',
-      title: latestReport.name || 'Latest report ready',
-      message: `${latestReport.period || 'Current period'} report is ready to open again.`,
-      tone: 'transfer',
-      tab: 'reports',
-      icon: FileText,
-      report: latestReport,
-    })
-  }
-
-  const latestStatement = moneyFeed.find((item) => /statement/i.test(`${item.title || ''} ${item.detail || ''} ${item.sourceModule || ''}`))
-
-  if (latestStatement) {
-    notifications.push({
-      id: `statement-${latestStatement.key}`,
-      type: 'REPORT',
-      priority: 'Medium',
-      title: 'Statement analysis complete',
-      message: latestStatement.title || 'A statement upload is available in your money feed.',
-      tone: 'transfer',
-      tab: 'reports',
-      icon: FileText,
-    })
-  }
-
-  if (monthlyReplay.expenses > 0 && monthlyReplay.topCategory) {
-    notifications.push({
-      id: `replay-${monthlyReplay.topCategory.name}`,
-      type: 'INSIGHT',
-      priority: 'Low',
-      title: `${monthlyReplay.topCategory.name} leads this month`,
-      message: `${rupees(monthlyReplay.topCategory.amount)} tracked in your top spending area.`,
-      amount: monthlyReplay.topCategory.amount,
-      tone: 'outgoing',
-      tab: 'history',
-      icon: TrendingUp,
-    })
-  }
-
-  return notifications
-    .sort((a, b) => (
-      notificationPriorityRank[a.priority] - notificationPriorityRank[b.priority]
-      || String(a.title).localeCompare(String(b.title))
-    ))
-    .slice(0, 8)
-}
-
-function buildSmartHeaderContext({ profile = {}, safeToSpend = {}, topNotification, activeGoals = [], status } = {}) {
+function buildSmartHeaderContext({ profile = {}, safeToSpend = {}, activeGoals = [], status } = {}) {
   const available = rupees(safeToSpend.comfortablyUsable)
-
-  if (topNotification) {
-    return {
-      eyebrow: getGreeting(profile.name),
-      title: `${available} available`,
-      detail: topNotification.title,
-    }
-  }
 
   const leadingGoal = activeGoals[0]
 
@@ -851,10 +693,8 @@ export default function TodayScreen({
   reportHistory = [],
   redownloadReport,
   setActiveTab,
+  navigateToTarget,
 }) {
-  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false)
-  const [readNotificationIds, setReadNotificationIds] = useState([])
-  const [dismissedNotificationIds, setDismissedNotificationIds] = useState([])
   const status = buildDailyMoneyStatus(financialState, safeToSpend)
   const statusLabel = financialState.pressure || safeToSpend.flexibilityLevel || 'Ready'
   const moneyFeed = useMemo(() => buildMoneyFeedItems(todayTransactions), [todayTransactions])
@@ -887,35 +727,9 @@ export default function TodayScreen({
     () => buildMonthlyReplay({ transactions: todayTransactions, savingsBuckets, sharedSummary, moneyBookSummary }),
     [moneyBookSummary, savingsBuckets, sharedSummary, todayTransactions],
   )
-  const smartNotifications = useMemo(
-    () => buildSmartNotifications({
-      moneyReminders,
-      activeGoals,
-      activeTrips,
-      latestReport,
-      monthlyReplay,
-      moneyFeed,
-    }),
-    [activeGoals, activeTrips, latestReport, moneyFeed, moneyReminders, monthlyReplay],
-  )
-  const visibleNotifications = useMemo(
-    () => smartNotifications.filter((notification) => !dismissedNotificationIds.includes(notification.id)),
-    [dismissedNotificationIds, smartNotifications],
-  )
-  const readNotificationHistory = useMemo(
-    () => smartNotifications
-      .filter((notification) => (
-        readNotificationIds.includes(notification.id)
-        || dismissedNotificationIds.includes(notification.id)
-      ))
-      .slice(0, 5),
-    [dismissedNotificationIds, readNotificationIds, smartNotifications],
-  )
-  const unreadCount = visibleNotifications.filter((notification) => !readNotificationIds.includes(notification.id)).length
-  const topNotification = visibleNotifications[0]
   const smartHeader = useMemo(
-    () => buildSmartHeaderContext({ profile, safeToSpend, topNotification, activeGoals, status }),
-    [activeGoals, profile, safeToSpend, status, topNotification],
+    () => buildSmartHeaderContext({ profile, safeToSpend, activeGoals, status }),
+    [activeGoals, profile, safeToSpend, status],
   )
   const insight = buildSingleTodayInsight({
     smartHomeInsights,
@@ -926,105 +740,14 @@ export default function TodayScreen({
   const storySentence = moneyStorySentence({ insight, replay: monthlyReplay, activeTrips })
   const trackedDays = buildTrackedDayCount(expenses)
   const actionChips = [
-    { label: 'Goals', icon: Target, tab: 'planner' },
-    { label: 'Trip', icon: Plane, tab: 'history' },
-    { label: 'Borrow', icon: Wallet, tab: 'history' },
-    { label: 'Lend', icon: CreditCard, tab: 'history' },
-    { label: 'EMI', icon: CalendarDays, tab: 'profile' },
-    { label: 'Reports', icon: ChartPie, tab: 'reports' },
+    { label: 'Goals', icon: Target, tab: 'planner', targetId: 'savings-goals-section' },
+    { label: 'Trip', icon: Plane, tab: 'history', targetId: 'shared-expenses-section' },
+    { label: 'Borrow', icon: Wallet, tab: 'history', targetId: 'money-book-section' },
+    { label: 'Lend', icon: CreditCard, tab: 'history', targetId: 'money-book-section' },
+    { label: 'EMI', icon: CalendarDays, tab: 'profile', targetId: 'profile-bills-section' },
+    { label: 'Reports', icon: ChartPie, tab: 'reports', targetId: 'reports-export-section' },
   ]
   const hasFutureSnapshot = hasUpcomingMoney(upcomingMoney) || futureSnapshot.events.length > 0
-  const hasNotificationCenter = visibleNotifications.length > 0 || readNotificationHistory.length > 0
-  const markNotificationRead = useCallback((notification) => {
-    if (!notification) {
-      return
-    }
-
-    setReadNotificationIds((current) => (
-      current.includes(notification.id) ? current : [notification.id, ...current]
-    ))
-    trackHomeInteraction('notification_mark_read', {
-      notification_type: notification.type,
-      priority: notification.priority,
-    })
-  }, [])
-  const dismissNotification = useCallback((notification) => {
-    if (!notification) {
-      return
-    }
-
-    setDismissedNotificationIds((current) => (
-      current.includes(notification.id) ? current : [notification.id, ...current]
-    ))
-    setReadNotificationIds((current) => (
-      current.includes(notification.id) ? current : [notification.id, ...current]
-    ))
-    trackHomeInteraction('notification_dismiss', {
-      notification_type: notification.type,
-      priority: notification.priority,
-    })
-  }, [])
-  const markAllNotificationsRead = useCallback(() => {
-    const unreadIds = visibleNotifications
-      .filter((notification) => !readNotificationIds.includes(notification.id))
-      .map((notification) => notification.id)
-
-    if (!unreadIds.length) {
-      return
-    }
-
-    setReadNotificationIds((current) => Array.from(new Set([...unreadIds, ...current])))
-    trackHomeInteraction('notification_mark_all_read', { count: unreadIds.length })
-  }, [readNotificationIds, visibleNotifications])
-  const clearReadNotifications = useCallback(() => {
-    const readIds = smartNotifications
-      .filter((notification) => readNotificationIds.includes(notification.id))
-      .map((notification) => notification.id)
-
-    if (!readIds.length) {
-      return
-    }
-
-    setDismissedNotificationIds((current) => Array.from(new Set([...readIds, ...current])))
-    setReadNotificationIds((current) => current.filter((id) => !readIds.includes(id)))
-    trackHomeInteraction('notification_clear_read', { count: readIds.length })
-  }, [readNotificationIds, smartNotifications])
-  const toggleNotificationCenter = useCallback(() => {
-    setIsNotificationCenterOpen((current) => {
-      const next = !current
-
-      if (next) {
-        trackHomeInteraction('notification_center_open', {
-          unread_count: unreadCount,
-          notification_count: visibleNotifications.length,
-        })
-      }
-
-      return next
-    })
-  }, [unreadCount, visibleNotifications.length])
-  const openNotification = useCallback((notification) => {
-    if (!notification) {
-      return
-    }
-
-    setReadNotificationIds((current) => (
-      current.includes(notification.id) ? current : [notification.id, ...current]
-    ))
-    trackHomeInteraction('notification_open', {
-      notification_type: notification.type,
-      priority: notification.priority,
-    })
-
-    if (notification.report) {
-      redownloadReport?.(notification.report)
-      return
-    }
-
-    if (notification.tab) {
-      setActiveTab?.(notification.tab)
-    }
-  }, [redownloadReport, setActiveTab])
   const openLatestReport = () => {
     if (!latestReport) {
       return
@@ -1046,17 +769,6 @@ export default function TodayScreen({
           {smartHeader.detail && <p className="smart-header-context">{smartHeader.detail}</p>}
         </div>
         <div className="today-header-actions">
-          {hasNotificationCenter && (
-            <button
-              className="notification-bell-button"
-              type="button"
-              aria-label={`Open notification center${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-              onClick={toggleNotificationCenter}
-            >
-              <Bell size={17} />
-              {unreadCount > 0 && <span>{unreadCount}</span>}
-            </button>
-          )}
           <span className={`today-status-pill ${financialState.pressureTone === 'slight-pressure' ? 'warm' : financialState.pressureTone}`}>
             {statusLabel}
           </span>
@@ -1067,7 +779,7 @@ export default function TodayScreen({
         <div>
           <span>Available this month</span>
           <strong>{rupees(safeToSpend.comfortablyUsable)}</strong>
-          <p>{topNotification?.title || status.detail}</p>
+          <p>{status.detail}</p>
         </div>
         <div className="hero-money-metrics" aria-label="Money status summary">
           <span>
@@ -1088,7 +800,14 @@ export default function TodayScreen({
             <button
               type="button"
               key={chip.label}
-              onClick={() => navigateFromHome(setActiveTab, chip.tab, 'home_action', { target: chip.label })}
+              onClick={() => {
+                trackHomeInteraction('home_action', { target: chip.label, section: chip.targetId })
+                if (navigateToTarget) {
+                  navigateToTarget(chip.tab, chip.targetId)
+                  return
+                }
+                navigateFromHome(setActiveTab, chip.tab, 'home_action', { target: chip.label })
+              }}
             >
               <Icon size={16} />
               <span>{chip.label}</span>
@@ -1096,86 +815,6 @@ export default function TodayScreen({
           )
         })}
       </div>
-
-      {hasNotificationCenter && (
-        <section className={`smart-notification-center ${isNotificationCenterOpen ? 'open' : ''}`} aria-label="Smart Notification Center">
-          <button
-            className="notification-center-summary"
-            type="button"
-            aria-expanded={isNotificationCenterOpen}
-            onClick={toggleNotificationCenter}
-          >
-            <span className="soft-icon">
-              <Bell size={17} />
-            </span>
-            <span>
-              <small>Smart Notifications</small>
-              <strong>{topNotification?.title || 'Read history is clear'}</strong>
-              <em>{topNotification?.message || 'No active financial alerts right now.'}</em>
-            </span>
-            <b className={unreadCount > 0 ? 'active' : ''}>{unreadCount > 0 ? `${unreadCount} unread` : 'Clear'}</b>
-            <ChevronDown size={17} />
-          </button>
-
-          {isNotificationCenterOpen && (
-            <div className="notification-center-panel">
-              {visibleNotifications.length > 0 && (
-                <>
-                  <div className="notification-center-actions">
-                    <span>{visibleNotifications.length} active</span>
-                    <button type="button" onClick={markAllNotificationsRead}>
-                      <CheckCheck size={14} />
-                      Mark read
-                    </button>
-                    <button type="button" onClick={clearReadNotifications}>
-                      Clear read
-                    </button>
-                  </div>
-                  <div className="notification-list">
-                    {visibleNotifications.map((notification) => {
-                      const Icon = notification.icon
-                      const isRead = readNotificationIds.includes(notification.id)
-
-                      return (
-                        <article className={`notification-card ${notification.priority.toLowerCase()} ${isRead ? 'read' : 'unread'}`} key={notification.id}>
-                          <button type="button" className="notification-main" onClick={() => openNotification(notification)}>
-                            <span className={`notification-type ${notification.type.toLowerCase().replace(/\s+/g, '-')}`}>{notification.type}</span>
-                            <Icon size={16} />
-                            <div>
-                              <strong>{notification.title}</strong>
-                              <small>{notification.message}</small>
-                            </div>
-                            <b>{notification.priority}</b>
-                          </button>
-                          <div className="notification-row-actions">
-                            <button type="button" aria-label={`Mark ${notification.title} read`} onClick={() => markNotificationRead(notification)}>
-                              <Check size={14} />
-                            </button>
-                            <button type="button" aria-label={`Dismiss ${notification.title}`} onClick={() => dismissNotification(notification)}>
-                              <X size={14} />
-                            </button>
-                          </div>
-                        </article>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-
-              {readNotificationHistory.length > 0 && (
-                <div className="notification-history">
-                  <span>Read history</span>
-                  {readNotificationHistory.map((notification) => (
-                    <small key={`history-${notification.id}`}>
-                      {notification.title}
-                    </small>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      )}
 
       {financialPulse.length > 0 && (
         <section className="financial-pulse-strip" aria-label="Financial Pulse">

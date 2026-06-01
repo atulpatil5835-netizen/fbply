@@ -202,7 +202,7 @@ export default function SharedExpensesPanel({
   }
 
   return (
-    <section className={`shared-panel ${variant === 'planner' ? 'planner-shared-panel' : variant === 'activity' ? 'activity-shared-panel' : ''}`}>
+    <section className={`shared-panel ${variant === 'planner' ? 'planner-shared-panel' : variant === 'activity' ? 'activity-shared-panel' : ''}`} id="shared-expenses-section">
       <div className="screen-heading compact-heading">
         <div>
           <p className="eyebrow">Shared money</p>
