@@ -3,8 +3,20 @@ import { CurrencyInput, EmptyState } from './AppPrimitives.jsx'
 import { normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { slugify } from '../lib/uiHelpers'
+import { trackEvent } from '../lib/analytics'
 
 export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavingsBucket, removeSavingsBucket }) {
+  const handleAddGoal = (source = 'header') => {
+    trackEvent(source === 'empty_state' ? 'empty_state_cta_clicked' : 'feature_discovery_click', {
+      surface: 'planner',
+      source,
+      empty_state: source === 'empty_state' ? 'savings_goals' : undefined,
+      feature: 'goals',
+      target: 'create_goal',
+    })
+    addSavingsBucket?.()
+  }
+
   return (
     <section className="savings-manager" id="savings-goals-section">
       <div className="section-heading-row">
@@ -13,7 +25,7 @@ export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavings
           <h2>Small goals, clearer comfort.</h2>
           <p className="section-note">Emergency fund, bike savings, laptop goal, or anything you want to protect.</p>
         </div>
-        <button className="ghost-button small-button" type="button" onClick={addSavingsBucket}>
+        <button className="ghost-button small-button" type="button" onClick={() => handleAddGoal('header')}>
           <Plus size={17} />
           Add goal
         </button>
@@ -21,10 +33,10 @@ export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavings
       <div className="bucket-grid">
         {buckets.length === 0 ? (
           <EmptyState
-            title="Give your next plan a place"
-            detail="A small savings goal makes progress visible without adding pressure."
-            actionLabel="Add goal"
-            onAction={addSavingsBucket}
+            title="Create your first savings goal"
+            detail="Protect a target like an emergency fund, trip, laptop, or debt payoff."
+            actionLabel="Create goal"
+            onAction={() => handleAddGoal('empty_state')}
             icon={PiggyBank}
           />
         ) : (

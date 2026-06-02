@@ -20,6 +20,7 @@ import { addMoney, normalizeMoney, sumMoney } from '../lib/money'
 import { rupees, shortRupees } from '../lib/ruleEngine'
 import { focusInvalidField } from '../lib/uiHelpers'
 import SharedExpensesPanel from './SharedExpenseScreen.jsx'
+import { trackEvent } from '../lib/analytics'
 
 const HISTORY_GROUP_BATCH_SIZE = 12
 
@@ -223,6 +224,24 @@ export default function ActivityScreen({
 
     return saved
   }, [closeMoneyBookModal, onSaveMoneyBookEntry])
+  const openExpenseFromEmptyState = useCallback(() => {
+    trackEvent('empty_state_cta_clicked', {
+      surface: 'activity',
+      empty_state: activityFilter === 'all' ? 'activity_timeline' : `${activityFilter}_timeline`,
+      target: 'add_expense',
+    })
+    openAddSheet?.('expense')
+  }, [activityFilter, openAddSheet])
+  const openMoneyBookFromDiscovery = useCallback((source = 'header') => {
+    trackEvent(source === 'empty_state' ? 'empty_state_cta_clicked' : 'feature_discovery_click', {
+      surface: 'activity',
+      source,
+      empty_state: source === 'empty_state' ? 'money_book' : undefined,
+      feature: 'borrow_lend',
+      target: 'add_borrow_lend',
+    })
+    setMoneyBookModalEntry({ kind: 'given', date: todayDateKey() })
+  }, [])
 
   return (
     <section className="screen-content history-screen">
@@ -260,10 +279,10 @@ export default function ActivityScreen({
       <section className="history-feed" aria-label="Unified financial activity timeline">
         {!hasHistory ? (
           <EmptyState
-            title={activityFilter === 'all' ? 'Start adding expenses' : `No ${activityFilter} activity yet`}
-            detail="Your saved money moves will appear here when they match this view."
+            title={activityFilter === 'all' ? 'Track your first spending move' : `No ${activityFilter} activity yet`}
+            detail="Add one expense to start the timeline. Income, goals, trips, and borrow/lend activity will appear as they are added."
             actionLabel="Add expense"
-            onAction={() => openAddSheet('expense')}
+            onAction={openExpenseFromEmptyState}
             icon={CalendarDays}
           />
         ) : visibleGroups.map((group) => {
@@ -330,7 +349,7 @@ export default function ActivityScreen({
 
       <MoneyBookPanel
         summary={moneyBookSummary}
-        onAdd={() => setMoneyBookModalEntry({ kind: 'given', date: todayDateKey() })}
+        onAdd={openMoneyBookFromDiscovery}
         onEdit={(entry) => setMoneyBookModalEntry(entry)}
         onToggleSettled={onToggleMoneyBookSettlement}
         onDelete={onDeleteMoneyBookEntry}
@@ -364,7 +383,7 @@ function CashflowStrip({ events = [] }) {
       <section className="cashflow-strip empty" aria-label="Monthly cashflow timeline">
         <div>
           <p className="eyebrow">Money flow</p>
-          <h2>No money moves yet</h2>
+          <h2>Add income or expense to build cashflow</h2>
         </div>
         <span>Empty</span>
       </section>
@@ -435,7 +454,7 @@ function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete
           <p className="eyebrow">Money Book</p>
           <h2>Borrow & lend</h2>
         </div>
-        <button className="primary-button small-button" type="button" onClick={onAdd}>
+        <button className="primary-button small-button" type="button" onClick={() => onAdd?.('header')}>
           <Plus size={15} />
           Add Entry
         </button>
@@ -453,13 +472,13 @@ function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete
       </div>
 
       {!hasEntries ? (
-        <button className="money-book-empty" type="button" onClick={onAdd}>
+        <button className="money-book-empty" type="button" onClick={() => onAdd?.('empty_state')}>
           <span className="soft-icon">
             <Wallet size={17} />
           </span>
           <span>
-            <strong>Track udhar without mental load.</strong>
-            <small>Add money given or taken. Activity and insights update automatically.</small>
+            <strong>Track your first borrow/lend entry</strong>
+            <small>Add money given or taken so pending settlements stay visible.</small>
           </span>
         </button>
       ) : (

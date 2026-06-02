@@ -11,6 +11,7 @@ import {
 import { normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { focusInvalidField, slugify } from '../lib/uiHelpers'
+import { trackEvent } from '../lib/analytics'
 
 export default function SharedExpensesPanel({
   groups,
@@ -66,7 +67,15 @@ export default function SharedExpensesPanel({
     })
   }
 
-  const focusSharedGroupName = () => {
+  const focusSharedGroupName = (source = 'manual') => {
+    if (source === 'empty_state') {
+      trackEvent('empty_state_cta_clicked', {
+        surface: 'shared_expenses',
+        empty_state: 'shared_groups',
+        target: 'create_trip_group',
+      })
+    }
+
     if (typeof document !== 'undefined') {
       document.getElementById('shared-group-name')?.focus()
     }
@@ -305,10 +314,10 @@ export default function SharedExpensesPanel({
       <div className="shared-list">
         {groups.length === 0 && (
           <EmptyState
-            title="Split costs without confusion"
-            detail="Add a group, participants, and payments. FBPly will show who owes whom."
-            actionLabel="Create a group"
-            onAction={focusSharedGroupName}
+            title="Split your first trip expense"
+            detail="Create a group, add people, then record the first payment when it happens."
+            actionLabel="Create trip group"
+            onAction={() => focusSharedGroupName('empty_state')}
             icon={User}
           />
         )}

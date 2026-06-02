@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import {
   ArrowDownLeft,
   ArrowUpRight,
   CalendarDays,
   ChartPie,
+  CheckCircle2,
   CreditCard,
   FileText,
   PiggyBank,
@@ -20,6 +21,7 @@ import { reconcileSharedGroup } from '../lib/financialActivity'
 import { getGreeting } from '../lib/financeVisuals'
 import { normalizeMoney, sumMoney } from '../lib/money'
 import { normalizeCommitments, rupees } from '../lib/ruleEngine'
+import { trackEvent, trackFeatureUsage } from '../lib/analytics'
 
 function buildDailyMoneyStatus(state, safeToSpend) {
   const safeAmount = normalizeMoney(safeToSpend?.comfortablyUsable)
@@ -96,11 +98,7 @@ function buildSingleTodayInsight({ smartHomeInsights = [], whatChangedInsights =
 }
 
 function trackHomeInteraction(action, detail = {}) {
-  if (typeof window === 'undefined' || typeof window.gtag !== 'function') {
-    return
-  }
-
-  window.gtag('event', `fbply_${action}`, {
+  trackEvent(action, {
     surface: 'today',
     ...detail,
   })
@@ -674,6 +672,115 @@ function hasUpcomingMoney(upcomingMoney = {}) {
     || normalizeMoney(upcomingMoney.next30?.outflow) > 0
 }
 
+function hasStatementReport(reportHistory = []) {
+  return reportHistory.some((report) => {
+    const reportText = `${report?.type || ''} ${report?.reportType || ''} ${report?.name || ''}`.toLowerCase()
+    return reportText.includes('statement')
+  })
+}
+
+function buildActivationItems({ expenses = [], savingsBuckets = [], reportHistory = [] } = {}) {
+  return [
+    {
+      key: 'first_expense',
+      title: 'Add first expense',
+      detail: 'Start the money timeline with one real spend.',
+      cta: 'Add expense',
+      completed: expenses.length > 0,
+      icon: Receipt,
+      feature: 'expense_saved',
+      target: 'expense',
+    },
+    {
+      key: 'first_goal',
+      title: 'Create first goal',
+      detail: 'Protect a target before flexible spending grows.',
+      cta: 'Create goal',
+      completed: savingsBuckets.length > 0,
+      icon: PiggyBank,
+      feature: 'goal_created',
+      tab: 'planner',
+      targetId: 'savings-goals-section',
+      target: 'goal',
+    },
+    {
+      key: 'first_report',
+      title: 'Generate first report',
+      detail: 'Turn activity into a share-ready monthly view.',
+      cta: 'Open reports',
+      completed: reportHistory.length > 0,
+      icon: FileText,
+      feature: 'reports',
+      tab: 'reports',
+      targetId: 'reports-export-section',
+      target: 'report',
+    },
+    {
+      key: 'statement_analysis',
+      title: 'Try statement analysis',
+      detail: 'Review statement rows before creating a report.',
+      cta: 'Analyze statement',
+      completed: hasStatementReport(reportHistory),
+      icon: ChartPie,
+      feature: 'statement_analysis_opened',
+      tab: 'reports',
+      targetId: 'reports-export-section',
+      target: 'statement',
+    },
+  ]
+}
+
+const intentShortcuts = [
+  {
+    key: 'track_spending',
+    label: 'Track Spending',
+    detail: 'Add an expense',
+    icon: Receipt,
+    feature: 'quick_add_opened',
+    target: 'expense',
+  },
+  {
+    key: 'save_money',
+    label: 'Save Money',
+    detail: 'Create a goal',
+    icon: PiggyBank,
+    feature: 'goal_created',
+    tab: 'planner',
+    targetId: 'savings-goals-section',
+    target: 'goal',
+  },
+  {
+    key: 'split_trip',
+    label: 'Split Trip',
+    detail: 'Open shared money',
+    icon: Plane,
+    feature: 'trip_created',
+    tab: 'history',
+    targetId: 'shared-expenses-section',
+    target: 'trip',
+  },
+  {
+    key: 'analyze_statement',
+    label: 'Analyze Statement',
+    detail: 'Open reports',
+    icon: ChartPie,
+    feature: 'reports',
+    tab: 'reports',
+    targetId: 'reports-export-section',
+    target: 'statement',
+  },
+  {
+    key: 'generate_report',
+    label: 'Generate Report',
+    detail: 'Monthly PDF',
+    icon: FileText,
+    feature: 'reports',
+    tab: 'reports',
+    targetId: 'reports-export-section',
+    target: 'report',
+  },
+]
+
 export default function TodayScreen({
   profile,
   financialState,
@@ -694,6 +801,7 @@ export default function TodayScreen({
   redownloadReport,
   setActiveTab,
   navigateToTarget,
+  openAddSheet,
 }) {
   const status = buildDailyMoneyStatus(financialState, safeToSpend)
   const statusLabel = financialState.pressure || safeToSpend.flexibilityLevel || 'Ready'
@@ -739,8 +847,18 @@ export default function TodayScreen({
   })
   const storySentence = moneyStorySentence({ insight, replay: monthlyReplay, activeTrips })
   const trackedDays = buildTrackedDayCount(expenses)
+  const activationItems = useMemo(
+    () => buildActivationItems({ expenses, savingsBuckets, reportHistory }),
+    [expenses, reportHistory, savingsBuckets],
+  )
+  const completedActivationCount = activationItems.filter((item) => item.completed).length
+  const totalActivationCount = activationItems.length
+  const nextActivationItem = activationItems.find((item) => !item.completed)
+  const activationProgress = Math.round((completedActivationCount / totalActivationCount) * 100)
+  const showActivationGuide = completedActivationCount < totalActivationCount
+  const showIntentShortcuts = completedActivationCount < 2
   const actionChips = [
-    { label: 'Goals', icon: Target, tab: 'planner', targetId: 'savings-goals-section' },
+    { label: 'Savings', icon: Target, tab: 'planner', targetId: 'savings-goals-section' },
     { label: 'Trip', icon: Plane, tab: 'history', targetId: 'shared-expenses-section' },
     { label: 'Borrow', icon: Wallet, tab: 'history', targetId: 'money-book-section' },
     { label: 'Lend', icon: CreditCard, tab: 'history', targetId: 'money-book-section' },
@@ -748,6 +866,58 @@ export default function TodayScreen({
     { label: 'Reports', icon: ChartPie, tab: 'reports', targetId: 'reports-export-section' },
   ]
   const hasFutureSnapshot = hasUpcomingMoney(upcomingMoney) || futureSnapshot.events.length > 0
+  const navigateToExistingTarget = (target = {}) => {
+    if (target.target === 'expense') {
+      openAddSheet?.('expense')
+      return
+    }
+
+    if (navigateToTarget && target.tab) {
+      navigateToTarget(target.tab, target.targetId)
+      return
+    }
+
+    if (target.tab) {
+      setActiveTab?.(target.tab)
+    }
+  }
+  const handleActivationClick = (item, source = 'checklist') => {
+    trackEvent('activation_checklist_cta_clicked', {
+      surface: 'today',
+      source,
+      step: item.key,
+      target: item.target,
+      completed_count: completedActivationCount,
+      total_count: totalActivationCount,
+    })
+    trackFeatureUsage('activation_checklist', {
+      surface: 'today',
+      source,
+      step: item.key,
+    })
+    navigateToExistingTarget(item, source)
+  }
+  const handleIntentShortcut = (shortcut) => {
+    trackEvent('intent_shortcut_clicked', {
+      surface: 'today',
+      intent: shortcut.key,
+      target: shortcut.target,
+    })
+    trackEvent('feature_discovery_click', {
+      surface: 'today',
+      feature: shortcut.target,
+      source: 'intent_shortcut',
+    })
+    trackFeatureUsage('intent_shortcut', {
+      surface: 'today',
+      intent: shortcut.key,
+    })
+    trackFeatureUsage(shortcut.feature, {
+      surface: 'today',
+      source: 'intent_shortcut',
+    })
+    navigateToExistingTarget(shortcut, 'intent_shortcut')
+  }
   const openLatestReport = () => {
     if (!latestReport) {
       return
@@ -759,6 +929,18 @@ export default function TodayScreen({
     })
     redownloadReport?.(latestReport)
   }
+
+  useEffect(() => {
+    if (!showActivationGuide) {
+      return
+    }
+
+    trackEvent('activation_checklist_viewed', {
+      surface: 'today',
+      completed_count: completedActivationCount,
+      total_count: totalActivationCount,
+    })
+  }, [completedActivationCount, showActivationGuide, totalActivationCount])
 
   return (
     <section className={`screen-content today-screen today-${status.tone}`}>
@@ -792,6 +974,82 @@ export default function TodayScreen({
           </span>
         </div>
       </article>
+
+      {showActivationGuide && (
+        <section className="activation-checklist-card" aria-label="Getting Started">
+          <div className="activation-checklist-header">
+            <div>
+              <p className="eyebrow">Getting Started</p>
+              <h2>{completedActivationCount}/{totalActivationCount} complete</h2>
+            </div>
+            <span>{activationProgress}%</span>
+          </div>
+          <div className="activation-progress-bar" aria-label={`${activationProgress}% complete`}>
+            <span style={{ width: `${activationProgress}%` }} />
+          </div>
+          <div className="activation-step-list">
+            {activationItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  className={item.completed ? 'completed' : ''}
+                  type="button"
+                  key={item.key}
+                  onClick={() => handleActivationClick(item, 'step_row')}
+                  disabled={item.completed}
+                >
+                  <span className="activation-step-icon">
+                    {item.completed ? <CheckCircle2 size={17} /> : <Icon size={17} />}
+                  </span>
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{item.detail}</small>
+                  </span>
+                  <b>{item.completed ? 'Done' : 'Start'}</b>
+                </button>
+              )
+            })}
+          </div>
+          {nextActivationItem && (
+            <button
+              className="primary-button activation-primary-action"
+              type="button"
+              onClick={() => handleActivationClick(nextActivationItem, 'primary_cta')}
+            >
+              {nextActivationItem.cta}
+            </button>
+          )}
+        </section>
+      )}
+
+      {showIntentShortcuts && (
+        <section className="intent-shortcut-panel" aria-label="Start with your intent">
+          <div className="section-heading-row">
+            <div>
+              <p className="eyebrow">Start Here</p>
+              <h2>Choose what you want to do first</h2>
+            </div>
+          </div>
+          <div className="intent-shortcut-grid">
+            {intentShortcuts.map((shortcut) => {
+              const Icon = shortcut.icon
+              return (
+                <button
+                  type="button"
+                  key={shortcut.key}
+                  onClick={() => handleIntentShortcut(shortcut)}
+                >
+                  <Icon size={17} />
+                  <span>
+                    <strong>{shortcut.label}</strong>
+                    <small>{shortcut.detail}</small>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       <div className="today-action-chips" aria-label="Action center">
         {actionChips.map((chip) => {

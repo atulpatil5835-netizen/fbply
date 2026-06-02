@@ -4,6 +4,7 @@ import { reconcileSharedGroup } from '../lib/financialActivity'
 import { normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { AppModal, EmptyState } from './AppPrimitives.jsx'
+import { trackEvent } from '../lib/analytics'
 
 const priorityRank = {
   High: 0,
@@ -12,11 +13,7 @@ const priorityRank = {
 }
 
 function trackNotificationInteraction(action, detail = {}) {
-  if (typeof window === 'undefined' || typeof window.gtag !== 'function') {
-    return
-  }
-
-  window.gtag('event', `fbply_${action}`, {
+  trackEvent(action, {
     surface: 'app_chrome',
     ...detail,
   })

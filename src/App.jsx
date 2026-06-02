@@ -93,11 +93,14 @@ import FinanceDonut from './components/FinanceDonut.jsx'
 import { CommitmentsEditor, CurrencyPreference } from './components/ProfileSettingsControls.jsx'
 import { SavingsBucketsManager } from './components/SavingsBucketsManager.jsx'
 import { focusInvalidField, slugify, titleCase } from './lib/uiHelpers'
+import { applySeoMetadata, getSeoMetaForPath, isPublicSeoRoute, normalizeSeoPath } from './lib/seoRoutes.js'
+import { trackActivation, trackEvent, trackFeatureUsage } from './lib/analytics'
 
 const ActivityScreen = lazy(() => import('./screens/ActivityScreen.jsx'))
 const GoalsScreen = lazy(() => import('./screens/GoalsScreen.jsx'))
 const LegalScreen = lazy(() => import('./screens/LegalScreen.jsx'))
 const NotificationCenter = lazy(() => import('./components/NotificationCenter.jsx'))
+const PublicSeoScreen = lazy(() => import('./screens/PublicSeoScreen.jsx'))
 const ReportsScreen = lazy(() => import('./components/ReportsScreen.jsx'))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen.jsx'))
 const TodayScreen = lazy(() => import('./screens/TodayScreen.jsx'))
@@ -140,6 +143,10 @@ const appFooterLinks = [
   { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Terms of Service', href: '/terms' },
   { label: 'Disclaimer', href: '/disclaimer' },
+  { label: 'Budget Planner', href: '/budget-planner' },
+  { label: 'Trip Splitter', href: '/trip-expense-splitter' },
+  { label: 'Financial Reports', href: '/monthly-financial-report' },
+  { label: 'Statement Analysis', href: '/bank-statement-analysis' },
   { label: 'Feedback', href: `mailto:${supportEmail}?subject=FBPly%20Feedback` },
   { label: 'Support FBPly', href: supportPaymentUrl, external: true },
   { label: 'About FBPly', href: '/about' },
@@ -205,8 +212,8 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
 const navItems = [
   { key: 'home', label: 'Today', icon: House },
   { key: 'history', label: 'Activity', icon: CalendarDays },
-  { key: 'planner', label: 'Goals', icon: Target },
-  { key: 'reports', label: 'Insights', icon: ChartPie },
+  { key: 'planner', label: 'Savings', icon: Target },
+  { key: 'reports', label: 'Reports', icon: ChartPie },
 ]
 
 const fixedExpenseSuggestions = ['Rent', 'Electricity', 'Internet', 'Petrol', 'Shopping', 'Food', 'Subscription']
@@ -443,12 +450,12 @@ const walkthroughSteps = [
   },
   {
     tab: 'planner',
-    title: 'Goals help you buy safely.',
+    title: 'Savings goals help you buy safely.',
     detail: 'Enter a target purchase and FBPly estimates a calmer path from your saved numbers.',
   },
   {
     tab: 'reports',
-    title: 'Insights stay simple.',
+    title: 'Reports stay simple.',
     detail: 'Short money notes appear first, with charts only where they help.',
   },
   {
@@ -903,6 +910,8 @@ function App() {
   const rewardTimerRef = useRef(null)
   const isOnline = useOnlineStatus()
   const activeCurrency = normalizeCurrency(profile.currency)
+  const normalizedCurrentPath = normalizeSeoPath(currentPath)
+  const isPublicSeoPage = isPublicSeoRoute(normalizedCurrentPath)
   setActiveCurrency(activeCurrency)
 
   useEffect(() => {
@@ -912,16 +921,11 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (typeof document === 'undefined') {
-      return
-    }
-
-    const pageTitle = legalPages[currentPath]?.title
-    document.title = pageTitle ? `FBPly | ${pageTitle}` : 'FBPly | Today'
-  }, [currentPath])
+    applySeoMetadata(normalizedCurrentPath, legalPages[normalizedCurrentPath])
+  }, [normalizedCurrentPath])
 
   useEffect(() => {
-    if (phase !== 'splash') {
+    if (isPublicSeoPage || phase !== 'splash') {
       return undefined
     }
 
@@ -945,7 +949,7 @@ function App() {
         window.clearTimeout(timer)
       }
     }
-  }, [hasCompletedSetup, hasSeenOnboarding, phase])
+  }, [hasCompletedSetup, hasSeenOnboarding, isPublicSeoPage, phase])
 
   useEffect(() => {
     const platform = typeof window !== 'undefined' ? window.Capacitor?.getPlatform?.() : ''
@@ -961,11 +965,15 @@ function App() {
   }, [activeCurrency])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSet('fbply-low-energy', 'false')
     safeStorageSet('fbply-haptics', 'false')
     safeStorageSet('fbply-touch-sounds', 'false')
     document.documentElement.dataset.energy = 'full'
-  }, [])
+  }, [isPublicSeoPage])
 
   useEffect(() => {
     const flushWhenHidden = () => {
@@ -985,48 +993,92 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSet('fbply-onboarding-complete', String(hasSeenOnboarding))
-  }, [hasSeenOnboarding])
+  }, [hasSeenOnboarding, isPublicSeoPage])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSet('fbply-setup-complete', String(hasCompletedSetup))
-  }, [hasCompletedSetup])
+  }, [hasCompletedSetup, isPublicSeoPage])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSetQueued('fbply-profile', JSON.stringify(profile))
-  }, [profile])
+  }, [isPublicSeoPage, profile])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSetQueued('fbply-expenses', JSON.stringify(expenses))
-  }, [expenses])
+  }, [expenses, isPublicSeoPage])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSetQueued('fbply-savings-buckets', JSON.stringify(savingsBuckets))
-  }, [savingsBuckets])
+  }, [isPublicSeoPage, savingsBuckets])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSetQueued('fbply-recurring-schedules', JSON.stringify(recurringSchedules))
-  }, [recurringSchedules])
+  }, [isPublicSeoPage, recurringSchedules])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSetQueued('fbply-shared-groups', JSON.stringify(sharedGroups))
-  }, [sharedGroups])
+  }, [isPublicSeoPage, sharedGroups])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSetQueued('fbply-money-book', JSON.stringify(moneyBookEntries))
-  }, [moneyBookEntries])
+  }, [isPublicSeoPage, moneyBookEntries])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSetQueued('fbply-voice-memory', JSON.stringify(voiceMemory))
-  }, [voiceMemory])
+  }, [isPublicSeoPage, voiceMemory])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSet('fbply-export-unlock-until', String(exportUnlockUntil))
-  }, [exportUnlockUntil])
+  }, [exportUnlockUntil, isPublicSeoPage])
 
   useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
     safeStorageSetQueued('fbply-report-history', JSON.stringify(reportHistory))
-  }, [reportHistory])
+  }, [isPublicSeoPage, reportHistory])
 
   useEffect(() => {
     return () => {
@@ -1051,7 +1103,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (isPublicSeoPage || !isSupabaseReady) {
       return undefined
     }
 
@@ -1094,7 +1146,7 @@ function App() {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [applyAuthUser, hasCompletedSetup])
+  }, [applyAuthUser, hasCompletedSetup, isPublicSeoPage])
 
   const financialActivity = useMemo(
     () => buildUnifiedFinanceEngine({
@@ -1330,16 +1382,24 @@ function App() {
   const handleEmailAuth = useCallback(async ({ mode, email, password, name }) => {
     const cleanEmail = String(email || '').trim().toLowerCase()
     const cleanName = String(name || '').trim()
+    const authMode = mode === 'signup' ? 'signup' : 'login'
 
     setAuthMessage('')
+    trackEvent('auth_submit', {
+      surface: 'auth',
+      auth_mode: authMode,
+      setup_completed: hasCompletedSetup,
+    })
 
     if (!cleanEmail || !cleanEmail.includes('@')) {
       setAuthMessage('Add a valid email address to continue.')
+      trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: 'invalid_email' })
       return
     }
 
     if (!password || password.length < 6) {
       setAuthMessage('Use a password with at least 6 characters.')
+      trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: 'short_password' })
       return
     }
 
@@ -1354,6 +1414,12 @@ function App() {
         name: cleanName || current.name,
         email: cleanEmail,
       }))
+      trackEvent(authMode === 'signup' ? 'signup_success' : 'login_success', {
+        surface: 'auth',
+        auth_mode: authMode,
+        auth_provider: 'local',
+        setup_completed: hasCompletedSetup,
+      })
       setPhase(hasCompletedSetup ? 'app' : 'setup')
       return
     }
@@ -1361,7 +1427,7 @@ function App() {
     setIsAuthBusy(true)
 
     try {
-      if (mode === 'signup') {
+      if (authMode === 'signup') {
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
@@ -1374,16 +1440,31 @@ function App() {
 
         if (error) {
           setAuthMessage(error.message || 'Sign up could not finish. Please try again.')
+          trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: 'signup_error' })
           return
         }
 
         if (data.session?.user) {
           applyAuthUser(data.session.user)
+          trackEvent('signup_success', {
+            surface: 'auth',
+            auth_mode: authMode,
+            auth_provider: 'supabase',
+            session_created: true,
+            setup_completed: hasCompletedSetup,
+          })
           setPhase(hasCompletedSetup ? 'app' : 'setup')
           return
         }
 
         setAuthMessage('Account created. Please confirm your email, then log in.')
+        trackEvent('signup_success', {
+          surface: 'auth',
+          auth_mode: authMode,
+          auth_provider: 'supabase',
+          confirmation_required: true,
+          setup_completed: hasCompletedSetup,
+        })
         return
       }
 
@@ -1394,10 +1475,17 @@ function App() {
 
       if (error) {
         setAuthMessage(error.message || 'Login could not finish. Please try again.')
+        trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: 'login_error' })
         return
       }
 
       applyAuthUser(data.user)
+      trackEvent('login_success', {
+        surface: 'auth',
+        auth_mode: authMode,
+        auth_provider: 'supabase',
+        setup_completed: hasCompletedSetup,
+      })
       setPhase(hasCompletedSetup ? 'app' : 'setup')
     } finally {
       setIsAuthBusy(false)
@@ -1499,8 +1587,21 @@ function App() {
 
     setExpenseFieldErrors({})
     setExpenses((current) => [newExpense, ...current])
+    trackFeatureUsage('expense_saved', {
+      expense_type: type,
+      source,
+      surface: 'quick_add',
+    })
+
+    if (expenses.length === 0) {
+      trackActivation('first_expense', {
+        expense_type: type,
+        source,
+      })
+    }
+
     return newExpense
-  }, [expenseMode])
+  }, [expenseMode, expenses.length])
 
   const addExpense = useCallback((event) => {
     event.preventDefault()
@@ -1618,8 +1719,19 @@ function App() {
       }),
       ...current,
     ])
+    trackFeatureUsage('trip_created', {
+      surface: 'shared_expenses',
+      member_count: members.length,
+    })
+
+    if (sharedGroups.length === 0) {
+      trackActivation('first_trip', {
+        member_count: members.length,
+      })
+    }
+
     return true
-  }, [profile])
+  }, [profile, sharedGroups.length])
 
   const addSharedPayment = useCallback((groupId, payment) => {
     const label = String(payment.label || '').trim()
@@ -1649,6 +1761,10 @@ function App() {
           : group,
       ),
     )
+    trackFeatureUsage('shared_payment_added', {
+      surface: 'shared_expenses',
+      participant_count: participants.length,
+    })
     return true
   }, [])
 
@@ -1702,6 +1818,11 @@ function App() {
       }
 
       return [saved, ...current]
+    })
+    trackFeatureUsage('borrow_lend_saved', {
+      surface: 'money_book',
+      entry_kind: saved.kind,
+      is_edit: Boolean(entry?.id),
     })
     return true
   }, [])
@@ -1757,7 +1878,17 @@ function App() {
 
   const addSavingsBucket = useCallback(() => {
     setSavingsBuckets((current) => [createBucket('New goal', 0, 10000), ...current])
-  }, [])
+    trackFeatureUsage('goal_created', {
+      surface: 'goals',
+      source: 'manual',
+    })
+
+    if (savingsBuckets.length === 0) {
+      trackActivation('first_goal', {
+        source: 'manual',
+      })
+    }
+  }, [savingsBuckets.length])
 
   const createSetupSavingsGoal = useCallback((goal) => {
     const name = String(goal?.name || '').trim()
@@ -1774,10 +1905,24 @@ function App() {
       },
       ...current,
     ])
-  }, [])
+    trackFeatureUsage('goal_created', {
+      surface: 'setup',
+      source: 'setup',
+    })
+
+    if (savingsBuckets.length === 0) {
+      trackActivation('first_goal', {
+        source: 'setup',
+      })
+    }
+  }, [savingsBuckets.length])
 
   const openAddSheet = useCallback((mode = 'menu') => {
     setAddSheetMode(mode)
+    trackFeatureUsage('quick_add_opened', {
+      surface: 'app_chrome',
+      mode,
+    })
   }, [])
 
   const closeAddSheet = useCallback(() => {
@@ -1999,9 +2144,28 @@ function App() {
       const { createReportPdfBlob } = await import('./lib/reportPdf')
       const blob = await createReportPdfBlob(activeRequest)
       const filename = `${reportId}.pdf`
+      const reportType = activeRequest.type || 'monthly'
+
+      trackEvent('report_generated', {
+        surface: 'reports',
+        report_type: reportType,
+        template: activeRequest.payload?.reportMeta?.template || reportTemplate,
+        save_history: saveHistory,
+      })
+
+      if (saveHistory && reportHistory.length === 0) {
+        trackActivation('first_report_generation', {
+          report_type: reportType,
+        })
+      }
 
       if (isNativeMobileApp()) {
         await sharePdfBlob(blob, filename)
+        trackEvent('report_shared', {
+          surface: 'reports',
+          report_type: reportType,
+          export_type: 'pdf',
+        })
       } else {
         const url = URL.createObjectURL(blob)
         const anchor = document.createElement('a')
@@ -2010,6 +2174,13 @@ function App() {
         anchor.click()
         URL.revokeObjectURL(url)
       }
+
+      trackEvent('report_exported', {
+        surface: 'reports',
+        report_type: reportType,
+        export_type: 'pdf',
+        save_history: saveHistory,
+      })
 
       if (saveHistory) {
         setReportHistory((current) => normalizeReportHistory([
@@ -2026,12 +2197,16 @@ function App() {
         ]))
       }
     } catch {
+      trackEvent('report_export_failed', {
+        surface: 'reports',
+        report_type: activeRequest?.type || 'monthly',
+      })
       setPdfError('The report could not be prepared. Please try again in a moment.')
     } finally {
       setIsExportingPdf(false)
       setExportingReportType('')
     }
-  }, [buildReportRequest, isExportingPdf, profile, reportTemplate, selectedMonthKey])
+  }, [buildReportRequest, isExportingPdf, profile, reportHistory.length, reportTemplate, selectedMonthKey])
 
   const requestReportExport = useCallback((type = 'monthly', overrides = {}) => {
     if (isExportingPdf) {
@@ -2041,23 +2216,39 @@ function App() {
     setPdfError('')
     const reportRequest = buildReportRequest(type, overrides)
     const prompt = buildReportExportPrompt(type, reportRequest, sharedGroups)
+    trackEvent('report_export_requested', {
+      surface: 'reports',
+      report_type: reportRequest.type || type,
+      template: reportRequest.payload?.reportMeta?.template || reportTemplate,
+      has_prompt: Boolean(prompt),
+    })
 
     if (prompt) {
       setPendingReportRequest(null)
       setReportExportPrompt(prompt)
+      trackEvent('export_blocked', {
+        surface: 'reports',
+        report_type: reportRequest.type || type,
+        reason: prompt.targetId || 'missing_data',
+      })
       return
     }
 
     setReportExportPrompt(null)
     setPendingReportRequest(reportRequest)
     setRewardedExport({ open: true, status: 'ready', progress: 0 })
-  }, [buildReportRequest, isExportingPdf, sharedGroups])
+  }, [buildReportRequest, isExportingPdf, reportTemplate, sharedGroups])
 
   const redownloadReport = useCallback((entry) => {
     if (!entry?.payload) {
       return
     }
 
+    trackEvent('report_reopened', {
+      surface: 'reports',
+      report_type: entry.type,
+      template: entry.template,
+    })
     downloadReportRequest({
       type: entry.type,
       reportId: entry.reportId,
@@ -2075,9 +2266,17 @@ function App() {
       rewardTimerRef.current = null
     }
 
+    if (pendingReportRequest && rewardedExport.status !== 'unlocked') {
+      trackEvent('export_abandoned', {
+        surface: 'reports',
+        report_type: pendingReportRequest.type,
+        reason: rewardedExport.status || 'modal_closed',
+      })
+    }
+
     setRewardedExport({ open: false, status: 'idle', progress: 0 })
     setPendingReportRequest(null)
-  }, [])
+  }, [pendingReportRequest, rewardedExport.status])
 
   const startRewardedExport = useCallback(() => {
     if (rewardedExport.status === 'watching') {
@@ -2100,6 +2299,10 @@ function App() {
         window.clearInterval(rewardTimerRef.current)
         rewardTimerRef.current = null
         setExportUnlockUntil(0)
+        trackEvent('ad_unlock_completed', {
+          surface: 'reports',
+          report_type: pendingReportRequest?.type || 'monthly',
+        })
         window.setTimeout(() => {
           setRewardedExport({ open: false, status: 'idle', progress: 0 })
           const request = pendingReportRequest
@@ -2117,10 +2320,23 @@ function App() {
   }, [requestReportExport])
 
   const clearReportExportPrompt = useCallback(() => {
+    if (reportExportPrompt) {
+      trackEvent('export_abandoned', {
+        surface: 'reports',
+        report_type: reportExportPrompt.type || 'unknown',
+        reason: 'prompt_later',
+      })
+    }
+
     setReportExportPrompt(null)
-  }, [])
+  }, [reportExportPrompt])
 
   const exportCsv = useCallback(async () => {
+    trackEvent('csv_export_started', {
+      surface: 'reports',
+      export_type: 'csv',
+      transaction_count: selectedMonthActivity.transactions.length,
+    })
     const header = 'date,direction,impact_type,category,title,amount,source_module,note'
     const rows = selectedMonthActivity.transactions.map((item) =>
       [
@@ -2145,9 +2361,18 @@ function App() {
           text: 'Your FBPly financial history export is ready.',
           dialogTitle: 'Save or share CSV',
         })
+        trackEvent('csv_exported', {
+          surface: 'reports',
+          export_type: 'csv',
+          delivery: 'native_share',
+        })
         return
       }
     } catch {
+      trackEvent('csv_export_failed', {
+        surface: 'reports',
+        export_type: 'csv',
+      })
       setPdfError('The CSV could not be prepared. Please try again in a moment.')
       return
     }
@@ -2158,9 +2383,25 @@ function App() {
     anchor.download = `FBPly-history-${selectedMonthKey}.csv`
     anchor.click()
     URL.revokeObjectURL(url)
+    trackEvent('csv_exported', {
+      surface: 'reports',
+      export_type: 'csv',
+      delivery: 'download',
+    })
   }, [selectedMonthActivity.transactions, selectedMonthKey])
 
-  const legalPage = legalPages[currentPath]
+  const legalPage = legalPages[normalizedCurrentPath]
+
+  if (isPublicSeoPage) {
+    return (
+      <div className="app-root" data-energy="full">
+        <Suspense fallback={<PublicSeoFallback path={normalizedCurrentPath} />}>
+          <PublicSeoScreen currentPath={normalizedCurrentPath} />
+        </Suspense>
+        <CookieConsentBanner />
+      </div>
+    )
+  }
 
   if (legalPage) {
     return (
@@ -2376,6 +2617,37 @@ function App() {
   )
 }
 
+function PublicSeoFallback({ path }) {
+  const meta = getSeoMetaForPath(path)
+
+  return (
+    <main className="seo-page-shell seo-fallback-shell">
+      <section className="seo-hero seo-fallback-hero" aria-label="FBPly public page">
+        <nav className="seo-top-nav" aria-label="Public FBPly navigation">
+          <a className="seo-logo-link" href="/">
+            <HeaderLogo />
+          </a>
+          <div>
+            <a href="/budget-planner">Budget Planner</a>
+            <a href="/trip-expense-splitter">Trip Splitter</a>
+            <a href="/faq">FAQ</a>
+          </div>
+        </nav>
+        <div className="seo-hero-grid">
+          <div className="seo-hero-copy">
+            <p className="eyebrow">{meta.breadcrumbLabel}</p>
+            <h1>{meta.title.replace(/^FBPly \| /, '').replace(/ \| FBPly.*$/, '')}</h1>
+            <p>{meta.description}</p>
+            <p className="seo-positioning-answer">
+              FBPly is a budget planner, trip expense splitter, financial report generator, and bank statement analyzer.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 function OfflineBanner({ isOnline }) {
   if (isOnline) {
     return null
@@ -2456,11 +2728,16 @@ function WelcomeScreen({ onStart }) {
         </section>
         <section className="entry-copy">
           <p className="eyebrow">Welcome to FBPly</p>
-          <h1>Let's build a clear monthly money picture.</h1>
+          <h1>Budget planning, shared expenses, and financial reports in one calm place.</h1>
           <p className="welcome-copy">
-            Start with a few numbers. FBPly uses them to show simple, honest guidance.
+            FBPly helps plan monthly budgets, split trip costs, generate reports, and analyze bank statements from reviewed data.
           </p>
         </section>
+        <nav className="welcome-feature-links" aria-label="Explore FBPly features">
+          <a href="/budget-planner">Budget Planner</a>
+          <a href="/trip-expense-splitter">Trip Splitter</a>
+          <a href="/bank-statement-analysis">Statement Analysis</a>
+        </nav>
         <button className="primary-button full" type="button" onClick={onStart}>
           Start
           <ChevronRight size={18} />
@@ -2492,6 +2769,9 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
   const [authMode, setAuthMode] = useState('login')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
+  const hasInteractedRef = useRef(false)
+  const hasSubmittedRef = useRef(false)
+  const latestAuthModeRef = useRef(authMode)
   const isSignup = authMode === 'signup'
   const authTitle = isSignup ? 'Create account' : 'Welcome back'
   const authTagline = isSignup ? 'Set up your private money workspace.' : 'Sign in to continue your money system.'
@@ -2501,10 +2781,31 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
       ...link,
       label: link.href === '/terms' ? 'Terms' : link.href === '/privacy' ? 'Privacy' : link.label,
     }))
+  const markAuthInteraction = () => {
+    hasInteractedRef.current = true
+  }
+
+  useEffect(() => {
+    latestAuthModeRef.current = authMode
+    trackEvent(isSignup ? 'signup_open' : 'login_open', {
+      surface: 'auth',
+      auth_mode: authMode,
+    })
+  }, [authMode, isSignup])
+
+  useEffect(() => () => {
+    if (hasInteractedRef.current && !hasSubmittedRef.current) {
+      trackEvent('auth_abandon', {
+        surface: 'auth',
+        auth_mode: latestAuthModeRef.current,
+      })
+    }
+  }, [])
 
   const submitAuth = (event) => {
     event.preventDefault()
     const form = event.currentTarget
+    hasSubmittedRef.current = true
     onEmailAuth({
       mode: authMode,
       email: form.querySelector('#email')?.value || email,
@@ -2537,7 +2838,10 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
                   value={name}
                   placeholder="Your name"
                   autoComplete="name"
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) => {
+                    markAuthInteraction()
+                    setName(event.target.value)
+                  }}
                 />
               </div>
             </>
@@ -2553,7 +2857,10 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
               value={email}
               placeholder="you@example.com"
               autoComplete="email"
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                markAuthInteraction()
+                setEmail(event.target.value)
+              }}
             />
           </div>
           <label className="input-label" htmlFor="password">
@@ -2566,6 +2873,7 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
               type="password"
               placeholder="Minimum 6 characters"
               autoComplete={isSignup ? 'new-password' : 'current-password'}
+              onChange={markAuthInteraction}
             />
           </div>
           <button className="primary-button full" type="submit" disabled={isAuthBusy}>
@@ -2576,7 +2884,10 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
             {isSignup ? 'Already have an account?' : 'New to FBPly?'}
             <button
               type="button"
-              onClick={() => setAuthMode(isSignup ? 'login' : 'signup')}
+              onClick={() => {
+                markAuthInteraction()
+                setAuthMode(isSignup ? 'login' : 'signup')
+              }}
             >
               {isSignup ? 'Sign in' : 'Create account'}
             </button>
@@ -2806,7 +3117,7 @@ function SetupScreen({ profile, setProfile, onCreateSavingsGoal, onComplete }) {
         <section className="setup-flow-card">
           <p className="eyebrow">Question {activeStep - 1}</p>
           <h1>Any savings goal to watch?</h1>
-          <p className="setup-soft-copy">Optional. Goals can be added later from the Goals screen.</p>
+          <p className="setup-soft-copy">Optional. Savings goals can be added later from the Savings screen.</p>
           <div className="setup-mini-form setup-goal-form">
             <input
               className="plain-input"
@@ -2856,7 +3167,7 @@ function SetupScreen({ profile, setProfile, onCreateSavingsGoal, onComplete }) {
       <section className="setup-flow-card">
         <p className="eyebrow">Ready</p>
         <h1>Your dashboard is ready.</h1>
-        <p className="setup-soft-copy">FBPly will use these numbers in Today, Activity, Goals, Insights, and Settings.</p>
+        <p className="setup-soft-copy">FBPly will use these numbers in Today, Activity, Savings, Reports, and Settings.</p>
         <div className="setup-review-grid">
           <div>
             <span>Income</span>
@@ -3077,6 +3388,13 @@ function MainApp(props) {
     removeSavingsBucket,
   } = props
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  useEffect(() => {
+    trackFeatureUsage(activeTab, {
+      surface: 'app_shell',
+      interaction: 'tab_viewed',
+    })
+  }, [activeTab])
+
   const scrollToTargetId = useCallback((targetId) => {
     if (!targetId || typeof window === 'undefined' || typeof document === 'undefined') {
       return
@@ -3112,6 +3430,10 @@ function MainApp(props) {
     }
 
     clearReportExportPrompt?.()
+    trackFeatureUsage('report_prompt_action', {
+      surface: 'reports',
+      target_tab: prompt.tab,
+    })
     navigateToTarget(prompt.tab, prompt.targetId)
   }, [clearReportExportPrompt, navigateToTarget])
 
@@ -3125,7 +3447,12 @@ function MainApp(props) {
         className="top-settings-button"
         type="button"
         aria-label="Open profile and settings"
-        onClick={() => setIsSettingsOpen(true)}
+        onClick={() => {
+          setIsSettingsOpen(true)
+          trackFeatureUsage('settings_opened', {
+            surface: 'app_chrome',
+          })
+        }}
       >
         <User size={18} />
       </button>
@@ -3177,6 +3504,7 @@ function MainApp(props) {
               recommendation={recommendation}
               lowEnergyMode={lowEnergyMode}
               setActiveTab={setActiveTab}
+              openAddSheet={openAddSheet}
               downloadPdf={downloadPdf}
               isExportingPdf={isExportingPdf}
               pdfError={pdfError}
@@ -3213,7 +3541,7 @@ function MainApp(props) {
           </Suspense>
         )}
         {activeTab === 'planner' && (
-          <Suspense fallback={<ScreenFallback eyebrow="Goals" title="Preparing goals" />}>
+          <Suspense fallback={<ScreenFallback eyebrow="Savings" title="Preparing savings goals" />}>
             <GoalsScreen
               plannerInput={plannerInput}
               setPlannerInput={setPlannerInput}
@@ -3430,8 +3758,8 @@ function ReportsFallback() {
     <section className="screen-content reports-screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">Insights</p>
-          <h1>Preparing your money notes</h1>
+          <p className="eyebrow">Reports</p>
+          <h1>Preparing monthly financial reports</h1>
         </div>
       </div>
       <article className="chart-card skeleton-card" />
@@ -3861,6 +4189,16 @@ function QuickIncomeEntry({ profile, setProfile, onSaved }) {
       }
 
       setProfile((current) => ({ ...current, income: parsed }))
+      trackFeatureUsage('income_saved', {
+        surface: 'quick_add',
+      })
+
+      if (normalizeMoney(profile.income) <= 0) {
+        trackActivation('first_income', {
+          source: 'quick_add',
+        })
+      }
+
       onSaved()
     }}>
       <CurrencyInput
@@ -3929,6 +4267,9 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
 
       updateSavingsBucket(selectedBucket.id, {
         saved: addMoney(selectedBucket.saved, parsed),
+      })
+      trackFeatureUsage('goal_transfer_saved', {
+        surface: 'quick_add',
       })
       onSaved()
     }}>

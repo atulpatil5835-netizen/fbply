@@ -1,0 +1,58 @@
+# FBPly
+
+FBPly is a financial clarity platform for monthly money planning.
+
+Primary positioning:
+- Budget Planner
+- Trip Expense Splitter
+- Financial Report Generator
+- Bank Statement Analyzer
+- Shared Expense Calculator
+
+What FBPly helps with:
+- Plan monthly budgets using income, bills, expenses, and savings goals.
+- Split trip and shared expenses by tracking who paid, who joined, and who owes whom.
+- Generate monthly financial reports, trip expense reports, settlement reports, and statement analysis reports.
+- Analyze supported bank statement PDFs or CSV files with review-first controls.
+- Keep privacy, terms, disclaimer, about, contact, and feedback links visible.
+- Preview realistic public sample reports with demo data only.
+- Use educational report templates for monthly reports, trip reports, settlement reports, and bank statement analysis.
+- Use public calculators for trip splits, EMI estimates, monthly budgets, and savings goals without login or saved data.
+- Read structured guides for budgeting, shared expenses, statement analysis, trip splitting, and report generation.
+
+Canonical public pages:
+- https://fbply.com/
+- https://fbply.com/budget-planner
+- https://fbply.com/trip-expense-splitter
+- https://fbply.com/monthly-financial-report
+- https://fbply.com/bank-statement-analysis
+- https://fbply.com/shared-expense-calculator
+- https://fbply.com/sample-monthly-financial-report
+- https://fbply.com/sample-trip-expense-report
+- https://fbply.com/sample-settlement-report
+- https://fbply.com/sample-bank-statement-analysis
+- https://fbply.com/monthly-financial-report-template
+- https://fbply.com/trip-expense-report-template
+- https://fbply.com/settlement-report-template
+- https://fbply.com/bank-statement-analysis-template
+- https://fbply.com/budget-calculator
+- https://fbply.com/trip-split-calculator
+- https://fbply.com/emi-calculator
+- https://fbply.com/savings-goal-calculator
+- https://fbply.com/guides/how-to-create-monthly-budget
+- https://fbply.com/guides/how-to-split-trip-expenses
+- https://fbply.com/guides/how-to-analyze-bank-statements
+- https://fbply.com/guides/how-to-manage-shared-expenses
+- https://fbply.com/guides/how-to-generate-financial-reports
+- https://fbply.com/faq
+- https://fbply.com/report-templates/monthly-financial-report
+- https://fbply.com/sample-reports
+
+Important notes:
+- FBPly is not a bank, financial institution, investment advisor, tax advisor, or legal advisor.
+- Public sample and template pages use illustrative structures only and do not expose user data.
+- Statement rows should be reviewed by the user before being used for decisions.
+- Public calculators are estimates only and do not replace professional advice.
+
+Contact:
+- contact@fbply.com

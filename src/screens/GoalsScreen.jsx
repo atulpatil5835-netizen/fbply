@@ -49,7 +49,7 @@ export default function GoalsScreen({
     <section className="screen-content goals-screen">
       <div className="screen-heading goals-heading">
         <div>
-          <p className="eyebrow">Goals</p>
+          <p className="eyebrow">Savings Goals</p>
           <h1>Plan the next money move.</h1>
           <p className="section-note">Start with the purchase. Savings goals stay close when you need them.</p>
         </div>

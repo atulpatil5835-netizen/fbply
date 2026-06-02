@@ -8,6 +8,7 @@ import { ChevronRight, Download, FileText, HeartHandshake, Trash2, Upload } from
 import { getFinanceColor } from '../lib/financeColors'
 import { addMoney, normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
+import { trackEvent, trackFeatureUsage } from '../lib/analytics'
 
 const StatementUploadSheet = lazy(() => import('./StatementUploadSheet.jsx'))
 const ReportCharts = lazy(() => import('./ReportCharts.jsx'))
@@ -332,6 +333,17 @@ export default function ReportsScreen({
   )
   const activeExportType = exportingReportType || (isExportingPdf ? 'monthly' : '')
   const isPreparingReport = (type) => isExportingPdf && activeExportType === type
+  const openStatementAnalysis = (source = 'header') => {
+    setIsImportOpen(true)
+    trackEvent('statement_analysis_opened', {
+      surface: 'reports',
+      source,
+    })
+    trackFeatureUsage('statement_analysis_opened', {
+      surface: 'reports',
+      source,
+    })
+  }
 
   const generateStatementReport = (statementPayload = {}) => {
     if (!requestReportExport) {
@@ -355,14 +367,18 @@ export default function ReportsScreen({
     <section className="screen-content reports-screen advanced-reports-screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">Insights</p>
-          <h1>Your money story</h1>
+          <p className="eyebrow">Monthly Financial Reports</p>
+          <h1>Your money report</h1>
           <p className="reports-subtitle">Short notes first. Charts only where they help.</p>
         </div>
         <div className="reports-header-actions">
-          <button className="report-import-button" type="button" onClick={() => setIsImportOpen(true)}>
+          <button
+            className="report-import-button"
+            type="button"
+            onClick={() => openStatementAnalysis('header')}
+          >
             <Upload size={16} />
-            <span>Import</span>
+            <span>Analyze</span>
           </button>
           <select
             className="month-select compact-month-select"
@@ -390,19 +406,55 @@ export default function ReportsScreen({
         </Suspense>
       )}
 
+      <article className="statement-discovery-card" aria-label="Statement analysis guide">
+        <span className="soft-icon">
+          <Upload size={18} />
+        </span>
+        <div>
+          <p className="eyebrow">Statement Analysis</p>
+          <h2>Review bank statement rows before creating a report</h2>
+          <p>Upload a PDF or CSV, check detected transactions, then generate a statement report from the reviewed data.</p>
+        </div>
+        <button
+          className="text-action-button"
+          type="button"
+          onClick={() => {
+            trackEvent('feature_discovery_click', {
+              surface: 'reports',
+              feature: 'statement_analysis',
+              source: 'statement_discovery_card',
+            })
+            trackFeatureUsage('feature_discovery_card', {
+              surface: 'reports',
+              feature: 'statement_analysis',
+              source: 'statement_discovery_card',
+            })
+            openStatementAnalysis('statement_discovery_card')
+          }}
+        >
+          Analyze statement
+        </button>
+      </article>
+
       <article className="professional-export-panel" id="reports-export-section">
         <div className="professional-export-heading">
           <div>
             <p className="eyebrow">Professional exports</p>
             <h2>Share-ready financial documents</h2>
-            <p>New report generation unlocks after the rewarded export step. Saved reports can be downloaded again from history.</p>
+            <p>Export a clean monthly, trip, settlement, or statement view with the summary, key numbers, insights, and recommendations in one place.</p>
           </div>
           <label className="report-template-select">
             <span>Template</span>
             <select
               className="month-select compact-month-select"
               value={reportTemplate}
-              onChange={(event) => setReportTemplate?.(event.target.value)}
+              onChange={(event) => {
+                setReportTemplate?.(event.target.value)
+                trackFeatureUsage('report_template_selected', {
+                  surface: 'reports',
+                  template: event.target.value,
+                })
+              }}
             >
               <option value="standard">Standard</option>
               <option value="executive">Executive</option>
@@ -410,15 +462,52 @@ export default function ReportsScreen({
             </select>
           </label>
         </div>
+        <div className="report-value-grid" aria-label="Report output includes">
+          <span>Executive Summary</span>
+          <span>Key Numbers</span>
+          <span>Insights</span>
+          <span>Recommendations</span>
+        </div>
         <div className="professional-export-actions">
-          <button className="action-button" type="button" onClick={downloadPdf} disabled={isExportingPdf}>
+          <button
+            className="action-button"
+            type="button"
+            onClick={() => {
+              trackEvent('report_conversion_click', {
+                surface: 'reports',
+                report_type: 'monthly',
+                source: 'professional_panel',
+              })
+              trackEvent('report_export_click', {
+                surface: 'reports',
+                report_type: 'monthly',
+                export_type: 'pdf',
+                placement: 'professional_panel',
+              })
+              downloadPdf?.()
+            }}
+            disabled={isExportingPdf}
+          >
             <FileText size={18} />
             {isPreparingReport('monthly') ? 'Preparing...' : 'Monthly Budget'}
           </button>
           <button
             className="action-button"
             type="button"
-            onClick={() => requestReportExport?.('trip', { template: reportTemplate })}
+            onClick={() => {
+              trackEvent('report_conversion_click', {
+                surface: 'reports',
+                report_type: 'trip',
+                source: 'professional_panel',
+              })
+              trackEvent('report_export_click', {
+                surface: 'reports',
+                report_type: 'trip',
+                export_type: 'pdf',
+                placement: 'professional_panel',
+              })
+              requestReportExport?.('trip', { template: reportTemplate })
+            }}
             disabled={isExportingPdf}
           >
             <FileText size={18} />
@@ -427,7 +516,20 @@ export default function ReportsScreen({
           <button
             className="action-button"
             type="button"
-            onClick={() => requestReportExport?.('settlement', { template: reportTemplate })}
+            onClick={() => {
+              trackEvent('report_conversion_click', {
+                surface: 'reports',
+                report_type: 'settlement',
+                source: 'professional_panel',
+              })
+              trackEvent('report_export_click', {
+                surface: 'reports',
+                report_type: 'settlement',
+                export_type: 'pdf',
+                placement: 'professional_panel',
+              })
+              requestReportExport?.('settlement', { template: reportTemplate })
+            }}
             disabled={isExportingPdf}
           >
             <FileText size={18} />
@@ -459,7 +561,7 @@ export default function ReportsScreen({
         </article>
       )}
 
-      {recentReportHistory.length > 0 && (
+      {recentReportHistory.length > 0 ? (
         <article className="report-history-locker">
           <div className="report-history-heading">
             <div>
@@ -499,6 +601,34 @@ export default function ReportsScreen({
             ))}
           </div>
         </article>
+      ) : (
+        <article className="report-history-empty-card">
+          <div>
+            <p className="eyebrow">Report history</p>
+            <h2>Generate your first financial report</h2>
+            <p>Once created, saved reports appear here for quick re-download.</p>
+          </div>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => {
+              trackEvent('empty_state_cta_clicked', {
+                surface: 'reports',
+                empty_state: 'report_history',
+                target: 'monthly_report',
+              })
+              trackEvent('report_conversion_click', {
+                surface: 'reports',
+                report_type: 'monthly',
+                source: 'history_empty_state',
+              })
+              downloadPdf?.()
+            }}
+            disabled={isExportingPdf}
+          >
+            Create monthly report
+          </button>
+        </article>
       )}
 
       <article className="report-advisory-card">
@@ -536,7 +666,14 @@ export default function ReportsScreen({
 
       <details
         className="report-details-panel"
-        onToggle={(event) => setIsDetailsOpen(event.currentTarget.open)}
+        onToggle={(event) => {
+          setIsDetailsOpen(event.currentTarget.open)
+          if (event.currentTarget.open) {
+            trackFeatureUsage('report_details_opened', {
+              surface: 'reports',
+            })
+          }
+        }}
       >
         <summary>
           <span>Detailed monthly report</span>
@@ -672,11 +809,35 @@ export default function ReportsScreen({
       </details>
 
       <div className="action-row">
-        <button className="action-button" type="button" onClick={downloadPdf} disabled={isExportingPdf}>
+        <button
+          className="action-button"
+          type="button"
+          onClick={() => {
+            trackEvent('report_export_click', {
+              surface: 'reports',
+              report_type: 'monthly',
+              export_type: 'pdf',
+              placement: 'bottom_action_row',
+            })
+            downloadPdf?.()
+          }}
+          disabled={isExportingPdf}
+        >
           <FileText size={20} />
           {isPreparingReport('monthly') ? 'Preparing...' : 'Export PDF'}
         </button>
-        <button className="action-button" type="button" onClick={exportCsv}>
+        <button
+          className="action-button"
+          type="button"
+          onClick={() => {
+            trackEvent('report_export_click', {
+              surface: 'reports',
+              export_type: 'csv',
+              placement: 'bottom_action_row',
+            })
+            exportCsv?.()
+          }}
+        >
           <Download size={20} />
           Export CSV
         </button>

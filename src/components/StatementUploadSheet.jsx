@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, FileSpreadsheet, Files, FileText, LockKeyh
 import { normalizeMoney, sumMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { safeStorageGet, safeStorageSetQueued } from '../lib/storage'
+import { trackActivation, trackEvent, trackFeatureUsage } from '../lib/analytics'
 
 const modes = [
   { key: 'reflection', label: 'Report' },
@@ -250,6 +251,7 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
   const [analysisWindow, setAnalysisWindow] = useState('3m')
   const [categoryMappings, setCategoryMappings] = useState(readCategoryMappings)
   const [userOverrides, setUserOverrides] = useState(0)
+  const hasTrackedStatementUploadRef = useRef(false)
 
   if (!isOpen) {
     return null
@@ -260,6 +262,11 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
     setAllowMultiple(multiple)
     setError('')
     setImportMessage('')
+    trackFeatureUsage('statement_upload_picker_opened', {
+      surface: 'statement_analysis',
+      mode,
+      multiple,
+    })
     window.setTimeout(() => inputRef.current?.click(), 0)
   }
 
@@ -273,15 +280,33 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
       const parsed = await parseStatementFiles(files, mode, { pdfPassword: password, categoryMappings })
       setResult(parsed)
       setPreviewTransactions(parsed.transactions || [])
+      trackEvent('statement_upload_parsed', {
+        surface: 'statement_analysis',
+        mode,
+        file_count: files?.length || 0,
+        transaction_count: parsed.transactions?.length || 0,
+        confidence_score: parsed.statementReport?.confidenceScore || 0,
+        historical_only: Boolean(parsed.historicalOnly),
+      })
     } catch (parseError) {
       if (parseError?.code === 'PDF_PASSWORD_REQUIRED') {
         setProtectedFiles((files || []).map((file) => ({ name: file.name, size: file.size })))
         setPendingFiles(files)
         setError('')
+        trackEvent('statement_upload_password_required', {
+          surface: 'statement_analysis',
+          mode,
+          file_count: files?.length || 0,
+        })
         return
       }
 
-      setError('Statement import preview could not be prepared. Please try another PDF or CSV file.')
+      setError('Statement analysis preview could not be prepared. Please try another PDF or CSV file.')
+      trackEvent('statement_upload_failed', {
+        surface: 'statement_analysis',
+        mode,
+        reason: parseError?.code || 'parse_failed',
+      })
     } finally {
       setIsParsing(false)
       setPdfPassword('')
@@ -297,6 +322,19 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
       return
     }
 
+    trackEvent('statement_upload_started', {
+      surface: 'statement_analysis',
+      mode,
+      file_count: files.length,
+    })
+
+    if (!hasTrackedStatementUploadRef.current) {
+      hasTrackedStatementUploadRef.current = true
+      trackActivation('first_statement_upload', {
+        source: 'statement_analysis',
+      })
+    }
+
     try {
       const { inspectStatementFilesForPasswords } = await import('../lib/statementImport')
       const passwordFiles = await inspectStatementFilesForPasswords(files)
@@ -305,12 +343,22 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
         setProtectedFiles(passwordFiles)
         setPendingFiles(files)
         setPdfPassword('')
+        trackEvent('statement_upload_password_required', {
+          surface: 'statement_analysis',
+          mode,
+          file_count: files.length,
+        })
         return
       }
 
       await safelyParseFiles(files)
     } catch {
-      setError('Statement import preview could not be prepared. Please try another PDF or CSV file.')
+      setError('Statement analysis preview could not be prepared. Please try another PDF or CSV file.')
+      trackEvent('statement_upload_failed', {
+        surface: 'statement_analysis',
+        mode,
+        reason: 'inspection_failed',
+      })
     }
   }
 
@@ -363,6 +411,10 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
         ? 'Review saved for this session. Older statements are not added to live balance or planner automatically.'
         : 'Review saved for this session. These rows are not added to live balance until import is confirmed.',
     )
+    trackFeatureUsage('statement_preview_confirmed', {
+      surface: 'statement_analysis',
+      transaction_count: previewTransactions.length,
+    })
   }
 
   const generateStatementReport = async () => {
@@ -373,6 +425,13 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
     const scopedTransactions = filterTransactionsByAnalysisWindow(previewTransactions, analysisWindow)
     const { buildStatementReport } = await import('../lib/statementImport')
     const statementReport = buildStatementReport(scopedTransactions)
+    trackEvent('statement_report_requested', {
+      surface: 'statement_analysis',
+      transaction_count: scopedTransactions.length,
+      analysis_window: analysisWindow,
+      user_overrides: userOverrides,
+      confidence_score: statementReport.confidenceScore || 0,
+    })
 
     onGenerateStatementReport({
       statementReport: {
@@ -398,15 +457,15 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
         className="statement-upload-sheet"
         role="dialog"
         aria-modal="true"
-        aria-label="Import bank statement"
+        aria-label="Analyze bank statement"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="statement-sheet-header">
           <div>
-            <p className="eyebrow">Statement import</p>
-            <h2>Import statement</h2>
+            <p className="eyebrow">Analyze Bank Statement</p>
+            <h2>Review statement activity</h2>
           </div>
-          <button className="icon-button" type="button" aria-label="Close statement import" onClick={onClose}>
+          <button className="icon-button" type="button" aria-label="Close statement analysis" onClick={onClose}>
             <X size={17} />
           </button>
         </div>
