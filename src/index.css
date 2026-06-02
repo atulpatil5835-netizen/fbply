@@ -4259,6 +4259,340 @@ img {
   gap: 12px;
 }
 
+.daily-book-screen {
+  max-width: 920px;
+  margin: 0 auto 16px;
+  gap: 12px;
+}
+
+.daily-book-heading {
+  align-items: flex-start;
+}
+
+.daily-book-add-button {
+  flex: 0 0 auto;
+}
+
+.daily-book-summary-panel,
+.daily-book-history-panel,
+.daily-book-day-group {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-bg);
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.1);
+}
+
+.daily-book-summary-panel {
+  min-height: 132px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(20, 184, 166, 0.11), transparent 66%),
+    var(--surface-bg);
+}
+
+.daily-book-summary-panel div {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.daily-book-summary-panel span,
+.daily-book-summary-panel p,
+.daily-book-insight-card span,
+.daily-book-insight-card small,
+.daily-book-expense-row p,
+.daily-book-expense-row time,
+.daily-book-day-heading small {
+  color: var(--muted);
+}
+
+.daily-book-summary-panel span,
+.daily-book-insight-card span,
+.daily-book-day-heading small {
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.daily-book-summary-panel strong {
+  font-size: clamp(30px, 7vw, 48px);
+  line-height: 1;
+}
+
+.daily-book-summary-panel p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.daily-book-date-pill {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid rgba(20, 184, 166, 0.22);
+  border-radius: 999px;
+  background: rgba(20, 184, 166, 0.08);
+  white-space: nowrap;
+}
+
+.daily-book-filter-row {
+  padding-bottom: 3px;
+}
+
+.daily-book-custom-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-bg);
+}
+
+.daily-book-custom-range label {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.daily-book-custom-range label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.daily-book-custom-range input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text);
+  background: var(--input-bg);
+  font-weight: 850;
+}
+
+.daily-book-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.daily-book-insight-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-bg);
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.08);
+}
+
+.daily-book-insight-card.outgoing,
+.daily-book-insight-card.up {
+  background:
+    linear-gradient(135deg, rgba(239, 68, 68, 0.09), transparent 70%),
+    var(--surface-bg);
+}
+
+.daily-book-insight-card.down {
+  background:
+    linear-gradient(135deg, rgba(34, 197, 94, 0.1), transparent 70%),
+    var(--surface-bg);
+}
+
+.daily-book-insight-card.month,
+.daily-book-insight-card.average,
+.daily-book-insight-card.highest,
+.daily-book-insight-card.category,
+.daily-book-insight-card.steady {
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, 0.08), transparent 72%),
+    var(--surface-bg);
+}
+
+.daily-book-insight-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 14px;
+  color: var(--cyan);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.daily-book-insight-card.outgoing .daily-book-insight-icon,
+.daily-book-insight-card.up .daily-book-insight-icon {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.24);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.daily-book-insight-card.down .daily-book-insight-icon {
+  color: var(--success);
+  border-color: rgba(34, 197, 94, 0.24);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.daily-book-insight-card div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.daily-book-insight-card strong,
+.daily-book-expense-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-book-insight-card strong {
+  font-size: 19px;
+  line-height: 1.14;
+}
+
+.daily-book-insight-card small,
+.daily-book-expense-row time {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-book-history-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.daily-book-history-panel .section-heading-row h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.daily-book-history-panel .section-heading-row > span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 999px;
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.07);
+  font-size: 12px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.daily-book-day-list,
+.daily-book-expense-list {
+  display: grid;
+}
+
+.daily-book-day-list {
+  gap: 10px;
+}
+
+.daily-book-day-group {
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.daily-book-day-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--soft-bg);
+}
+
+.daily-book-day-heading span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-book-day-heading span svg {
+  flex: 0 0 auto;
+  color: var(--cyan);
+}
+
+.daily-book-day-heading strong {
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+.daily-book-expense-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.daily-book-expense-row:last-child {
+  border-bottom: 0;
+}
+
+.daily-book-expense-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 14px;
+  background: var(--soft-bg);
+}
+
+.daily-book-expense-row div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.daily-book-expense-row p {
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-book-expense-amount {
+  justify-items: end;
+  text-align: right;
+}
+
+.daily-book-expense-amount strong {
+  color: var(--danger);
+}
+
 .activity-filter-row {
   display: grid;
   grid-auto-flow: column;
@@ -7769,6 +8103,10 @@ img {
   }
 
   .history-summary-grid,
+  .daily-book-summary-panel,
+  .daily-book-custom-range,
+  .daily-book-insight-grid,
+  .daily-book-day-heading,
   .money-book-summary-grid,
   .monthly-comparison-grid,
   .history-item,
@@ -7809,12 +8147,18 @@ img {
   }
 
   .money-book-header,
+  .daily-book-heading,
   .history-screen .screen-heading {
     align-items: stretch;
     flex-direction: column;
   }
 
   .month-selector {
+    width: 100%;
+  }
+
+  .daily-book-add-button,
+  .daily-book-custom-range .ghost-button {
     width: 100%;
   }
 
@@ -8387,6 +8731,16 @@ img {
 
   .today-feed-item {
     grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .daily-book-expense-row {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .daily-book-expense-amount {
+    grid-column: 2;
+    justify-items: start;
+    text-align: left;
   }
 
   .today-feed-item time {

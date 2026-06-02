@@ -1,7 +1,6 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  CalendarDays,
   Car,
   ChartPie,
   CheckCircle2,
@@ -97,6 +96,7 @@ import { applySeoMetadata, getSeoMetaForPath, isPublicSeoRoute, normalizeSeoPath
 import { trackActivation, trackEvent, trackFeatureUsage } from './lib/analytics'
 
 const ActivityScreen = lazy(() => import('./screens/ActivityScreen.jsx'))
+const DailyBookScreen = lazy(() => import('./screens/DailyBookScreen.jsx'))
 const GoalsScreen = lazy(() => import('./screens/GoalsScreen.jsx'))
 const LegalScreen = lazy(() => import('./screens/LegalScreen.jsx'))
 const NotificationCenter = lazy(() => import('./components/NotificationCenter.jsx'))
@@ -145,6 +145,9 @@ const appFooterLinks = [
   { label: 'Disclaimer', href: '/disclaimer' },
   { label: 'Budget Planner', href: '/budget-planner' },
   { label: 'Trip Splitter', href: '/trip-expense-splitter' },
+  { label: 'Expense Tracker', href: '/expense-tracker' },
+  { label: 'Daily Expense Book', href: '/daily-expense-book' },
+  { label: 'Personal Expense Tracker', href: '/personal-expense-tracker' },
   { label: 'Financial Reports', href: '/monthly-financial-report' },
   { label: 'Statement Analysis', href: '/bank-statement-analysis' },
   { label: 'Feedback', href: `mailto:${supportEmail}?subject=FBPly%20Feedback` },
@@ -211,7 +214,7 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
 
 const navItems = [
   { key: 'home', label: 'Today', icon: House },
-  { key: 'history', label: 'Activity', icon: CalendarDays },
+  { key: 'history', label: 'Daily', ariaLabel: 'Daily Book', icon: Receipt },
   { key: 'planner', label: 'Savings', icon: Target },
   { key: 'reports', label: 'Reports', icon: ChartPie },
 ]
@@ -3513,7 +3516,11 @@ function MainApp(props) {
           </Suspense>
         )}
         {activeTab === 'history' && (
-          <Suspense fallback={<ScreenFallback eyebrow="Activity" title="Preparing activity" />}>
+          <Suspense fallback={<ScreenFallback eyebrow="Daily Book" title="Preparing expense history" />}>
+            <DailyBookScreen
+              expenses={expenses}
+              openAddSheet={openAddSheet}
+            />
             <ActivityScreen
               groups={historyGroups}
               summary={transactionSummary}
@@ -5156,7 +5163,7 @@ function BottomNav({ activeTab, setActiveTab }) {
             className={activeTab === item.key ? 'active' : ''}
             key={item.key}
             type="button"
-            aria-label={item.label}
+            aria-label={item.ariaLabel || item.label}
             onClick={() => setActiveTab(item.key)}
           >
             <Icon size={20} />

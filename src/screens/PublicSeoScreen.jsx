@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  CalendarDays,
   ChartPie,
   CheckCircle2,
   ChevronRight,
@@ -21,6 +22,8 @@ import { trackEvent, trackFeatureUsage, trackPublicPageView } from '../lib/analy
 
 const workflowLinks = [
   { href: '/budget-planner', label: 'Budget Planner', icon: Wallet },
+  { href: '/expense-tracker', label: 'Expense Tracker', icon: Receipt },
+  { href: '/daily-expense-book', label: 'Daily Expense Book', icon: CalendarDays },
   { href: '/monthly-financial-report', label: 'Financial Reports', icon: ChartPie },
   { href: '/bank-statement-analysis', label: 'Statement Analysis', icon: Receipt },
   { href: '/trip-expense-splitter', label: 'Trip Expense Splitter', icon: Plane },
@@ -28,6 +31,7 @@ const workflowLinks = [
 ]
 
 const authorityLinks = [
+  { href: '/daily-expense-book', label: 'Daily Expense Book' },
   { href: '/sample-monthly-financial-report', label: 'Sample Reports' },
   { href: '/monthly-financial-report-template', label: 'Templates' },
   { href: '/budget-calculator', label: 'Calculators' },
@@ -78,6 +82,120 @@ const landingPages = {
         question: 'Does FBPly replace financial advice?',
         answer:
           'No. FBPly is a planning and reporting tool. Its outputs depend on user-entered or reviewed data and should be checked before important decisions.',
+      },
+    ],
+  },
+  '/expense-tracker': {
+    eyebrow: 'Expense Tracker',
+    title: 'Track daily expenses with budget awareness.',
+    intro:
+      'FBPly helps record personal expenses, review recent spending, and connect everyday money records with monthly planning context.',
+    answer:
+      'FBPly is an expense tracker for people who want daily spending visibility without creating a separate finance system. It uses saved expense records to show history, category patterns, and budget awareness beside monthly planning.',
+    who: 'For people tracking food, fuel, groceries, shopping, subscriptions, medical costs, travel, and other everyday expenses from one personal spending record.',
+    problems: [
+      'Small expenses are easy to forget when they are not recorded the same day.',
+      'Monthly budgets become unclear when daily spending is only reviewed at month end.',
+      'Category patterns are hard to spot when expenses sit in a mixed activity timeline.',
+    ],
+    how: [
+      'Add an expense from the existing quick add flow.',
+      'Review today, yesterday, 7-day, 30-day, or custom-range history.',
+      'Use totals, top category, daily average, and trend signals for budget awareness.',
+    ],
+    examples: [
+      'Track lunch, tea, fuel, groceries, and mobile recharge in one day.',
+      'Review the last 7 days before deciding on weekend spending.',
+      'Check the month-to-date top category before preparing a monthly report.',
+    ],
+    benefits: ['Daily visibility', 'Personal spending history', 'Budget awareness'],
+    related: ['/daily-expense-book', '/personal-expense-tracker', '/budget-planner', '/monthly-financial-report'],
+    faqs: [
+      {
+        question: 'What is an expense tracker?',
+        answer:
+          'An expense tracker records money spent across categories so a person can review daily history, monthly totals, and spending patterns.',
+      },
+      {
+        question: 'How does FBPly track expenses?',
+        answer:
+          'FBPly uses saved expense records added by the user and presents them through daily history, category summaries, and connected budget views.',
+      },
+    ],
+  },
+  '/daily-expense-book': {
+    eyebrow: 'Daily Expense Book',
+    title: 'Keep a daily expense book for everyday spending.',
+    intro:
+      'Review daily expense records for today, yesterday, the last 7 days, the last 30 days, or a custom date range.',
+    answer:
+      'FBPly is a daily expense book for personal spending tracking. It focuses on day-by-day expense visibility, using the same expense records that power the rest of the app.',
+    who: 'For users who want a simple daily book view before reviewing broader activity, reports, shared expenses, or monthly budget pressure.',
+    problems: [
+      'Daily spending gets hidden when income, goals, shared expenses, and borrow/lend entries are mixed together.',
+      'A month-end view can explain totals but not the day-by-day habit.',
+      'Users need quick access to today and yesterday before opening full reports.',
+    ],
+    how: [
+      'Open the Daily Book from the existing app navigation.',
+      'Choose Today, Yesterday, 7 Days, 30 Days, or Custom Range.',
+      'Open quick add from Daily Book when a new expense needs to be recorded.',
+    ],
+    examples: [
+      'Check how much was spent today before adding dinner or shopping.',
+      'Compare yesterday with today after a busy travel day.',
+      'Review a custom range before discussing household spending.',
+    ],
+    benefits: ['Today view', 'Date-range history', 'Spending pattern visibility'],
+    related: ['/expense-tracker', '/personal-expense-tracker', '/budget-planner', '/faq/track-recurring-expenses'],
+    faqs: [
+      {
+        question: 'What is a daily expense book?',
+        answer:
+          'A daily expense book is a day-wise record of personal expenses that helps review spending as it happens instead of only at month end.',
+      },
+      {
+        question: 'Does Daily Book create a new finance system in FBPly?',
+        answer:
+          'No. Daily Book presents the existing expense records already used by FBPly for activity, insights, and reports.',
+      },
+    ],
+  },
+  '/personal-expense-tracker': {
+    eyebrow: 'Personal Expense Tracker',
+    title: 'Understand personal spending patterns clearly.',
+    intro:
+      'Use FBPly to record personal expenses, review history, and see category-led spending patterns in daily and monthly context.',
+    answer:
+      'FBPly is a personal expense tracker for budget awareness. It helps people record spending, understand top categories, notice recent trends, and keep personal expenses connected to monthly planning.',
+    who: 'For salary earners, students, families, solo workers, and anyone who wants a practical spending record without overcomplicating the budget.',
+    problems: [
+      'Personal spending decisions are often made without seeing recent totals.',
+      'Top categories can quietly grow when small purchases are scattered.',
+      'Budget awareness is weaker when expense tracking is disconnected from reports.',
+    ],
+    how: [
+      'Save everyday spending as an expense.',
+      'Review personal spending history by day or date range.',
+      'Use category and trend summaries to prepare better monthly reviews.',
+    ],
+    examples: [
+      'Track personal food, travel, fuel, subscription, and shopping expenses.',
+      'Review the highest spending day in a month.',
+      'Check recent trend before a planned purchase.',
+    ],
+    benefits: ['Personal spending tracking', 'Top category clarity', 'Monthly budget awareness'],
+    related: ['/expense-tracker', '/daily-expense-book', '/monthly-financial-report', '/guides/how-to-create-monthly-budget'],
+    faqs: [
+      {
+        question: 'What should a personal expense tracker show?',
+        answer:
+          'It should show saved expenses, daily totals, date-range history, top categories, and enough context to support budget awareness.',
+      },
+      {
+        question: 'Can expense tracking improve budget awareness?',
+        answer:
+          'Yes. Reviewing daily and monthly spending patterns helps a person understand where money is going before the month ends.',
       },
     ],
   },
@@ -1457,7 +1575,7 @@ function WorkflowLinks({ currentPath }) {
     <section className="seo-band seo-workflow-band" aria-label="FBPly internal workflow">
       <div className="seo-section-heading">
         <p className="eyebrow">Workflow</p>
-        <h2>Budget to reports to shared expenses</h2>
+        <h2>Expense tracking to budget awareness</h2>
       </div>
       <div className="seo-flow-row">
         {workflowLinks.map((link, index) => {
@@ -1484,6 +1602,8 @@ function SeoHeader({ page }) {
         </a>
         <div>
           <a href="/budget-planner">Budget Planner</a>
+          <a href="/expense-tracker">Expense Tracker</a>
+          <a href="/daily-expense-book">Daily Book</a>
           <a href="/trip-expense-splitter">Trip Splitter</a>
           <a href="/budget-calculator">Calculators</a>
           <a href="/sample-monthly-financial-report">Samples</a>
@@ -1496,11 +1616,14 @@ function SeoHeader({ page }) {
           <h1>{page.title}</h1>
           <p>{page.intro}</p>
           <p className="seo-positioning-answer">
-            FBPly is a budget planner, trip expense splitter, financial report generator, and bank
-            statement analyzer.
+            FBPly is a budget planner, expense tracker, daily expense book, financial report
+            generator, and bank statement analyzer.
           </p>
           <div className="seo-identity-tags" aria-label="FBPly core use cases">
             <span>Budget Planner</span>
+            <span>Expense Tracker</span>
+            <span>Daily Expense Book</span>
+            <span>Personal Spending Tracking</span>
             <span>Trip Expense Splitter</span>
             <span>Financial Report Generator</span>
             <span>Bank Statement Analyzer</span>

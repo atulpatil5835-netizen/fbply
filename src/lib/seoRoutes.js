@@ -4,7 +4,7 @@ export const supportEmail = 'contact@fbply.com'
 export const founderName = 'Atul Sadanand Hinge'
 export const founderLinkedInUrl = 'https://www.linkedin.com/in/atul-hinge-304aab155/'
 export const defaultSeoDescription =
-  'FBPly is a budget planner, trip expense splitter, financial report generator, and bank statement analyzer for clearer monthly money decisions.'
+  'FBPly is a budget planner, expense tracker, trip expense splitter, financial report generator, and bank statement analyzer for clearer monthly money decisions.'
 export const defaultSeoTitle = 'FBPly | Budget Planner, Expense Splitter & Reports'
 
 export const seoRouteMeta = {
@@ -19,6 +19,27 @@ export const seoRouteMeta = {
     description:
       'Plan monthly budgets with FBPly using income, bills, flexible spending, savings goals, and simple guidance for real-life purchases.',
     breadcrumbLabel: 'Budget Planner',
+    type: 'landing',
+  },
+  '/expense-tracker': {
+    title: 'Expense Tracker | FBPly',
+    description:
+      'Track everyday expenses, review spending history, and connect personal expense records with monthly budget awareness in FBPly.',
+    breadcrumbLabel: 'Expense Tracker',
+    type: 'landing',
+  },
+  '/daily-expense-book': {
+    title: 'Daily Expense Book | FBPly',
+    description:
+      'Use FBPly as a daily expense book to view today, yesterday, 7-day, 30-day, and custom-range personal spending records.',
+    breadcrumbLabel: 'Daily Expense Book',
+    type: 'landing',
+  },
+  '/personal-expense-tracker': {
+    title: 'Personal Expense Tracker | FBPly',
+    description:
+      'Record personal spending, understand top categories, and review daily expense history without creating a separate finance system.',
+    breadcrumbLabel: 'Personal Expense Tracker',
     type: 'landing',
   },
   '/trip-expense-splitter': {
@@ -403,6 +424,9 @@ function softwareApplicationSchema() {
     },
     featureList: [
       'Budget planner',
+      'Expense tracker',
+      'Daily expense book',
+      'Personal spending tracker',
       'Trip expense splitter',
       'Financial report generator',
       'Bank statement analyzer',
@@ -537,7 +561,7 @@ export function applySeoMetadata(path = '/', legalPage, extraSchemas = []) {
   setMetaTag(
     'name',
     'keywords',
-    'budget planner, trip expense splitter, financial report generator, bank statement analyzer, shared expense calculator',
+    'budget planner, expense tracker, daily expense book, personal expense tracker, personal spending tracker, trip expense splitter, financial report generator, bank statement analyzer, shared expense calculator',
   )
   setCanonicalLink(meta.canonical)
   setMetaTag('property', 'og:url', meta.canonical)

@@ -16,6 +16,9 @@ const PUBLIC_PAGE_EVENT_BY_TYPE = {
 const KNOWN_FEATURES = [
   'home',
   'history',
+  'daily_book',
+  'daily_book_history_filter',
+  'daily_book_insights',
   'planner',
   'reports',
   'profile',
