@@ -4,15 +4,19 @@ export const voiceCategoryOptions = [
   'Food',
   'Grocery',
   'Fuel',
+  'Transport',
   'Travel',
   'Shopping',
   'Subscription',
+  'Bills',
   'Loan',
   'Housing',
   'Medical',
   'Entertainment',
   'Education',
   'Personal',
+  'Income',
+  'Refund',
   'Other',
 ]
 
@@ -88,6 +92,7 @@ const numberWords = new Map(
     '\u0905\u0915\u0930\u093e': 11,
     twelve: 12,
     bara: 12,
+    barah: 12,
     '\u092c\u093e\u0930\u0939': 12,
     '\u092c\u093e\u0930\u093e': 12,
     thirteen: 13,
@@ -166,6 +171,13 @@ const numberWords = new Map(
     paanchso: 500,
     '\u092a\u093e\u091a\u0936\u0947': 500,
     '\u092a\u093e\u0902\u091a\u0938\u094b': 500,
+    atharasau: 1800,
+    athrasau: 1800,
+    atharahsau: 1800,
+    atharashe: 1800,
+    athrashe: 1800,
+    barahsau: 1200,
+    barashe: 1200,
   }),
 )
 
@@ -203,11 +215,34 @@ const fillerWords = new Set([
   'pay',
   'spent',
   'expense',
+  'kharch',
+  'kharach',
+  'gaye',
+  'gaya',
+  'hue',
+  'hua',
+  'li',
+  'liya',
+  'liye',
+  'aayi',
+  'aaya',
+  'received',
+  'mila',
+  'mili',
   'today',
+  'yesterday',
   'aaj',
   'aj',
+  'kal',
+  'parso',
+  'morning',
+  'night',
+  'last',
+  'this',
   'for',
   'on',
+  'pe',
+  'per',
   'ka',
   'ke',
   'ki',
@@ -224,6 +259,7 @@ const fillerWords = new Set([
   '\u0928\u0947',
   '\u0932\u093e',
   '\u0906\u091c',
+  '\u0915\u0932',
   '\u0906\u091c\u091a\u093e',
   '\u0906\u091c\u091a\u0947',
   '\u0906\u091c\u091a\u0940',
@@ -231,6 +267,11 @@ const fillerWords = new Set([
   '\u091a\u093e',
   '\u091a\u0940',
   '\u0916\u0930\u094d\u091a',
+  '\u0917\u092f\u0947',
+  '\u0917\u092f\u093e',
+  '\u0932\u0940',
+  '\u0918\u0947\u0924\u0932\u0940',
+  '\u092e\u093f\u0933\u093e\u0932\u0947',
 ])
 
 const labelAliases = new Map(
@@ -239,9 +280,14 @@ const labelAliases = new Map(
     '\u091c\u0947\u0935\u0923': 'Food',
     khana: 'Food',
     food: 'Food',
+    lunch: 'Lunch',
+    dinner: 'Dinner',
+    breakfast: 'Breakfast',
+    meal: 'Meal',
     tea: 'Tea',
     chai: 'Tea',
     chaha: 'Tea',
+    coffee: 'Coffee',
     '\u091a\u093e\u092f': 'Tea',
     '\u091a\u0939\u093e': 'Tea',
     snack: 'Snacks',
@@ -251,6 +297,12 @@ const labelAliases = new Map(
     grocery: 'Grocery',
     groceries: 'Grocery',
     kirana: 'Kirana',
+    dmart: 'Dmart',
+    'd-mart': 'Dmart',
+    reliance: 'Reliance',
+    fresh: 'Fresh',
+    big: 'Big',
+    bazaar: 'Bazaar',
     '\u0915\u093f\u0930\u093e\u0928\u093e': 'Kirana',
     zomato: 'Zomato',
     swiggy: 'Swiggy',
@@ -260,6 +312,14 @@ const labelAliases = new Map(
     '\u092a\u0947\u091f\u094d\u0930\u094b\u0932': 'Petrol',
     diesel: 'Diesel',
     fuel: 'Fuel',
+    uber: 'Uber',
+    ola: 'Ola',
+    bus: 'Bus',
+    cab: 'Cab',
+    taxi: 'Taxi',
+    auto: 'Auto',
+    rickshaw: 'Rickshaw',
+    metro: 'Metro',
     rent: 'Rent',
     bhade: 'Rent',
     kiraya: 'Rent',
@@ -272,8 +332,20 @@ const labelAliases = new Map(
     wifi: 'Internet',
     broadband: 'Internet',
     '\u0928\u0947\u091f': 'Internet',
+    jio: 'Jio',
+    airtel: 'Airtel',
+    electricity: 'Electricity',
+    bijli: 'Electricity',
+    bill: 'Bill',
+    mobile: 'Mobile',
+    recharge: 'Recharge',
     netflix: 'Netflix',
     prime: 'Prime',
+    spotify: 'Spotify',
+    amazon: 'Amazon',
+    flipkart: 'Flipkart',
+    movie: 'Movie',
+    cinema: 'Cinema',
     shopping: 'Shopping',
     medical: 'Medical',
     dawa: 'Medical',
@@ -281,8 +353,84 @@ const labelAliases = new Map(
     '\u0926\u0935\u093e': 'Medical',
     hotel: 'Hotel',
     trip: 'Trip',
+    salary: 'Salary',
+    income: 'Income',
+    freelance: 'Freelance',
+    bonus: 'Bonus',
+    commission: 'Commission',
+    refund: 'Refund',
+    cashback: 'Cashback',
+    reward: 'Reward',
   }),
 )
+
+const merchantRules = [
+  {
+    merchant: 'Swiggy',
+    category: 'Food',
+    aliases: ['swiggy'],
+  },
+  {
+    merchant: 'Zomato',
+    category: 'Food',
+    aliases: ['zomato'],
+  },
+  {
+    merchant: 'Uber',
+    category: 'Transport',
+    aliases: ['uber'],
+  },
+  {
+    merchant: 'Ola',
+    category: 'Transport',
+    aliases: ['ola'],
+  },
+  {
+    merchant: 'Amazon',
+    category: 'Shopping',
+    aliases: ['amazon'],
+  },
+  {
+    merchant: 'Flipkart',
+    category: 'Shopping',
+    aliases: ['flipkart'],
+  },
+  {
+    merchant: 'Netflix',
+    category: 'Subscription',
+    aliases: ['netflix'],
+  },
+  {
+    merchant: 'Spotify',
+    category: 'Subscription',
+    aliases: ['spotify'],
+  },
+  {
+    merchant: 'Jio',
+    category: 'Bills',
+    aliases: ['jio', 'jio recharge'],
+  },
+  {
+    merchant: 'Airtel',
+    category: 'Bills',
+    aliases: ['airtel', 'airtel recharge'],
+  },
+  {
+    merchant: 'Dmart',
+    category: 'Grocery',
+    aliases: ['dmart', 'd mart', 'd-mart'],
+  },
+  {
+    merchant: 'Reliance Fresh',
+    category: 'Grocery',
+    aliases: ['reliance fresh'],
+  },
+  {
+    merchant: 'Big Bazaar',
+    category: 'Grocery',
+    aliases: ['big bazaar'],
+  },
+]
 
 const categoryRules = [
   {
@@ -290,16 +438,24 @@ const categoryRules = [
     keywords: ['petrol', 'diesel', 'fuel', 'cng', '\u092a\u0947\u091f\u094d\u0930\u094b\u0932'],
   },
   {
+    category: 'Transport',
+    keywords: ['uber', 'ola', 'cab', 'taxi', 'auto', 'rickshaw', 'metro', 'train', 'bus', 'transport', 'commute', 'parking', 'toll'],
+  },
+  {
     category: 'Food',
-    keywords: ['food', 'khana', 'zomato', 'swiggy', 'restaurant', 'tea', 'chai', 'chaha', 'coffee', 'snack', 'snacks', 'nashta', '\u0916\u093e\u0928\u093e', '\u091c\u0947\u0935\u0923', '\u091a\u093e\u092f', '\u091a\u0939\u093e', '\u0928\u093e\u0936\u094d\u0924\u093e'],
+    keywords: ['food', 'khana', 'meal', 'lunch', 'dinner', 'breakfast', 'zomato', 'swiggy', 'restaurant', 'cafe', 'tea', 'chai', 'chaha', 'coffee', 'snack', 'snacks', 'nashta', '\u0916\u093e\u0928\u093e', '\u091c\u0947\u0935\u0923', '\u091a\u093e\u092f', '\u091a\u0939\u093e', '\u0928\u093e\u0936\u094d\u0924\u093e'],
   },
   {
     category: 'Grocery',
-    keywords: ['milk', 'doodh', 'grocery', 'groceries', 'kirana', 'ration', 'vegetable', 'vegetables', '\u0926\u0942\u0927', '\u0915\u093f\u0930\u093e\u0928\u093e'],
+    keywords: ['milk', 'doodh', 'grocery', 'groceries', 'kirana', 'ration', 'vegetable', 'vegetables', 'fruit', 'fruits', 'sabji', 'bhaji', '\u0926\u0942\u0927', '\u0915\u093f\u0930\u093e\u0928\u093e', '\u092d\u093e\u091c\u0940'],
+  },
+  {
+    category: 'Bills',
+    keywords: ['bill', 'bills', 'electricity', 'bijli', 'power', 'water', 'utility', 'utilities', 'mobile', 'recharge', 'postpaid', 'prepaid', 'phone', 'gas'],
   },
   {
     category: 'Subscription',
-    keywords: ['netflix', 'prime', 'hotstar', 'spotify', 'internet', 'wifi', 'broadband', 'subscription', 'recharge', '\u0928\u0947\u091f'],
+    keywords: ['netflix', 'prime', 'hotstar', 'spotify', 'youtube', 'internet', 'wifi', 'broadband', 'subscription', '\u0928\u0947\u091f'],
   },
   {
     category: 'Loan',
@@ -330,6 +486,37 @@ const categoryRules = [
     keywords: ['school', 'college', 'course', 'book', 'books', 'fees', 'tuition'],
   },
 ]
+
+const incomeRules = [
+  {
+    category: 'Income',
+    confidence: 'high',
+    keywords: ['salary', 'income', 'freelance', 'bonus', 'commission'],
+  },
+  {
+    category: 'Income',
+    confidence: 'high',
+    keywords: ['payment received', 'received payment', 'money received', 'payment aayi', 'payment aaya'],
+  },
+  {
+    category: 'Income',
+    confidence: 'medium',
+    keywords: ['received', 'aayi', 'aaya', 'mila', 'mili'],
+  },
+  {
+    category: 'Refund',
+    confidence: 'high',
+    keywords: ['refund', 'cashback', 'reward'],
+  },
+]
+
+const connectorWords = new Set([
+  'and',
+  'aur',
+  'ani',
+  '\u0914\u0930',
+  '\u0906\u0923\u093f',
+])
 
 function normalizeDigits(value) {
   return String(value).replace(/[\u0966-\u096f]/g, (digit) => digitMap[digit] || digit)
@@ -427,24 +614,6 @@ export function normalizeVoiceLabelKey(value) {
     .trim()
 }
 
-function labelFromTokens(tokens, amountStart, amountEnd) {
-  const labelTokens = tokens
-    .filter((item, index) => index < amountStart || index > amountEnd)
-    .map((item) => item.clean)
-    .filter((token) => token && !fillerWords.has(token))
-
-  if (labelTokens.length === 0) {
-    return ''
-  }
-
-  const exactAlias = labelTokens.map((token) => labelAliases.get(token)).find(Boolean)
-  if (exactAlias && labelTokens.length === 1) {
-    return exactAlias
-  }
-
-  return titleCase(labelTokens.join(' '))
-}
-
 function memoryCategoryForLabel(label, memory) {
   const key = normalizeVoiceLabelKey(label)
   const memoryItem = memory?.[key]
@@ -453,11 +622,53 @@ function memoryCategoryForLabel(label, memory) {
     return null
   }
 
+  const learningSource = String(memoryItem.learningSource || memoryItem.source || '').trim()
+  const isUserDefined = ['manual', 'user', 'correction'].includes(learningSource)
+
   return {
     category: memoryItem.category,
-    confidence: memoryItem.count > 1 ? 'high' : 'medium',
-    source: 'memory',
+    confidence: isUserDefined || memoryItem.count > 1 ? 'high' : 'medium',
+    source: 'learned_merchant',
+    reason: 'Learned Merchant',
+    merchant: memoryItem.merchant || memoryItem.label || label,
+    matchedTerm: key,
   }
+}
+
+function knownMerchantForText(text) {
+  const textKey = normalizeVoiceLabelKey(text)
+
+  if (!textKey) {
+    return null
+  }
+
+  let best = null
+
+  merchantRules.forEach((rule) => {
+    rule.aliases.forEach((alias) => {
+      const aliasKey = normalizeVoiceLabelKey(alias)
+
+      if (!aliasKey || !` ${textKey} `.includes(` ${aliasKey} `)) {
+        return
+      }
+
+      const score = aliasKey.split(/\s+/).length * 2 + aliasKey.length / 100
+
+      if (!best || score > best.score) {
+        best = {
+          category: rule.category,
+          confidence: 'high',
+          source: 'known_merchant',
+          reason: 'Known Merchant',
+          merchant: rule.merchant,
+          matchedTerm: aliasKey,
+          score,
+        }
+      }
+    })
+  })
+
+  return best
 }
 
 function categoryFromRules(label, cleanTranscript) {
@@ -491,23 +702,75 @@ function categoryFromRules(label, cleanTranscript) {
   })
 
   if (best.score >= 4) {
-    return { category: best.category, confidence: 'high', source: best.keyword }
+    return {
+      category: best.category,
+      confidence: 'high',
+      source: 'keyword_match',
+      reason: 'Keyword Match',
+      matchedTerm: best.keyword,
+    }
   }
 
   if (best.score >= 2) {
-    return { category: best.category, confidence: 'medium', source: best.keyword }
+    return {
+      category: best.category,
+      confidence: 'medium',
+      source: 'keyword_match',
+      reason: 'Keyword Match',
+      matchedTerm: best.keyword,
+    }
   }
 
-  return { category: 'Other', confidence: 'low', source: 'fallback' }
+  return {
+    category: 'Other',
+    confidence: 'low',
+    source: 'fallback',
+    reason: 'Low Confidence',
+    matchedTerm: '',
+  }
 }
 
-function confidenceFrom({ amountInfo, categoryConfidence, label }) {
+function detectIncome(cleanTranscript, label) {
+  const transcriptKey = normalizeVoiceLabelKey(cleanTranscript)
+  const labelKey = normalizeVoiceLabelKey(label)
+  const searchable = `${labelKey} ${transcriptKey}`.trim()
+  let best = null
+
+  incomeRules.forEach((rule) => {
+    rule.keywords.forEach((keyword) => {
+      const key = normalizeVoiceLabelKey(keyword)
+
+      if (!key || !` ${searchable} `.includes(` ${key} `)) {
+        return
+      }
+
+      const score = rule.confidence === 'high' ? 2 : 1
+      if (!best || score > best.score) {
+        best = {
+          type: 'income',
+          category: rule.category,
+          confidence: rule.confidence,
+          source: 'income_keyword',
+          reason: 'Income Keyword',
+          matchedTerm: key,
+          score,
+        }
+      }
+    })
+  })
+
+  return best
+}
+
+function confidenceFrom({ amountInfo, categoryConfidence, label, type = 'daily', dateInfo }) {
   const amountConfidence = amountInfo.hasDigit || amountInfo.usedMultiplier ? 'high' : 'medium'
   const labelConfidence = label ? 'high' : 'low'
   const score =
     (amountConfidence === 'high' ? 2 : 1) +
     (categoryConfidence === 'high' ? 2 : categoryConfidence === 'medium' ? 1 : 0) +
-    (labelConfidence === 'high' ? 1 : 0)
+    (labelConfidence === 'high' ? 1 : 0) +
+    (type === 'income' ? 1 : 0) +
+    (dateInfo?.source && dateInfo.source !== 'default' ? 1 : 0)
 
   if (score >= 5) {
     return { confidence: 'high', amountConfidence, labelConfidence, score }
@@ -517,20 +780,17 @@ function confidenceFrom({ amountInfo, categoryConfidence, label }) {
     return { confidence: 'medium', amountConfidence, labelConfidence, score }
   }
 
-  return { confidence: 'review', amountConfidence, labelConfidence, score }
+  return { confidence: 'low', amountConfidence, labelConfidence, score }
 }
 
-export function parseVoiceExpense(transcript, memory = {}) {
-  const cleanTranscript = normalizeDigits(transcript || '').trim()
-  const tokens = cleanTranscript
+function tokenizeTranscript(value) {
+  return String(value || '')
     .split(/\s+/)
     .map((raw) => ({ raw, clean: cleanToken(raw) }))
     .filter((item) => item.clean)
+}
 
-  if (tokens.length === 0) {
-    return null
-  }
-
+function amountSequencesFromTokens(tokens) {
   const sequences = []
   let current = []
   let start = 0
@@ -554,42 +814,251 @@ export function parseVoiceExpense(transcript, memory = {}) {
     sequences.push({ start, end: tokens.length - 1, tokens: current })
   }
 
-  const amountSequence = sequences
+  return sequences
     .map((sequence) => ({ ...sequence, ...parseNumberTokens(sequence.tokens) }))
     .filter((sequence) => sequence.amount > 0)
-    .at(-1)
+}
 
-  if (!amountSequence) {
+function isLabelToken(token) {
+  return Boolean(token) && !fillerWords.has(token) && !connectorWords.has(token) && !isNumberToken(token)
+}
+
+function labelSignalScore(tokens) {
+  const label = titleCase(tokens.filter(isLabelToken).join(' '))
+
+  if (!label) {
+    return 0
+  }
+
+  const category = categoryFromRules(label, label)
+  const income = detectIncome(label, label)
+
+  return (category.category !== 'Other' ? 2 : 0) + (income ? 2 : 0) + (tokens.length > 0 ? 1 : 0)
+}
+
+function labelFromCandidateTokens(tokens) {
+  const labelTokens = tokens.filter(isLabelToken)
+
+  if (labelTokens.length === 0) {
+    return ''
+  }
+
+  const exactAlias = labelTokens.map((token) => labelAliases.get(token)).find(Boolean)
+  if (exactAlias && labelTokens.length === 1) {
+    return exactAlias
+  }
+
+  return titleCase(labelTokens.join(' '))
+}
+
+function labelFromAmountContext(tokens, amountStart, amountEnd) {
+  const beforeTokens = tokens.slice(0, amountStart).map((item) => item.clean)
+  const afterTokens = tokens.slice(amountEnd + 1).map((item) => item.clean)
+  const beforeScore = labelSignalScore(beforeTokens)
+  const afterScore = labelSignalScore(afterTokens)
+
+  if (beforeScore > 0 && beforeScore >= afterScore) {
+    return labelFromCandidateTokens(beforeTokens)
+  }
+
+  if (afterScore > 0) {
+    return labelFromCandidateTokens(afterTokens)
+  }
+
+  return labelFromCandidateTokens([...beforeTokens, ...afterTokens])
+}
+
+function isoDateWithOffset(offsetDays) {
+  const date = new Date()
+  date.setHours(12, 0, 0, 0)
+  date.setDate(date.getDate() + offsetDays)
+  return date.toISOString().slice(0, 10)
+}
+
+function detectVoiceDate(transcript) {
+  const key = normalizeVoiceLabelKey(transcript)
+
+  if (/\blast night\b/.test(key)) {
+    return {
+      date: isoDateWithOffset(-1),
+      dateLabel: 'Last night',
+      dateConfidence: 'medium',
+      source: 'last_night',
+    }
+  }
+
+  if (/\bthis morning\b/.test(key)) {
+    return {
+      date: isoDateWithOffset(0),
+      dateLabel: 'This morning',
+      dateConfidence: 'high',
+      source: 'this_morning',
+    }
+  }
+
+  if (/\b(today|aaj|aj)\b/.test(key) || key.includes('\u0906\u091c')) {
+    return {
+      date: isoDateWithOffset(0),
+      dateLabel: 'Today',
+      dateConfidence: 'high',
+      source: 'today',
+    }
+  }
+
+  if (/\b(yesterday|kal)\b/.test(key) || key.includes('\u0915\u0932')) {
+    return {
+      date: isoDateWithOffset(-1),
+      dateLabel: 'Yesterday',
+      dateConfidence: 'medium',
+      source: 'yesterday',
+    }
+  }
+
+  if (/\b(parso|parva)\b/.test(key)) {
+    return {
+      date: isoDateWithOffset(-2),
+      dateLabel: 'Parso',
+      dateConfidence: 'low',
+      source: 'parso',
+    }
+  }
+
+  return {
+    date: isoDateWithOffset(0),
+    dateLabel: 'Today',
+    dateConfidence: 'low',
+    source: 'default',
+  }
+}
+
+function splitVoiceClauses(transcript) {
+  return String(transcript || '')
+    .replace(/[;,]+/g, ' | ')
+    .replace(/\s+(?:and|aur|ani|\u0914\u0930|\u0906\u0923\u093f)\s+/giu, ' | ')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function parseClauseEntries(clause, memory, dateInfo, fullTranscript) {
+  const tokens = tokenizeTranscript(clause)
+
+  if (tokens.length === 0) {
+    return []
+  }
+
+  const amountSequences = amountSequencesFromTokens(tokens)
+
+  return amountSequences
+    .map((amountSequence, index) => {
+      const previousSequence = amountSequences[index - 1]
+      const nextSequence = amountSequences[index + 1]
+      const contextStart = previousSequence ? previousSequence.end + 1 : 0
+      const contextEnd = nextSequence ? nextSequence.start - 1 : tokens.length - 1
+      const contextTokens = tokens.slice(contextStart, contextEnd + 1)
+      const localAmountStart = amountSequence.start - contextStart
+      const localAmountEnd = amountSequence.end - contextStart
+      const label = labelFromAmountContext(contextTokens, localAmountStart, localAmountEnd)
+
+      if (!label) {
+        return null
+      }
+
+      const clauseText = contextTokens.map((item) => item.raw).join(' ') || clause
+      const memoryCategory = memoryCategoryForLabel(label, memory)
+      const merchantMatch = knownMerchantForText(`${label} ${clauseText}`)
+      const incomeMatch = detectIncome(`${clauseText} ${fullTranscript}`, label)
+      const categoryMatch = incomeMatch
+        ? {
+            category: incomeMatch.category,
+            confidence: incomeMatch.confidence,
+            source: incomeMatch.source,
+            reason: incomeMatch.reason,
+            matchedTerm: incomeMatch.matchedTerm,
+          }
+        : memoryCategory || merchantMatch || categoryFromRules(label, clauseText)
+      const type = incomeMatch ? 'income' : 'daily'
+      const confidenceInfo = confidenceFrom({
+        amountInfo: amountSequence,
+        categoryConfidence: categoryMatch.confidence,
+        label,
+        type,
+        dateInfo,
+      })
+
+      return {
+        transcript: normalizeDigits(clauseText).trim(),
+        fullTranscript: normalizeDigits(fullTranscript).trim(),
+        amount: normalizeMoney(amountSequence.amount),
+        label,
+        category: categoryMatch.category,
+        categoryConfidence: categoryMatch.confidence,
+        confidence: confidenceInfo.confidence,
+        confidenceScore: confidenceInfo.score,
+        amountConfidence: confidenceInfo.amountConfidence,
+        labelConfidence: confidenceInfo.labelConfidence,
+        source: categoryMatch.source,
+        categoryReason: categoryMatch.reason,
+        matchedTerm: categoryMatch.matchedTerm,
+        merchant: categoryMatch.merchant || merchantMatch?.merchant || '',
+        type,
+        date: dateInfo.date,
+        dateLabel: dateInfo.dateLabel,
+        dateConfidence: dateInfo.dateConfidence,
+        canQuickSave: confidenceInfo.confidence === 'high' && categoryMatch.category !== 'Other',
+      }
+    })
+    .filter(Boolean)
+}
+
+export function parseVoiceExpenseEntries(transcript, memory = {}) {
+  const cleanTranscript = normalizeDigits(transcript || '').trim()
+
+  if (!cleanTranscript) {
+    return []
+  }
+
+  const dateInfo = detectVoiceDate(cleanTranscript)
+  const clauseEntries = splitVoiceClauses(cleanTranscript)
+    .flatMap((clause) => parseClauseEntries(clause, memory, dateInfo, cleanTranscript))
+
+  if (clauseEntries.length > 0) {
+    return clauseEntries
+  }
+
+  return parseClauseEntries(cleanTranscript, memory, dateInfo, cleanTranscript)
+}
+
+export function parseVoiceExpense(transcript, memory = {}) {
+  const entries = parseVoiceExpenseEntries(transcript, memory)
+
+  if (entries.length === 0) {
     return null
   }
 
-  const label = labelFromTokens(tokens, amountSequence.start, amountSequence.end)
+  const best = entries
+    .slice()
+    .sort((a, b) => {
+      if (a.canQuickSave !== b.canQuickSave) {
+        return a.canQuickSave ? -1 : 1
+      }
+
+      return (b.confidenceScore || 0) - (a.confidenceScore || 0)
+    })[0]
+
+  const label = best?.label || ''
   if (!label) {
     return null
   }
 
-  const memoryCategory = memoryCategoryForLabel(label, memory)
-  const categoryMatch = memoryCategory || categoryFromRules(label, cleanTranscript)
-  const confidenceInfo = confidenceFrom({
-    amountInfo: amountSequence,
-    categoryConfidence: categoryMatch.confidence,
-    label,
-  })
-
   return {
-    transcript: cleanTranscript,
-    amount: normalizeMoney(amountSequence.amount),
-    label,
-    category: categoryMatch.category,
-    categoryConfidence: categoryMatch.confidence,
-    confidence: confidenceInfo.confidence,
-    confidenceScore: confidenceInfo.score,
-    source: categoryMatch.source,
-    canQuickSave: confidenceInfo.confidence === 'high' && categoryMatch.category !== 'Other',
+    ...best,
+    entries,
+    isMultiEntry: entries.length > 1,
   }
 }
 
-export function learnVoiceExpense(memory, draft) {
+export function learnVoiceExpense(memory, draft, options = {}) {
   const labelKey = normalizeVoiceLabelKey(draft?.label)
   const category = String(draft?.category || '').trim()
 
@@ -598,14 +1067,20 @@ export function learnVoiceExpense(memory, draft) {
   }
 
   const current = memory?.[labelKey] || {}
+  const merchant = String(draft?.merchant || current.merchant || draft?.label || '').trim()
+  const learningSource = String(options.learningSource || draft?.learningSource || current.learningSource || 'user').trim()
 
   return {
     ...(memory || {}),
     [labelKey]: {
       label: draft.label,
+      merchant,
       category,
       amount: normalizeMoney(draft.amount || current.amount || 0),
       count: Number(current.count || 0) + 1,
+      confidence: ['manual', 'user', 'correction'].includes(learningSource) ? 'high' : current.confidence || 'medium',
+      learningSource,
+      categoryReason: 'Learned Merchant',
       updatedAt: new Date().toISOString(),
     },
   }

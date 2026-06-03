@@ -83,6 +83,7 @@ import {
 import {
   learnVoiceExpense,
   parseVoiceExpense as parseSpokenExpense,
+  parseVoiceExpenseEntries as parseSpokenExpenseEntries,
   voiceCategoryOptions,
 } from './lib/voiceExpense'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
@@ -116,7 +117,9 @@ const expenseCategories = [
   { label: 'Food', icon: Utensils, tone: 'cyan' },
   { label: 'Grocery', icon: Receipt, tone: 'green' },
   { label: 'Fuel', icon: Car, tone: 'orange' },
+  { label: 'Transport', icon: Plane, tone: 'orange' },
   { label: 'Shopping', icon: ShoppingBag, tone: 'blue' },
+  { label: 'Bills', icon: Receipt, tone: 'blue' },
   { label: 'Loan', icon: CreditCard, tone: 'green' },
   { label: 'Housing', icon: House, tone: 'blue' },
   { label: 'Travel', icon: Plane, tone: 'orange' },
@@ -515,6 +518,11 @@ function todayDateKey() {
   return new Date().toISOString().slice(0, 10)
 }
 
+function normalizeDateKey(value, fallback = todayDateKey()) {
+  const clean = String(value || '').slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(clean) ? clean : fallback
+}
+
 function currentMonthKey() {
   return todayDateKey().slice(0, 7)
 }
@@ -683,6 +691,10 @@ function parseVoiceExpense(transcript, memory) {
   return parseSpokenExpense(transcript, memory)
 }
 
+function parseVoiceExpenseEntries(transcript, memory) {
+  return parseSpokenExpenseEntries(transcript, memory)
+}
+
 function getSpeechRecognitionLocale() {
   if (typeof navigator === 'undefined') {
     return 'en-IN'
@@ -696,13 +708,6 @@ function getSpeechRecognitionLocale() {
   return indianLocale || 'en-IN'
 }
 
-function extractSpeechTranscripts(event) {
-  return Array.from(event?.results || [])
-    .flatMap((result) => Array.from(result || []))
-    .map((alternative) => String(alternative?.transcript || '').trim())
-    .filter(Boolean)
-}
-
 function pickVoiceDraft(transcripts, memory) {
   return transcripts
     .map((transcript) => parseVoiceExpense(transcript, memory))
@@ -714,6 +719,126 @@ function pickVoiceDraft(transcripts, memory) {
 
       return (b.confidenceScore || 0) - (a.confidenceScore || 0)
     })[0] || null
+}
+
+function pickVoiceDrafts(transcripts, memory) {
+  const entries = transcripts
+    .flatMap((transcript) => parseVoiceExpenseEntries(transcript, memory))
+    .filter(Boolean)
+
+  if (entries.length > 0) {
+    return entries
+  }
+
+  const fallback = pickVoiceDraft(transcripts, memory)
+  return fallback ? [fallback] : []
+}
+
+function suggestExpenseCategoryForLabel(label, memory) {
+  const cleanLabel = String(label || '').trim()
+
+  if (!cleanLabel) {
+    return null
+  }
+
+  const [suggestion] = parseVoiceExpenseEntries(`${cleanLabel} 1`, memory)
+
+  if (!suggestion || suggestion.category === 'Other') {
+    return null
+  }
+
+  return suggestion
+}
+
+const voiceUiStates = {
+  ready: {
+    label: 'Ready',
+    message: 'Ready. Tap Speak and say an expense.',
+  },
+  listening: {
+    label: 'Listening',
+    message: 'Listening. Speak naturally.',
+  },
+  processing: {
+    label: 'Processing',
+    message: 'Checking microphone and preparing voice entry.',
+  },
+  transcript_found: {
+    label: 'Transcript Found',
+    message: 'Transcript found. Check it once, then review.',
+  },
+  no_speech: {
+    label: 'No Speech Detected',
+    message: 'No speech was detected. Try again or add it manually.',
+  },
+  permission_required: {
+    label: 'Permission Required',
+    message: 'Microphone permission is required. Allow access and try again.',
+  },
+  microphone_error: {
+    label: 'Microphone Error',
+    message: 'No working microphone was found. Add manually for now.',
+  },
+  network_error: {
+    label: 'Network Error',
+    message: 'Browser voice recognition needs its speech service. Try again online or add manually.',
+  },
+  manual_fallback: {
+    label: 'Manual Fallback',
+    message: 'Manual expense fields are ready. Voice is optional.',
+  },
+}
+
+function getVoiceUiState(state) {
+  return voiceUiStates[state] || voiceUiStates.ready
+}
+
+function getVoiceFailureUi(errorType, recognitionError = '') {
+  const cleanType = String(errorType || '').trim()
+  const cleanRecognitionError = String(recognitionError || '').trim()
+
+  if (cleanType === 'permission_denied' || cleanRecognitionError === 'not-allowed' || cleanRecognitionError === 'service-not-allowed') {
+    return { state: 'permission_required', message: voiceUiStates.permission_required.message }
+  }
+
+  if (cleanType === 'microphone_error' || cleanRecognitionError === 'audio-capture') {
+    return { state: 'microphone_error', message: voiceUiStates.microphone_error.message }
+  }
+
+  if (cleanType === 'no_speech' || cleanRecognitionError === 'no-speech') {
+    return { state: 'no_speech', message: voiceUiStates.no_speech.message }
+  }
+
+  if (cleanType === 'network_error' || cleanRecognitionError === 'network') {
+    return { state: 'network_error', message: voiceUiStates.network_error.message }
+  }
+
+  if (cleanType === 'aborted' || cleanRecognitionError === 'aborted') {
+    return {
+      state: 'ready',
+      message: 'Voice entry stopped. You can retry whenever it feels easy.',
+    }
+  }
+
+  return {
+    state: 'manual_fallback',
+    message: 'Voice entry is not available here. Manual expense fields are ready.',
+  }
+}
+
+function trackVoiceEvent(action, payload = {}) {
+  trackEvent(action, {
+    surface: 'voice_expense',
+    provider: 'webSpeech',
+    ...payload,
+  })
+}
+
+function trackCategoryLearningEvent(action, payload = {}) {
+  trackEvent(action, {
+    surface: 'category_learning',
+    ...payload,
+  })
 }
 
 function buildQuickExpenseChips(expenses, voiceMemory) {
@@ -882,7 +1007,11 @@ function App() {
   const [expenseError, setExpenseError] = useState('')
   const [expenseFieldErrors, setExpenseFieldErrors] = useState({})
   const [voiceDraft, setVoiceDraft] = useState(null)
-  const [voiceStatus, setVoiceStatus] = useState('')
+  const [voiceDrafts, setVoiceDrafts] = useState([])
+  const [voiceState, setVoiceState] = useState('ready')
+  const [voiceStatus, setVoiceStatus] = useState(voiceUiStates.ready.message)
+  const [voiceTranscriptDraft, setVoiceTranscriptDraft] = useState('')
+  const [voiceTranscriptOptions, setVoiceTranscriptOptions] = useState([])
   const [isListening, setIsListening] = useState(false)
   const [voiceMemory, setVoiceMemory] = useState(() => readStoredJson('fbply-voice-memory', {}))
   const [lastVoiceSave, setLastVoiceSave] = useState(null)
@@ -910,6 +1039,7 @@ function App() {
   const [reportTemplate, setReportTemplate] = useState('standard')
   const [reportHistory, setReportHistory] = useState(() => normalizeReportHistory(readStoredJson('fbply-report-history', [])))
   const recognitionRef = useRef(null)
+  const voiceSessionRef = useRef(null)
   const rewardTimerRef = useRef(null)
   const isOnline = useOnlineStatus()
   const activeCurrency = normalizeCurrency(profile.currency)
@@ -1265,6 +1395,37 @@ function App() {
     [financialEntries, financialState],
   )
   const quickExpenseChips = useMemo(() => buildQuickExpenseChips(expenses, voiceMemory), [expenses, voiceMemory])
+  const setCustomExpenseNameSmart = useCallback((value) => {
+    const nextValue = String(value || '')
+    setCustomExpenseName(nextValue)
+
+    const suggestion = suggestExpenseCategoryForLabel(nextValue, voiceMemory)
+
+    if (!suggestion?.category || suggestion.category === selectedCategory) {
+      return
+    }
+
+    if (['', 'Food', 'Other', 'Custom'].includes(selectedCategory)) {
+      setSelectedCategory(suggestion.category)
+
+      if (suggestion.source === 'learned_merchant') {
+        trackCategoryLearningEvent('merchant_memory_usage', {
+          confidence: suggestion.confidence || 'medium',
+          category: suggestion.category,
+        })
+      } else if (suggestion.source === 'known_merchant') {
+        trackCategoryLearningEvent('merchant_auto_match', {
+          confidence: suggestion.confidence || 'high',
+          category: suggestion.category,
+        })
+      }
+
+      trackCategoryLearningEvent('merchant_confidence_level', {
+        confidence: suggestion.confidence || 'medium',
+        source_type: suggestion.source || 'unknown',
+      })
+    }
+  }, [selectedCategory, voiceMemory])
   const calmSummaries = useMemo(
     () => buildCalmSummaries(financialEntries, financialState, savingsBuckets),
     [financialEntries, financialState, savingsBuckets],
@@ -1548,10 +1709,11 @@ function App() {
     })
   }, [])
 
-  const saveExpenseRecord = useCallback(({ label, category, amount, note = '', type = expenseMode, source = 'manual' }) => {
+  const saveExpenseRecord = useCallback(({ label, category, amount, note = '', type = expenseMode, source = 'manual', date = todayDateKey() }) => {
     const parsedAmount = normalizeMoney(amount)
     const categoryName = String(category || '').trim()
     const labelName = String(label || categoryName || '').trim()
+    const dateKey = normalizeDateKey(date)
     const fieldErrors = {}
 
     setExpenseError('')
@@ -1583,7 +1745,7 @@ function App() {
       amount: parsedAmount,
       note: note || `${labelName} ${type} entry`,
       type,
-      date: new Date().toISOString().slice(0, 10),
+      date: dateKey,
       createdAt: new Date().toISOString(),
       source,
     }
@@ -1609,6 +1771,7 @@ function App() {
   const addExpense = useCallback((event) => {
     event.preventDefault()
     const trimmedCustomName = customExpenseName.trim()
+    const merchantSuggestion = suggestExpenseCategoryForLabel(trimmedCustomName, voiceMemory)
 
     const categoryName = selectedCategory === 'Custom' ? 'Other' : selectedCategory
     const saved = saveExpenseRecord({
@@ -1627,46 +1790,312 @@ function App() {
     setExpenseNote('')
     setCustomExpenseName('')
     setExpenseFieldErrors({})
+
+    if (trimmedCustomName && categoryName) {
+      if (merchantSuggestion?.source === 'known_merchant') {
+        trackCategoryLearningEvent('merchant_auto_match', {
+          category: merchantSuggestion.category,
+          confidence: merchantSuggestion.confidence || 'high',
+          source_type: 'manual',
+        })
+      }
+
+      if (merchantSuggestion?.source === 'learned_merchant') {
+        trackCategoryLearningEvent('merchant_memory_usage', {
+          category: merchantSuggestion.category,
+          confidence: merchantSuggestion.confidence || 'high',
+          source_type: 'manual',
+        })
+      }
+
+      setVoiceMemory((current) => learnVoiceExpense(current, {
+        label: trimmedCustomName,
+        merchant: merchantSuggestion?.merchant || trimmedCustomName,
+        category: categoryName,
+        amount: expenseAmount,
+        learningSource: 'manual',
+      }, { learningSource: 'manual' }))
+      trackCategoryLearningEvent('merchant_learned', {
+        category: categoryName,
+        confidence: 'high',
+        source_type: 'manual',
+      })
+
+      if (merchantSuggestion?.category && merchantSuggestion.category !== categoryName) {
+        trackCategoryLearningEvent('merchant_correction', {
+          original_category: merchantSuggestion.category,
+          category: categoryName,
+          confidence: 'high',
+        })
+      }
+    }
+
     return saved
-  }, [customExpenseName, expenseAmount, expenseMode, expenseNote, saveExpenseRecord, selectedCategory])
+  }, [customExpenseName, expenseAmount, expenseMode, expenseNote, saveExpenseRecord, selectedCategory, voiceMemory])
 
-  const saveVoiceDraft = useCallback((draft) => {
-    if (!draft) {
+  const saveVoiceDrafts = useCallback((drafts) => {
+    const validDrafts = (Array.isArray(drafts) ? drafts : [drafts]).filter(Boolean)
+
+    if (validDrafts.length === 0) {
       return false
     }
 
-    const label = String(draft.label || draft.category || '').trim()
-    const saved = saveExpenseRecord({
-      label,
-      category: draft.category,
-      amount: draft.amount,
-      note: label ? `${label} - Voice: ${draft.transcript}` : `Voice entry: ${draft.transcript}`,
-      type: 'daily',
-      source: 'voice',
+    const savedEntries = validDrafts
+      .map((draft) => {
+        const label = String(draft.label || draft.category || '').trim()
+        return saveExpenseRecord({
+          label,
+          category: draft.category,
+          amount: draft.amount,
+          note: label ? `${label} - Voice: ${draft.transcript}` : `Voice entry: ${draft.transcript}`,
+          type: draft.type || 'daily',
+          source: 'voice',
+          date: draft.date,
+        })
+      })
+      .filter(Boolean)
+
+    if (savedEntries.length === 0) {
+      return false
+    }
+
+    setVoiceMemory((current) => validDrafts.reduce((memory, draft) => learnVoiceExpense(memory, draft, {
+      learningSource: draft.learningSource || 'voice',
+    }), current))
+    validDrafts.forEach((draft) => {
+      if (draft.merchant || draft.label) {
+        trackCategoryLearningEvent('merchant_learned', {
+          category: draft.category || 'Other',
+          confidence: draft.confidence || 'medium',
+          source_type: draft.learningSource || 'voice',
+        })
+      }
+
+      if (draft.learningSource === 'correction') {
+        trackCategoryLearningEvent('merchant_correction', {
+          category: draft.category || 'Other',
+          confidence: 'high',
+        })
+      }
     })
-
-    if (!saved) {
-      return false
-    }
-
-    setVoiceMemory((current) => learnVoiceExpense(current, draft))
-    setLastVoiceSave({ expense: saved, draft })
+    setLastVoiceSave({
+      expense: savedEntries[0],
+      expenses: savedEntries,
+      draft: validDrafts[0],
+      drafts: validDrafts,
+    })
     setVoiceDraft(null)
-    setVoiceStatus('Saved. You can add another whenever you are ready.')
-    return true
+    setVoiceDrafts([])
+    setVoiceTranscriptDraft('')
+    setVoiceTranscriptOptions([])
+    setVoiceState('ready')
+    setVoiceStatus(
+      savedEntries.length > 1
+        ? `Saved ${savedEntries.length} voice entries. You can add another whenever you are ready.`
+        : 'Saved. You can add another whenever you are ready.',
+    )
+    return savedEntries
   }, [saveExpenseRecord])
 
   const confirmVoiceExpense = useCallback(() => {
-    saveVoiceDraft(voiceDraft)
-  }, [saveVoiceDraft, voiceDraft])
+    saveVoiceDrafts(voiceDrafts.length > 0 ? voiceDrafts : voiceDraft)
+  }, [saveVoiceDrafts, voiceDraft, voiceDrafts])
 
   const updateVoiceDraft = useCallback((patch) => {
-    setVoiceDraft((current) => (current ? { ...current, ...patch } : current))
+    setVoiceDraft((current) => {
+      if (!current) {
+        return current
+      }
+
+      const categoryChanged = Object.hasOwn(patch || {}, 'category') && patch.category !== current.category
+      return {
+        ...current,
+        ...patch,
+        ...(categoryChanged ? {
+          learningSource: 'correction',
+          categoryReason: 'Learned Merchant',
+          categoryConfidence: 'high',
+          confidence: 'high',
+        } : {}),
+      }
+    })
+    setVoiceDrafts((current) => {
+      if (current.length === 0) {
+        return current
+      }
+
+      return current.map((draft, index) => {
+        const categoryChanged = index === 0 && Object.hasOwn(patch || {}, 'category') && patch.category !== draft.category
+        return index === 0
+          ? {
+              ...draft,
+              ...patch,
+              ...(categoryChanged ? {
+                learningSource: 'correction',
+                categoryReason: 'Learned Merchant',
+                categoryConfidence: 'high',
+                confidence: 'high',
+              } : {}),
+            }
+          : draft
+      })
+    })
+    trackVoiceEvent('parser_correction', {
+      corrected_field: Object.keys(patch || {}).join(',') || 'unknown',
+    })
+    if (Object.hasOwn(patch || {}, 'category')) {
+      trackCategoryLearningEvent('merchant_correction', {
+        category: patch.category || 'Other',
+        confidence: 'high',
+      })
+    }
   }, [])
+
+  const updateVoiceDraftAt = useCallback((index, patch) => {
+    const nextDrafts = voiceDrafts.map((draft, draftIndex) => {
+      const categoryChanged = draftIndex === index && Object.hasOwn(patch || {}, 'category') && patch.category !== draft.category
+      return draftIndex === index
+        ? {
+            ...draft,
+            ...patch,
+            ...(categoryChanged ? {
+              learningSource: 'correction',
+              categoryReason: 'Learned Merchant',
+              categoryConfidence: 'high',
+              confidence: 'high',
+            } : {}),
+          }
+        : draft
+    })
+    setVoiceDrafts(nextDrafts)
+    setVoiceDraft(nextDrafts[0] || null)
+    trackVoiceEvent('parser_correction', {
+      corrected_field: Object.keys(patch || {}).join(',') || 'unknown',
+    })
+    if (Object.hasOwn(patch || {}, 'category')) {
+      trackCategoryLearningEvent('merchant_correction', {
+        category: patch.category || 'Other',
+        confidence: 'high',
+      })
+    }
+  }, [voiceDrafts])
+
+  const removeVoiceDraftAt = useCallback((index) => {
+    const nextDrafts = voiceDrafts.filter((_, draftIndex) => draftIndex !== index)
+    setVoiceDrafts(nextDrafts)
+    setVoiceDraft(nextDrafts[0] || null)
+    trackVoiceEvent('parser_correction', { corrected_field: 'remove_entry' })
+  }, [voiceDrafts])
+
+  const reviewVoiceTranscript = useCallback(() => {
+    const transcript = String(voiceTranscriptDraft || '').trim()
+
+    if (!transcript) {
+      setVoiceDraft(null)
+      setVoiceDrafts([])
+      setVoiceState('no_speech')
+      setVoiceStatus(voiceUiStates.no_speech.message)
+      trackVoiceEvent('voice_failure', { reason: 'empty_transcript' })
+      trackVoiceEvent('parser_failure', { reason: 'empty_transcript' })
+      trackVoiceEvent('voice_no_speech', { reason: 'empty_transcript' })
+      return null
+    }
+
+    setVoiceState('processing')
+    setVoiceStatus('Processing transcript.')
+
+    const parsedDrafts = pickVoiceDrafts([transcript], voiceMemory)
+
+    if (parsedDrafts.length === 0) {
+      setVoiceDraft(null)
+      setVoiceDrafts([])
+      setVoiceState('manual_fallback')
+      setVoiceStatus('Transcript found, but amount or purpose was unclear. Edit the transcript or add manually.')
+      trackVoiceEvent('voice_failure', { reason: 'parse_no_match' })
+      trackVoiceEvent('parser_failure', { reason: 'parse_no_match' })
+      return null
+    }
+
+    setVoiceDraft(parsedDrafts[0])
+    setVoiceDrafts(parsedDrafts)
+    setVoiceState('transcript_found')
+    setVoiceStatus(
+      parsedDrafts.length > 1
+        ? `${parsedDrafts.length} entries detected. Review each one before saving.`
+        : parsedDrafts[0].confidence === 'high'
+          ? 'Looks clear. Save when it feels right.'
+          : 'Check the amount and category once before saving.',
+    )
+
+    trackVoiceEvent('parser_success', {
+      entry_count: parsedDrafts.length,
+    })
+
+    if (parsedDrafts.length > 1) {
+      trackVoiceEvent('parser_multi_entry_detected', { entry_count: parsedDrafts.length })
+    }
+
+    if (parsedDrafts.some((draft) => draft.type === 'income')) {
+      trackVoiceEvent('parser_income_detected', { entry_count: parsedDrafts.length })
+    }
+
+    if (parsedDrafts.some((draft) => draft.confidence === 'low')) {
+      trackVoiceEvent('parser_low_confidence', { entry_count: parsedDrafts.length })
+    }
+
+    parsedDrafts.forEach((draft) => {
+      if (draft.source === 'known_merchant') {
+        trackCategoryLearningEvent('merchant_auto_match', {
+          category: draft.category || 'Other',
+          confidence: draft.confidence || 'high',
+        })
+      }
+
+      if (draft.source === 'learned_merchant') {
+        trackCategoryLearningEvent('merchant_memory_usage', {
+          category: draft.category || 'Other',
+          confidence: draft.confidence || 'high',
+        })
+      }
+
+      if (draft.source === 'known_merchant' || draft.source === 'learned_merchant') {
+        trackCategoryLearningEvent('merchant_confidence_level', {
+          confidence: draft.confidence || 'medium',
+          source_type: draft.source,
+        })
+      }
+    })
+
+    return parsedDrafts
+  }, [voiceMemory, voiceTranscriptDraft])
 
   const clearVoiceDraft = useCallback(() => {
     setVoiceDraft(null)
+    setVoiceDrafts([])
+    setVoiceTranscriptDraft('')
+    setVoiceTranscriptOptions([])
+    setVoiceState('ready')
     setVoiceStatus('Voice draft cleared. You can try again or add it manually.')
+  }, [])
+
+  const useVoiceManualFallback = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop?.()
+      recognitionRef.current = null
+    }
+
+    if (voiceSessionRef.current) {
+      voiceSessionRef.current = { ...voiceSessionRef.current, userStopped: true }
+    }
+
+    setIsListening(false)
+    setVoiceDraft(null)
+    setVoiceDrafts([])
+    setVoiceTranscriptDraft('')
+    setVoiceTranscriptOptions([])
+    setVoiceState('manual_fallback')
+    setVoiceStatus(voiceUiStates.manual_fallback.message)
+    trackVoiceEvent('voice_manual_fallback_used')
   }, [])
 
   const useVoiceDraftInForm = useCallback(() => {
@@ -1682,7 +2111,12 @@ function App() {
     setExpenseAmount(String(voiceDraft.amount || ''))
     setExpenseNote(`${voiceDraft.label} - ${voiceDraft.transcript}`)
     setVoiceDraft(null)
+    setVoiceDrafts([])
+    setVoiceTranscriptDraft('')
+    setVoiceTranscriptOptions([])
+    setVoiceState('manual_fallback')
     setVoiceStatus('Moved to the form. Adjust anything and save when it looks right.')
+    trackVoiceEvent('voice_manual_fallback_used', { reason: 'edit_voice_draft' })
   }, [voiceDraft])
 
   const undoVoiceSave = useCallback(() => {
@@ -1690,8 +2124,14 @@ function App() {
       return
     }
 
-    setExpenses((current) => current.filter((expense) => expense.id !== lastVoiceSave.expense.id))
-    setVoiceDraft(lastVoiceSave.draft)
+    const savedIds = new Set((lastVoiceSave.expenses || [lastVoiceSave.expense]).map((expense) => expense?.id).filter(Boolean))
+    const restoredDrafts = lastVoiceSave.drafts || (lastVoiceSave.draft ? [lastVoiceSave.draft] : [])
+    setExpenses((current) => current.filter((expense) => !savedIds.has(expense.id)))
+    setVoiceDraft(restoredDrafts[0] || null)
+    setVoiceDrafts(restoredDrafts)
+    setVoiceTranscriptDraft(restoredDrafts[0]?.fullTranscript || restoredDrafts[0]?.transcript || '')
+    setVoiceTranscriptOptions(restoredDrafts[0]?.fullTranscript ? [restoredDrafts[0].fullTranscript] : restoredDrafts[0]?.transcript ? [restoredDrafts[0].transcript] : [])
+    setVoiceState('transcript_found')
     setVoiceStatus('Last voice save undone. You can edit it before saving again.')
     setLastVoiceSave(null)
   }, [lastVoiceSave])
@@ -1972,70 +2412,176 @@ function App() {
     setVoiceStatus('Loaded the recent entry for editing. Review and save it again.')
   }, [openAddSheet])
 
-  const startVoiceExpense = useCallback(() => {
-    if (typeof window === 'undefined') {
-      setVoiceStatus('Voice entry is not available here. You can still use quick add.')
+  const handleVoiceFailure = useCallback((failure, sessionId = voiceSessionRef.current?.id) => {
+    const session = voiceSessionRef.current?.id === sessionId ? voiceSessionRef.current : null
+
+    if (session) {
+      voiceSessionRef.current = { ...session, hasError: true }
+    }
+
+    if (failure?.type === 'aborted' && session?.userStopped) {
       return
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    const ui = getVoiceFailureUi(failure?.type, failure?.recognitionError)
+    const reason = failure?.recognitionError || failure?.type || 'unknown'
 
-    if (!SpeechRecognition) {
-      setVoiceStatus('Voice entry is not available on this device browser. Quick add is ready below.')
-      return
-    }
-
-    if (recognitionRef.current) {
-      recognitionRef.current.abort()
-    }
-
-    const recognition = new SpeechRecognition()
-    recognition.lang = getSpeechRecognitionLocale()
-    recognition.interimResults = false
-    recognition.maxAlternatives = 5
-    recognitionRef.current = recognition
-
-    setIsListening(true)
+    setIsListening(false)
     setVoiceDraft(null)
-    setVoiceStatus('Listening. Speak naturally.')
+    setVoiceDrafts([])
+    setVoiceState(ui.state)
+    setVoiceStatus(ui.message)
 
-    recognition.onresult = (event) => {
-      const transcripts = extractSpeechTranscripts(event)
-      const parsed = pickVoiceDraft(transcripts, voiceMemory)
+    trackVoiceEvent('voice_failure', {
+      reason,
+      state: ui.state,
+    })
 
-      if (!parsed) {
-        setVoiceDraft(null)
-        setVoiceStatus('Could not find a clear amount. Try again or type it once.')
-        return
-      }
-
-      setVoiceDraft(parsed)
-      setVoiceStatus(
-        parsed.confidence === 'high'
-          ? 'Looks clear. Save when it feels right.'
-          : 'Check the amount and category once before saving.',
-      )
+    if (ui.state === 'permission_required') {
+      trackVoiceEvent('voice_permission_denied', { reason })
     }
 
-    recognition.onerror = () => {
-      setVoiceStatus('Voice entry paused. You can try again or type it in.')
+    if (ui.state === 'no_speech') {
+      trackVoiceEvent('voice_no_speech', { reason })
     }
 
-    recognition.onend = () => {
-      setIsListening(false)
-      recognitionRef.current = null
+    if (ui.state === 'network_error') {
+      trackVoiceEvent('voice_network_error', { reason })
+    }
+  }, [])
+
+  const handleVoiceTranscripts = useCallback((transcripts, sessionId = voiceSessionRef.current?.id) => {
+    const uniqueTranscripts = Array.from(new Set((transcripts || []).map((item) => String(item || '').trim()).filter(Boolean)))
+
+    if (uniqueTranscripts.length === 0) {
+      handleVoiceFailure({ type: 'no_speech', recognitionError: 'no-speech' }, sessionId)
+      return
     }
 
-    recognition.start()
-  }, [voiceMemory])
+    const session = voiceSessionRef.current?.id === sessionId ? voiceSessionRef.current : null
 
-  const stopVoiceExpense = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.abort()
-      recognitionRef.current = null
+    if (session) {
+      voiceSessionRef.current = { ...session, hasResult: true }
     }
 
     setIsListening(false)
+    setVoiceDraft(null)
+    setVoiceDrafts([])
+    setVoiceTranscriptOptions(uniqueTranscripts)
+    setVoiceTranscriptDraft(uniqueTranscripts[0])
+    setVoiceState('transcript_found')
+    setVoiceStatus(voiceUiStates.transcript_found.message)
+    trackVoiceEvent('voice_success', {
+      stage: 'transcript_found',
+      transcript_count: uniqueTranscripts.length,
+    })
+  }, [handleVoiceFailure])
+
+  const startVoiceExpense = useCallback(async () => {
+    if (isListening || voiceState === 'processing') {
+      return
+    }
+
+    if (typeof window === 'undefined') {
+      handleVoiceFailure({ type: 'unsupported' })
+      return
+    }
+
+    if (recognitionRef.current) {
+      recognitionRef.current.stop?.()
+      recognitionRef.current = null
+    }
+
+    const session = {
+      id: `${Date.now()}-${Math.random()}`,
+      hasResult: false,
+      hasError: false,
+      userStopped: false,
+    }
+    voiceSessionRef.current = session
+
+    setIsListening(false)
+    setVoiceDraft(null)
+    setVoiceDrafts([])
+    setVoiceTranscriptDraft('')
+    setVoiceTranscriptOptions([])
+    setVoiceState('processing')
+    setVoiceStatus(voiceUiStates.processing.message)
+    trackVoiceEvent('voice_start')
+
+    let providerModule
+
+    try {
+      providerModule = await import('./lib/voiceInputProviders.js')
+    } catch {
+      handleVoiceFailure({ type: 'unsupported' }, session.id)
+      return
+    }
+
+    if (voiceSessionRef.current?.id !== session.id || voiceSessionRef.current?.userStopped) {
+      return
+    }
+
+    const provider = providerModule.createVoiceInputProvider({
+      providerName: providerModule.VOICE_PROVIDER_NAMES.WEB_SPEECH,
+      windowRef: window,
+      navigatorRef: navigator,
+    })
+    recognitionRef.current = provider
+
+    const result = await provider.start({
+      lang: getSpeechRecognitionLocale(),
+      interimResults: false,
+      maxAlternatives: 5,
+      onReady: () => {
+        setVoiceState('processing')
+        setVoiceStatus('Microphone ready. Starting listener.')
+      },
+      onStart: () => {
+        setIsListening(true)
+        setVoiceState('listening')
+        setVoiceStatus(voiceUiStates.listening.message)
+      },
+      onResult: (payload) => {
+        handleVoiceTranscripts(payload?.transcripts, session.id)
+      },
+      onError: (failure) => {
+        handleVoiceFailure(failure, session.id)
+      },
+      onEnd: () => {
+        if (recognitionRef.current === provider) {
+          recognitionRef.current = null
+        }
+
+        setIsListening(false)
+
+        const activeSession = voiceSessionRef.current?.id === session.id ? voiceSessionRef.current : null
+
+        if (activeSession && !activeSession.userStopped && !activeSession.hasResult && !activeSession.hasError) {
+          handleVoiceFailure({ type: 'no_speech', recognitionError: 'no-speech' }, session.id)
+        }
+      },
+    })
+
+    const activeSession = voiceSessionRef.current?.id === session.id ? voiceSessionRef.current : null
+
+    if (!result?.ok && !activeSession?.hasError) {
+      handleVoiceFailure(result, session.id)
+    }
+  }, [handleVoiceFailure, handleVoiceTranscripts, isListening, voiceState])
+
+  const stopVoiceExpense = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop?.()
+      recognitionRef.current = null
+    }
+
+    if (voiceSessionRef.current) {
+      voiceSessionRef.current = { ...voiceSessionRef.current, userStopped: true }
+    }
+
+    setIsListening(false)
+    setVoiceState('ready')
     setVoiceStatus('Voice entry stopped. You can retry whenever it feels easy.')
   }, [])
 
@@ -2524,7 +3070,7 @@ function App() {
               selectedCategory={selectedCategory}
               setSelectedCategory={setSelectedCategory}
               customExpenseName={customExpenseName}
-              setCustomExpenseName={setCustomExpenseName}
+              setCustomExpenseName={setCustomExpenseNameSmart}
               expenseAmount={expenseAmount}
               setExpenseAmount={setExpenseAmount}
               expenseNote={expenseNote}
@@ -2533,14 +3079,23 @@ function App() {
               expenseFieldErrors={expenseFieldErrors}
               clearExpenseFieldError={clearExpenseFieldError}
               addExpense={addExpense}
+              voiceState={voiceState}
               voiceDraft={voiceDraft}
+              voiceDrafts={voiceDrafts}
               voiceStatus={voiceStatus}
+              voiceTranscriptDraft={voiceTranscriptDraft}
+              setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+              voiceTranscriptOptions={voiceTranscriptOptions}
               isListening={isListening}
               startVoiceExpense={startVoiceExpense}
               stopVoiceExpense={stopVoiceExpense}
+              reviewVoiceTranscript={reviewVoiceTranscript}
               confirmVoiceExpense={confirmVoiceExpense}
               updateVoiceDraft={updateVoiceDraft}
+              updateVoiceDraftAt={updateVoiceDraftAt}
+              removeVoiceDraftAt={removeVoiceDraftAt}
               clearVoiceDraft={clearVoiceDraft}
+              useVoiceManualFallback={useVoiceManualFallback}
               useVoiceDraftInForm={useVoiceDraftInForm}
               undoVoiceSave={undoVoiceSave}
               lastVoiceSave={lastVoiceSave}
@@ -3336,14 +3891,23 @@ function MainApp(props) {
     expenseFieldErrors,
     clearExpenseFieldError,
     addExpense,
+    voiceState,
     voiceDraft,
+    voiceDrafts,
     voiceStatus,
+    voiceTranscriptDraft,
+    setVoiceTranscriptDraft,
+    voiceTranscriptOptions,
     isListening,
     startVoiceExpense,
     stopVoiceExpense,
+    reviewVoiceTranscript,
     confirmVoiceExpense,
     updateVoiceDraft,
+    updateVoiceDraftAt,
+    removeVoiceDraftAt,
     clearVoiceDraft,
+    useVoiceManualFallback,
     useVoiceDraftInForm,
     undoVoiceSave,
     lastVoiceSave,
@@ -3614,14 +4178,23 @@ function MainApp(props) {
             addSavingsBucket={addSavingsBucket}
             updateSavingsBucket={updateSavingsBucket}
             removeSavingsBucket={removeSavingsBucket}
-          voiceDraft={voiceDraft}
-          voiceStatus={voiceStatus}
-          isListening={isListening}
-          startVoiceExpense={startVoiceExpense}
+            voiceState={voiceState}
+            voiceDraft={voiceDraft}
+            voiceDrafts={voiceDrafts}
+            voiceStatus={voiceStatus}
+            voiceTranscriptDraft={voiceTranscriptDraft}
+            setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+            voiceTranscriptOptions={voiceTranscriptOptions}
+            isListening={isListening}
+            startVoiceExpense={startVoiceExpense}
             stopVoiceExpense={stopVoiceExpense}
+            reviewVoiceTranscript={reviewVoiceTranscript}
             confirmVoiceExpense={confirmVoiceExpense}
             updateVoiceDraft={updateVoiceDraft}
+            updateVoiceDraftAt={updateVoiceDraftAt}
+            removeVoiceDraftAt={removeVoiceDraftAt}
             clearVoiceDraft={clearVoiceDraft}
+            useVoiceManualFallback={useVoiceManualFallback}
             useVoiceDraftInForm={useVoiceDraftInForm}
             undoVoiceSave={undoVoiceSave}
             lastVoiceSave={lastVoiceSave}
@@ -3667,14 +4240,23 @@ function MainApp(props) {
           addExpense={addExpense}
           quickExpenseChips={quickExpenseChips}
           applyQuickExpense={applyQuickExpense}
+          voiceState={voiceState}
           voiceDraft={voiceDraft}
+          voiceDrafts={voiceDrafts}
           voiceStatus={voiceStatus}
+          voiceTranscriptDraft={voiceTranscriptDraft}
+          setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+          voiceTranscriptOptions={voiceTranscriptOptions}
           isListening={isListening}
           startVoiceExpense={startVoiceExpense}
           stopVoiceExpense={stopVoiceExpense}
+          reviewVoiceTranscript={reviewVoiceTranscript}
           confirmVoiceExpense={confirmVoiceExpense}
           updateVoiceDraft={updateVoiceDraft}
+          updateVoiceDraftAt={updateVoiceDraftAt}
+          removeVoiceDraftAt={removeVoiceDraftAt}
           clearVoiceDraft={clearVoiceDraft}
+          useVoiceManualFallback={useVoiceManualFallback}
           useVoiceDraftInForm={useVoiceDraftInForm}
           undoVoiceSave={undoVoiceSave}
           lastVoiceSave={lastVoiceSave}
@@ -3924,14 +4506,23 @@ function QuickAddSheet({
   addExpense,
   quickExpenseChips,
   applyQuickExpense,
+  voiceState,
   voiceDraft,
+  voiceDrafts,
   voiceStatus,
+  voiceTranscriptDraft,
+  setVoiceTranscriptDraft,
+  voiceTranscriptOptions,
   isListening,
   startVoiceExpense,
   stopVoiceExpense,
+  reviewVoiceTranscript,
   confirmVoiceExpense,
   updateVoiceDraft,
+  updateVoiceDraftAt,
+  removeVoiceDraftAt,
   clearVoiceDraft,
+  useVoiceManualFallback,
   useVoiceDraftInForm,
   undoVoiceSave,
   lastVoiceSave,
@@ -4020,14 +4611,23 @@ function QuickAddSheet({
             quickExpenseChips={quickExpenseChips}
             applyQuickExpense={applyQuickExpense}
             onSaved={onClose}
+            voiceState={voiceState}
             voiceDraft={voiceDraft}
+            voiceDrafts={voiceDrafts}
             voiceStatus={voiceStatus}
+            voiceTranscriptDraft={voiceTranscriptDraft}
+            setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+            voiceTranscriptOptions={voiceTranscriptOptions}
             isListening={isListening}
             startVoiceExpense={startVoiceExpense}
             stopVoiceExpense={stopVoiceExpense}
+            reviewVoiceTranscript={reviewVoiceTranscript}
             confirmVoiceExpense={confirmVoiceExpense}
             updateVoiceDraft={updateVoiceDraft}
+            updateVoiceDraftAt={updateVoiceDraftAt}
+            removeVoiceDraftAt={removeVoiceDraftAt}
             clearVoiceDraft={clearVoiceDraft}
+            useVoiceManualFallback={useVoiceManualFallback}
             useVoiceDraftInForm={useVoiceDraftInForm}
             undoVoiceSave={undoVoiceSave}
             lastVoiceSave={lastVoiceSave}
@@ -4072,14 +4672,23 @@ function QuickExpenseEntry({
   quickExpenseChips,
   applyQuickExpense,
   onSaved,
+  voiceState,
   voiceDraft,
+  voiceDrafts,
   voiceStatus,
+  voiceTranscriptDraft,
+  setVoiceTranscriptDraft,
+  voiceTranscriptOptions,
   isListening,
   startVoiceExpense,
   stopVoiceExpense,
+  reviewVoiceTranscript,
   confirmVoiceExpense,
   updateVoiceDraft,
+  updateVoiceDraftAt,
+  removeVoiceDraftAt,
   clearVoiceDraft,
+  useVoiceManualFallback,
   useVoiceDraftInForm,
   undoVoiceSave,
   lastVoiceSave,
@@ -4158,14 +4767,23 @@ function QuickExpenseEntry({
       </label>
 
       <VoiceExpenseBox
+        voiceState={voiceState}
         voiceDraft={voiceDraft}
+        voiceDrafts={voiceDrafts}
         voiceStatus={voiceStatus}
+        voiceTranscriptDraft={voiceTranscriptDraft}
+        setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+        voiceTranscriptOptions={voiceTranscriptOptions}
         isListening={isListening}
         startVoiceExpense={startVoiceExpense}
         stopVoiceExpense={stopVoiceExpense}
+        reviewVoiceTranscript={reviewVoiceTranscript}
         confirmVoiceExpense={confirmVoiceExpense}
         updateVoiceDraft={updateVoiceDraft}
+        updateVoiceDraftAt={updateVoiceDraftAt}
+        removeVoiceDraftAt={removeVoiceDraftAt}
         clearVoiceDraft={clearVoiceDraft}
+        useVoiceManualFallback={useVoiceManualFallback}
         useVoiceDraftInForm={useVoiceDraftInForm}
         undoVoiceSave={undoVoiceSave}
         lastVoiceSave={lastVoiceSave}
@@ -4652,18 +5270,37 @@ function QuickFeedbackForm() {
 }
 
 function VoiceExpenseBox({
+  voiceState = 'ready',
   voiceDraft,
+  voiceDrafts = [],
   voiceStatus,
+  voiceTranscriptDraft,
+  setVoiceTranscriptDraft,
+  voiceTranscriptOptions = [],
   isListening,
   startVoiceExpense,
   stopVoiceExpense,
+  reviewVoiceTranscript,
   confirmVoiceExpense,
   updateVoiceDraft,
+  updateVoiceDraftAt,
+  removeVoiceDraftAt,
   clearVoiceDraft,
+  useVoiceManualFallback,
   useVoiceDraftInForm,
   undoVoiceSave,
   lastVoiceSave,
 }) {
+  const voiceStateInfo = getVoiceUiState(voiceState)
+  const isVoiceProcessing = voiceState === 'processing' && !isListening
+  const transcriptValue = String(voiceTranscriptDraft || '')
+  const reviewDrafts = voiceDrafts.length > 0 ? voiceDrafts : voiceDraft ? [voiceDraft] : []
+  const hasParsedDrafts = reviewDrafts.length > 0
+  const hasTranscriptReview = Boolean(transcriptValue.trim()) && !hasParsedDrafts
+  const transcriptOptions = Array.from(
+    new Set((voiceTranscriptOptions || []).map((option) => String(option || '').trim()).filter(Boolean)),
+  )
+  const voiceExamplePrompts = ['Swiggy 450', 'Uber 250', 'Salary 50000', 'Netflix 649', 'Dmart 2200']
   const categoryChoices = Array.from(
     new Set([
       ...(voiceDraft?.category ? [voiceDraft.category] : []),
@@ -4671,7 +5308,7 @@ function VoiceExpenseBox({
       ...expenseCategories.map((category) => category.label),
     ]),
   )
-  const hasVoicePanel = isListening || voiceDraft || voiceStatus || lastVoiceSave
+  const hasVoicePanel = isListening || hasParsedDrafts || voiceStatus || lastVoiceSave || hasTranscriptReview
 
   return (
     <section className="voice-box voice-compact">
@@ -4679,12 +5316,14 @@ function VoiceExpenseBox({
         <button
           className={`voice-mic-button ${isListening ? 'listening' : ''}`}
           type="button"
+          disabled={isVoiceProcessing}
           onClick={isListening ? stopVoiceExpense : startVoiceExpense}
           aria-label={isListening ? 'Stop voice entry' : 'Start voice entry'}
         >
           {isListening ? <Square size={17} /> : <Mic size={18} />}
-          <span>{isListening ? 'Listening' : 'Speak'}</span>
+          <span>{isListening ? 'Listening' : isVoiceProcessing ? 'Processing' : 'Speak'}</span>
         </button>
+        <span className={`voice-state-badge ${voiceState}`}>{voiceStateInfo.label}</span>
       </div>
 
       {hasVoicePanel && (
@@ -4693,73 +5332,220 @@ function VoiceExpenseBox({
             {isListening && <span className="listening-dot" aria-label="Listening" />}
             {voiceStatus && <p className="voice-status">{voiceStatus}</p>}
           </div>
-      {lastVoiceSave && (
-        <div className="voice-undo-row">
-          <span>Last voice entry saved.</span>
-          <button type="button" onClick={undoVoiceSave}>
-            Undo
-          </button>
-        </div>
-      )}
-      {voiceDraft && (
-        <article className="voice-draft compact-voice-draft">
-          <div className="voice-draft-fields">
-            <label>
-              Expense
-              <input
-                className="plain-input"
-                type="text"
-                value={voiceDraft.label || ''}
-                onChange={(event) => updateVoiceDraft({ label: event.target.value })}
-              />
-            </label>
-            <label>
-              Amount
-              <span className="voice-amount-input">
-                {getCurrencySymbol()}
-                <input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={voiceDraft.amount || ''}
-                  onChange={(event) => updateVoiceDraft({ amount: event.target.value })}
+
+          {!hasTranscriptReview && !hasParsedDrafts && (
+            <div className="voice-example-hints" aria-label="Voice examples">
+              <span>Try saying:</span>
+              {voiceExamplePrompts.map((example) => (
+                <button type="button" key={example} onClick={() => setVoiceTranscriptDraft(example)}>
+                  {example}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {lastVoiceSave && (
+            <div className="voice-undo-row">
+              <span>Last voice entry saved.</span>
+              <button type="button" onClick={undoVoiceSave}>
+                Undo
+              </button>
+            </div>
+          )}
+
+          {hasTranscriptReview && (
+            <article className="voice-transcript-review">
+              <label className="voice-transcript-label">
+                <span>Transcript</span>
+                <textarea
+                  className="plain-input"
+                  rows="2"
+                  value={transcriptValue}
+                  onChange={(event) => setVoiceTranscriptDraft(event.target.value)}
                 />
-              </span>
-            </label>
-            <label>
-              Category
-              <select
-                className="month-select"
-                value={voiceDraft.category || 'Other'}
-                onChange={(event) => updateVoiceDraft({ category: event.target.value })}
-              >
-                {categoryChoices.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="voice-draft-meta">
-            <span className={`confidence-pill ${voiceDraft.confidence || 'review'}`}>
-              {voiceDraft.confidence === 'high' ? 'Clear match' : 'Review once'}
-            </span>
-            <p>{voiceDraft.transcript}</p>
-          </div>
-          <div className="mini-action-row">
-            <button className="primary-button" type="button" onClick={confirmVoiceExpense}>
-              Save
-            </button>
-            <button className="ghost-button" type="button" onClick={useVoiceDraftInForm}>
-              Edit
-            </button>
-            <button className="ghost-button" type="button" onClick={clearVoiceDraft}>
-              Cancel
-            </button>
-          </div>
-        </article>
-      )}
+              </label>
+              {transcriptOptions.length > 1 && (
+                <div className="voice-transcript-options">
+                  {transcriptOptions.slice(0, 3).map((option) => (
+                    <button type="button" key={option} onClick={() => setVoiceTranscriptDraft(option)}>
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mini-action-row voice-review-actions">
+                <button className="primary-button" type="button" onClick={reviewVoiceTranscript}>
+                  Review expense
+                </button>
+                <button className="ghost-button" type="button" onClick={useVoiceManualFallback}>
+                  Add manually
+                </button>
+                <button className="ghost-button" type="button" onClick={clearVoiceDraft}>
+                  Clear
+                </button>
+              </div>
+            </article>
+          )}
+
+          {!hasTranscriptReview && ['no_speech', 'permission_required', 'microphone_error', 'network_error', 'manual_fallback'].includes(voiceState) && (
+            <div className="voice-fallback-row">
+              <button className="ghost-button" type="button" onClick={useVoiceManualFallback}>
+                Add manually
+              </button>
+            </div>
+          )}
+
+          {hasParsedDrafts && (
+            <div className="voice-draft-list">
+              {reviewDrafts.map((draft, index) => (
+                <article className="voice-draft compact-voice-draft" key={`${draft.label || 'voice'}-${draft.amount || 0}-${index}`}>
+                  {reviewDrafts.length > 1 && (
+                    <div className="voice-entry-heading">
+                      <strong>Entry {index + 1}</strong>
+                      <button className="text-action-button" type="button" onClick={() => removeVoiceDraftAt(index)}>
+                        Remove
+                      </button>
+                    </div>
+                  )}
+              <div className="voice-draft-fields">
+                <label>
+                  Detected item
+                  <input
+                    className="plain-input"
+                    type="text"
+                    value={draft.label || ''}
+                    onChange={(event) => {
+                      const patch = { label: event.target.value }
+                      if (updateVoiceDraftAt) {
+                        updateVoiceDraftAt(index, patch)
+                      } else {
+                        updateVoiceDraft(patch)
+                      }
+                    }}
+                  />
+                </label>
+                <label>
+                  Detected amount
+                  <span className="voice-amount-input">
+                    {getCurrencySymbol()}
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      value={draft.amount || ''}
+                      onChange={(event) => {
+                        const patch = { amount: event.target.value }
+                        if (updateVoiceDraftAt) {
+                          updateVoiceDraftAt(index, patch)
+                        } else {
+                          updateVoiceDraft(patch)
+                        }
+                      }}
+                    />
+                  </span>
+                </label>
+                <label>
+                  Detected type
+                  <select
+                    className="month-select"
+                    value={draft.type || 'daily'}
+                    onChange={(event) => {
+                      const nextType = event.target.value
+                      const patch = {
+                        type: nextType,
+                        category: nextType === 'income' && (!draft.category || draft.category === 'Other') ? 'Income' : draft.category,
+                      }
+                      if (updateVoiceDraftAt) {
+                        updateVoiceDraftAt(index, patch)
+                      } else {
+                        updateVoiceDraft(patch)
+                      }
+                    }}
+                  >
+                    <option value="daily">Expense</option>
+                    <option value="income">Income</option>
+                  </select>
+                </label>
+                <label>
+                  Detected date
+                  <input
+                    className="plain-input"
+                    type="date"
+                    value={normalizeDateKey(draft.date)}
+                    onChange={(event) => {
+                      const patch = { date: event.target.value, dateLabel: 'Custom' }
+                      if (updateVoiceDraftAt) {
+                        updateVoiceDraftAt(index, patch)
+                      } else {
+                        updateVoiceDraft(patch)
+                      }
+                    }}
+                  />
+                </label>
+                <label>
+                  Detected category
+                  <select
+                    className="month-select"
+                    value={draft.category || 'Other'}
+                    onChange={(event) => {
+                      const patch = { category: event.target.value }
+                      if (updateVoiceDraftAt) {
+                        updateVoiceDraftAt(index, patch)
+                      } else {
+                        updateVoiceDraft(patch)
+                      }
+                    }}
+                  >
+                    {categoryChoices.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="voice-draft-meta">
+                <span className={`confidence-pill ${draft.confidence || 'low'}`}>
+                  {draft.confidence === 'high' ? 'High confidence' : draft.confidence === 'medium' ? 'Medium confidence' : 'Low confidence'}
+                </span>
+                <p>
+                  {draft.type === 'income' ? 'Income' : 'Expense'} / {draft.category || 'Other'} / {getCurrencySymbol()}
+                  {draft.amount || 0} / {draft.dateLabel || 'Today'}
+                </p>
+              </div>
+              <div className="voice-detection-grid">
+                <span>
+                  <small>Merchant</small>
+                  <strong>{draft.merchant || draft.label || 'Not detected'}</strong>
+                </span>
+                <span>
+                  <small>Detected category</small>
+                  <strong>{draft.category || 'Other'}</strong>
+                </span>
+                <span>
+                  <small>Reason</small>
+                  <strong>{draft.categoryReason || 'Keyword Match'}</strong>
+                </span>
+              </div>
+              {draft.confidence === 'low' && (
+                <p className="voice-low-confidence">Please confirm this entry before saving.</p>
+              )}
+              <p className="voice-transcript-line">{draft.transcript}</p>
+                </article>
+              ))}
+              <div className="mini-action-row">
+                <button className="primary-button" type="button" onClick={confirmVoiceExpense}>
+                  {reviewDrafts.length > 1 ? 'Save all' : 'Save'}
+                </button>
+                <button className="ghost-button" type="button" onClick={useVoiceDraftInForm}>
+                  Edit in form
+                </button>
+                <button className="ghost-button" type="button" onClick={clearVoiceDraft}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -4781,14 +5567,23 @@ function ProfileScreen({
   addSavingsBucket,
   updateSavingsBucket,
   removeSavingsBucket,
+  voiceState,
   voiceDraft,
+  voiceDrafts,
   voiceStatus,
+  voiceTranscriptDraft,
+  setVoiceTranscriptDraft,
+  voiceTranscriptOptions,
   isListening,
   startVoiceExpense,
   stopVoiceExpense,
+  reviewVoiceTranscript,
   confirmVoiceExpense,
   updateVoiceDraft,
+  updateVoiceDraftAt,
+  removeVoiceDraftAt,
   clearVoiceDraft,
+  useVoiceManualFallback,
   useVoiceDraftInForm,
   undoVoiceSave,
   lastVoiceSave,
@@ -4859,14 +5654,23 @@ function ProfileScreen({
       </div>
 
       <VoiceExpenseBox
+        voiceState={voiceState}
         voiceDraft={voiceDraft}
+        voiceDrafts={voiceDrafts}
         voiceStatus={voiceStatus}
+        voiceTranscriptDraft={voiceTranscriptDraft}
+        setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+        voiceTranscriptOptions={voiceTranscriptOptions}
         isListening={isListening}
         startVoiceExpense={startVoiceExpense}
         stopVoiceExpense={stopVoiceExpense}
+        reviewVoiceTranscript={reviewVoiceTranscript}
         confirmVoiceExpense={confirmVoiceExpense}
         updateVoiceDraft={updateVoiceDraft}
+        updateVoiceDraftAt={updateVoiceDraftAt}
+        removeVoiceDraftAt={removeVoiceDraftAt}
         clearVoiceDraft={clearVoiceDraft}
+        useVoiceManualFallback={useVoiceManualFallback}
         useVoiceDraftInForm={useVoiceDraftInForm}
         undoVoiceSave={undoVoiceSave}
         lastVoiceSave={lastVoiceSave}

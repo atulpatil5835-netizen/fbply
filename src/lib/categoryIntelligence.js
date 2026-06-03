@@ -13,24 +13,50 @@ const CATEGORY_RULES = [
       'diesel',
       'fuel',
       'cng',
+      'flight',
+      'airfare',
+      'ticket',
+      'travel',
+      'trip',
+      'hotel',
+      '\u092a\u0947\u091f\u094d\u0930\u094b\u0932',
+    ],
+  },
+  {
+    category: 'Transport',
+    terms: [
+      'transport',
+      'commute',
       'uber',
       'ola',
       'cab',
       'taxi',
       'auto',
       'rickshaw',
-      'train',
       'metro',
       'bus',
-      'flight',
-      'airfare',
-      'ticket',
+      'train',
       'parking',
       'toll',
-      'travel',
-      'trip',
-      'hotel',
-      '\u092a\u0947\u091f\u094d\u0930\u094b\u0932',
+    ],
+  },
+  {
+    category: 'Bills',
+    terms: [
+      'bill',
+      'bills',
+      'electricity',
+      'bijli',
+      'power',
+      'mobile recharge',
+      'recharge',
+      'jio',
+      'airtel',
+      'postpaid',
+      'prepaid',
+      'phone',
+      'gas',
+      'water',
     ],
   },
   {
@@ -57,6 +83,10 @@ const CATEGORY_RULES = [
     category: 'Grocery',
     terms: [
       'milk',
+      'dmart',
+      'd mart',
+      'reliance fresh',
+      'big bazaar',
       'grocery',
       'groceries',
       'kirana',
@@ -147,6 +177,14 @@ const DIRECT_CATEGORY_MAP = new Map(
     .concat([
       ['fuel', 'Travel'],
       ['petrol', 'Travel'],
+      ['transport', 'Transport'],
+      ['uber', 'Transport'],
+      ['ola', 'Transport'],
+      ['bus', 'Transport'],
+      ['bills', 'Bills'],
+      ['bill', 'Bills'],
+      ['jio', 'Bills'],
+      ['airtel', 'Bills'],
       ['cab', 'Travel'],
       ['taxi', 'Travel'],
       ['grocery', 'Grocery'],
@@ -245,7 +283,12 @@ export function normalizeSpendCategory(expenseOrValue, note = '') {
   }
 
   let best = directCategory
-    ? { category: directCategory, score: 4, matchedTerm: originalCategory, source: 'category' }
+    ? {
+        category: directCategory,
+        score: ['Bills', 'Transport'].includes(directCategory) ? 6 : 4,
+        matchedTerm: originalCategory,
+        source: 'category',
+      }
     : { category: 'Other', score: 0, matchedTerm: '', source: 'fallback' }
 
   CATEGORY_RULES.forEach((rule) => {
