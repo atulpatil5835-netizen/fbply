@@ -6,6 +6,10 @@ function safeAmount(value) {
   return normalizeMoney(value)
 }
 
+function signedAmount(value) {
+  return normalizeMoney(value, { allowNegative: true })
+}
+
 export function normalizePersonName(value) {
   return String(value || '')
     .trim()
@@ -51,6 +55,10 @@ function findMemberName(members, value, profile = {}) {
 
   if (!normalized) {
     return resolveCurrentUserName(profile)
+  }
+
+  if (isCurrentUserName(value, profile)) {
+    return members.find((member) => isCurrentUserName(member, profile)) || resolveCurrentUserName(profile)
   }
 
   return members.find((member) => normalizePersonName(member) === normalized) || String(value).trim()
@@ -112,24 +120,31 @@ export function createSharedSettlements({ groupId, amount, paidBy, people, payme
     ? normalizeSharedPayments({ payments }, members, profile)
     : normalizeSharedPayments({ amount, paidBy, date: new Date().toISOString().slice(0, 10) }, members, profile)
   const total = sumMoney(normalizedPayments, (payment) => payment.amount)
-  const memberShares = allocateMoney(total, members.length)
-  const share = memberShares[0] || 0
 
-  if (!share || members.length < 2) {
+  if (!total || members.length < 2) {
     return []
   }
 
-  const paidTotals = new Map(members.map((member) => [member, 0]))
+  const balances = new Map(members.map((member) => [member, 0]))
   normalizedPayments.forEach((payment) => {
     const payer = findMemberName(members, payment.paidBy, profile)
-    paidTotals.set(payer, addMoney(paidTotals.get(payer), payment.amount))
+    const includedMembers = uniquePeople(payment.participants || [])
+      .map((person) => findMemberName(members, person, profile))
+      .filter((person) => members.some((member) => normalizePersonName(member) === normalizePersonName(person)))
+    const participants = includedMembers.length > 0 ? includedMembers : members
+    const shares = allocateMoney(payment.amount, participants.length)
+
+    balances.set(payer, signedAmount(signedAmount(balances.get(payer)) + payment.amount))
+    participants.forEach((participant, index) => {
+      balances.set(participant, signedAmount(signedAmount(balances.get(participant)) - safeAmount(shares[index])))
+    })
   })
 
   const debtors = []
   const creditors = []
 
-  members.forEach((member, index) => {
-    const balance = normalizeMoney(safeAmount(paidTotals.get(member)) - safeAmount(memberShares[index]), { allowNegative: true })
+  members.forEach((member) => {
+    const balance = signedAmount(balances.get(member))
 
     if (balance < -0.009) {
       debtors.push({ member, amount: Math.abs(balance) })
@@ -203,7 +218,7 @@ export function reconcileSharedGroup(group = {}, profile = {}) {
       : safeAmount(saved.settledAmount)
     const settledAmount = Math.min(savedSettledAmount, item.amount)
     const remainingAmount = subtractMoney(item.amount, settledAmount)
-    const settledStatus = item.direction === 'outgoing' ? 'paid' : 'received'
+    const settledStatus = item.direction === 'incoming' ? 'received' : 'paid'
 
     return {
       ...item,

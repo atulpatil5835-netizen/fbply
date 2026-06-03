@@ -1,5 +1,6 @@
 import { buildAdvancedReport } from './reportInsights.js'
 import { normalizeMoney, sumMoney } from './money.js'
+import { displayPersonName } from './financialActivity.js'
 
 const PAGE = {
   width: 210,
@@ -313,6 +314,13 @@ function uniqueSentences(items = [], limit = 5) {
 
 function plural(value, singular, pluralLabel = `${singular}s`) {
   return value === 1 ? singular : pluralLabel
+}
+
+function settlementReportLabel(item = {}, profile = {}, settled = false) {
+  const from = displayPersonName(item.from, profile)
+  const to = displayPersonName(item.to, profile)
+
+  return `${from} ${settled ? 'paid' : 'pays'} ${to}`
 }
 
 function percentLabel(value) {
@@ -960,21 +968,21 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     total: totalCost,
   }).map((item) => ({
     ...item,
-    detail: item.detail ? `Paid by ${item.detail}` : item.detail,
+    detail: item.detail ? `Paid by ${displayPersonName(item.detail, profile)}` : item.detail,
   }))
   const settlementRows = settlements.map((item) => ({
-    label: item.direction === 'incoming' ? `${item.from} owes You` : `You owe ${item.to}`,
+    label: settlementReportLabel(item, profile),
     value: currencyMoney(item.remainingAmount || item.amount, currency),
     detail: item.status || 'pending',
   }))
   const memberRows = members.map((member) => ({
-    label: member,
+    label: displayPersonName(member, profile),
     value: member === whoPaidMost?.[0] ? 'Top payer' : 'Member',
     detail: paidBy[member] ? currencyMoney(paidBy[member], currency) : 'No upfront payment',
   }))
   const observations = uniqueSentences([
     `The trip total is ${currencyMoney(totalCost, currency)} across ${members.length || 0} ${plural(members.length || 0, 'member')}.`,
-    whoPaidMost ? `${whoPaidMost[0]} paid the most upfront at ${currencyMoney(whoPaidMost[1], currency)}.` : '',
+    whoPaidMost ? `${displayPersonName(whoPaidMost[0], profile)} paid the most upfront at ${currencyMoney(whoPaidMost[1], currency)}.` : '',
     pendingAmount > 0 ? `${currencyMoney(pendingAmount, currency)} remains pending in trip settlements.` : 'All saved trip settlements are marked complete.',
     `The equal split estimate is ${currencyMoney(group.share || totalCost / Math.max(members.length, 1), currency)} per person.`,
   ])
@@ -1024,18 +1032,18 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     ].join(' '),
     executiveNumbers: [
       { label: 'Total Cost', value: currencyMoney(totalCost, currency), detail: 'All shared payments' },
-      { label: 'Members', value: String(members.length || 0), detail: members.join(', ') || 'No members added' },
+      { label: 'Members', value: String(members.length || 0), detail: members.map((member) => displayPersonName(member, profile)).join(', ') || 'No members added' },
       { label: 'Per Person', value: currencyMoney(group.share || totalCost / Math.max(members.length, 1), currency), detail: 'Equal split estimate' },
       { label: 'Settled', value: `${Math.round((settledAmount / Math.max(totalCost, 1)) * 100)}%`, detail: currencyMoney(settledAmount, currency), tone: COLORS.green },
       { label: 'Pending', value: `${Math.round((pendingAmount / Math.max(totalCost, 1)) * 100)}%`, detail: currencyMoney(pendingAmount, currency), tone: COLORS.orange },
-      { label: 'Paid Most', value: whoPaidMost?.[0] || 'Review', detail: whoPaidMost ? currencyMoney(whoPaidMost[1], currency) : 'No payment yet' },
+      { label: 'Paid Most', value: whoPaidMost ? displayPersonName(whoPaidMost[0], profile) : 'Review', detail: whoPaidMost ? currencyMoney(whoPaidMost[1], currency) : 'No payment yet' },
     ],
     keyNumbers: [
       { label: 'Payments', value: String(payments.length), detail: 'Saved trip payments' },
       { label: 'Settlements', value: String(settlements.length), detail: 'Generated balances' },
       { label: 'Settled Amount', value: currencyMoney(settledAmount, currency), detail: 'Marked settled' },
       { label: 'Pending Amount', value: currencyMoney(pendingAmount, currency), detail: 'Still open' },
-      { label: 'Top Payer', value: whoPaidMost?.[0] || 'None', detail: whoPaidMost ? currencyMoney(whoPaidMost[1], currency) : 'No payment yet' },
+      { label: 'Top Payer', value: whoPaidMost ? displayPersonName(whoPaidMost[0], profile) : 'None', detail: whoPaidMost ? currencyMoney(whoPaidMost[1], currency) : 'No payment yet' },
     ],
     observations,
     analysisSections: template === 'compact' ? analysisSections.filter((section) => section.title !== 'Members') : analysisSections,
@@ -1057,17 +1065,17 @@ export async function createSettlementReportPdfBlob({ reportMeta = {}, profile =
   const paidAmount = sumMoney(paid, (item) => item.settledAmount || item.amount)
   const pendingAmount = sumMoney(pending, (item) => item.remainingAmount || item.amount)
   const settlementRows = settlements.map((item) => ({
-    label: item.direction === 'incoming' ? `${item.from} owes You` : `You owe ${item.to}`,
+    label: settlementReportLabel(item, profile),
     value: currencyMoney(item.remainingAmount || item.settledAmount || item.amount, currency),
     detail: `${item.groupName} - ${item.status || 'pending'}`,
   }))
   const pendingRows = pending.map((item) => ({
-    label: item.direction === 'incoming' ? `${item.from} owes You` : `You owe ${item.to}`,
+    label: settlementReportLabel(item, profile),
     value: currencyMoney(item.remainingAmount || item.amount, currency),
     detail: item.groupName,
   }))
   const paidRows = paid.map((item) => ({
-    label: item.direction === 'incoming' ? `${item.from} paid You` : `You paid ${item.to}`,
+    label: settlementReportLabel(item, profile, true),
     value: currencyMoney(item.settledAmount || item.amount, currency),
     detail: item.groupName,
   }))

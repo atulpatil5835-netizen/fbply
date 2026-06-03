@@ -1785,7 +1785,7 @@ function App() {
           return group
         }
 
-        const status = settlement.direction === 'outgoing' ? 'paid' : 'received'
+        const status = settlement.direction === 'incoming' ? 'received' : 'paid'
         const receivedSettlement = {
           ...settlement,
           settledAmount: settlement.amount,

@@ -4004,7 +4004,7 @@ img {
 
 .shared-form {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -4106,6 +4106,12 @@ img {
   align-items: start;
 }
 
+.shared-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
 .shared-card-top p {
   margin: 4px 0 0;
   color: var(--muted);
@@ -4119,6 +4125,26 @@ img {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.35;
+}
+
+.participant-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.participant-chip-row span {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(29, 78, 216, 0.16);
+  border-radius: 999px;
+  color: #0F2B63;
+  background: rgba(239, 246, 255, 0.85);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .shared-card-top .icon-button {
@@ -4149,6 +4175,94 @@ img {
 .trip-payment-form .ghost-button {
   grid-column: 1 / -1;
   min-height: 42px;
+}
+
+.participant-expense-entry {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--soft-bg);
+}
+
+.participant-expense-heading,
+.participant-expense-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.85fr) minmax(150px, 1fr) minmax(112px, 0.62fr) auto;
+  gap: 9px;
+  align-items: start;
+}
+
+.participant-expense-heading {
+  align-items: center;
+  padding: 0 4px 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.participant-expense-row {
+  padding: 9px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.participant-name-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.participant-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: #F8FAFC;
+  background: linear-gradient(135deg, #0F172A, #1D4ED8);
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.participant-name-cell > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.participant-name-cell strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.participant-name-cell small,
+.participant-split-note {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.participant-add-button {
+  min-width: 76px;
+  min-height: 48px;
+  align-self: end;
+  gap: 5px;
+  padding: 0 12px;
+}
+
+.participant-split-note {
+  grid-column: 2 / -1;
+  margin-top: -5px;
 }
 
 .trip-payment-list {
@@ -8130,6 +8244,7 @@ img {
   .shared-form,
   .shared-metrics-strip,
   .trip-payment-form,
+  .participant-expense-row,
   .voice-draft,
   .guidance-grid,
   .planner-reality-grid,
@@ -8145,6 +8260,19 @@ img {
   .today-action-chips,
   .entry-actions {
     grid-template-columns: 1fr;
+  }
+
+  .participant-expense-heading {
+    display: none;
+  }
+
+  .participant-split-note {
+    grid-column: 1;
+  }
+
+  .participant-add-button {
+    width: 100%;
+    justify-content: center;
   }
 
   .voice-compact-bar,

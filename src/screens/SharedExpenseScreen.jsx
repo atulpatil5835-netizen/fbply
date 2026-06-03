@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Trash2, User } from 'lucide-react'
+import { Download, Plus, Trash2, User } from 'lucide-react'
 import { CurrencyInput, EmptyState } from '../components/AppPrimitives.jsx'
 import {
   displayPersonName,
@@ -12,6 +12,228 @@ import { normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { focusInvalidField, slugify } from '../lib/uiHelpers'
 import { trackEvent } from '../lib/analytics'
+
+function loadCanvasImage(src) {
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => resolve(null)
+    image.src = src
+  })
+}
+
+function drawWrappedText(context, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+  const words = String(text || '').split(/\s+/).filter(Boolean)
+  const lines = []
+  let current = ''
+
+  words.forEach((word) => {
+    const next = current ? `${current} ${word}` : word
+
+    if (context.measureText(next).width <= maxWidth || !current) {
+      current = next
+      return
+    }
+
+    lines.push(current)
+    current = word
+  })
+
+  if (current) {
+    lines.push(current)
+  }
+
+  const visible = lines.slice(0, maxLines)
+
+  if (lines.length > maxLines && visible.length > 0) {
+    visible[visible.length - 1] = `${visible[visible.length - 1].replace(/\.*$/, '')}...`
+  }
+
+  visible.forEach((line, index) => {
+    context.fillText(line, x, y + index * lineHeight)
+  })
+
+  return y + visible.length * lineHeight
+}
+
+function downloadCanvas(canvas, fileName) {
+  const anchor = document.createElement('a')
+  anchor.href = canvas.toDataURL('image/png')
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
+function roundedCanvasRect(context, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2)
+
+  context.beginPath()
+  context.moveTo(x + safeRadius, y)
+  context.lineTo(x + width - safeRadius, y)
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius)
+  context.lineTo(x + width, y + height - safeRadius)
+  context.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height)
+  context.lineTo(x + safeRadius, y + height)
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius)
+  context.lineTo(x, y + safeRadius)
+  context.quadraticCurveTo(x, y, x + safeRadius, y)
+  context.closePath()
+}
+
+async function downloadTripSummaryPng(group = {}, profile = {}) {
+  if (typeof document === 'undefined') {
+    return false
+  }
+
+  try {
+    const members = group.people || []
+    const payments = group.payments || []
+    const settlements = group.settlements || []
+    const rowHeight = 58
+    const height = Math.max(1180, 430 + members.length * 34 + payments.length * rowHeight + settlements.length * rowHeight)
+    const canvas = document.createElement('canvas')
+    canvas.width = 1080
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    const logo = await loadCanvasImage('/fbply-f-mark.png')
+
+    context.fillStyle = '#F8FAFC'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.fillStyle = '#0B1020'
+    context.fillRect(0, 0, canvas.width, 210)
+
+    if (logo) {
+      context.fillStyle = '#FFFFFF'
+      roundedCanvasRect(context, 64, 54, 86, 86, 22)
+      context.fill()
+      context.drawImage(logo, 74, 64, 66, 66)
+    }
+
+    context.fillStyle = '#FFFFFF'
+    context.font = '800 42px Inter, Segoe UI, sans-serif'
+    context.fillText(group.name || 'Shared trip', 176, 86)
+    context.fillStyle = '#94A3B8'
+    context.font = '600 23px Inter, Segoe UI, sans-serif'
+    context.fillText('FBPly shared money summary', 176, 122)
+    context.fillText(new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }), 176, 158)
+
+    let y = 250
+    const cardX = 64
+    const cardWidth = 952
+
+    const drawCard = (top, cardHeight) => {
+      context.fillStyle = '#FFFFFF'
+      context.strokeStyle = '#D8E1EF'
+      context.lineWidth = 2
+      roundedCanvasRect(context, cardX, top, cardWidth, cardHeight, 24)
+      context.fill()
+      context.stroke()
+    }
+
+    drawCard(y, 164)
+    const stats = [
+      ['Total cost', rupees(group.amount)],
+      ['Participants', String(members.length)],
+      ['Per person', rupees(group.share)],
+      ['Pending', rupees(group.settlements?.reduce((total, item) => total + normalizeMoney(item.remainingAmount), 0) || 0)],
+    ]
+    stats.forEach(([label, value], index) => {
+      const x = cardX + 34 + index * 230
+      context.fillStyle = '#64748B'
+      context.font = '800 19px Inter, Segoe UI, sans-serif'
+      context.fillText(label.toUpperCase(), x, y + 48)
+      context.fillStyle = '#0F172A'
+      context.font = '900 32px Inter, Segoe UI, sans-serif'
+      drawWrappedText(context, value, x, y + 92, 190, 34, 1)
+    })
+
+    y += 214
+    drawCard(y, 70 + Math.ceil(members.length / 4) * 42)
+    context.fillStyle = '#0F172A'
+    context.font = '900 26px Inter, Segoe UI, sans-serif'
+    context.fillText('Participants', cardX + 30, y + 42)
+    members.forEach((member, index) => {
+      const x = cardX + 30 + (index % 4) * 225
+      const rowY = y + 78 + Math.floor(index / 4) * 42
+      context.fillStyle = '#EFF6FF'
+      roundedCanvasRect(context, x, rowY - 24, 198, 32, 16)
+      context.fill()
+      context.fillStyle = '#0F172A'
+      context.font = '800 18px Inter, Segoe UI, sans-serif'
+      drawWrappedText(context, displayPersonName(member, profile), x + 14, rowY - 2, 170, 20, 1)
+    })
+
+    y += 112 + Math.ceil(members.length / 4) * 42
+    drawCard(y, 68 + Math.max(payments.length, 1) * rowHeight)
+    context.fillStyle = '#0F172A'
+    context.font = '900 26px Inter, Segoe UI, sans-serif'
+    context.fillText('Payments', cardX + 30, y + 42)
+    if (payments.length === 0) {
+      context.fillStyle = '#64748B'
+      context.font = '700 20px Inter, Segoe UI, sans-serif'
+      context.fillText('No payments added yet.', cardX + 30, y + 90)
+    }
+    payments.forEach((payment, index) => {
+      const rowY = y + 86 + index * rowHeight
+      context.fillStyle = '#0F172A'
+      context.font = '850 21px Inter, Segoe UI, sans-serif'
+      drawWrappedText(context, payment.label, cardX + 30, rowY, 520, 22, 1)
+      context.fillStyle = '#64748B'
+      context.font = '700 17px Inter, Segoe UI, sans-serif'
+      context.fillText(`Paid by ${displayPersonName(payment.paidBy, profile)}`, cardX + 30, rowY + 26)
+      context.fillStyle = '#0F172A'
+      context.font = '900 22px Inter, Segoe UI, sans-serif'
+      context.textAlign = 'right'
+      context.fillText(rupees(payment.amount), cardX + cardWidth - 32, rowY + 10)
+      context.textAlign = 'left'
+    })
+
+    y += 100 + Math.max(payments.length, 1) * rowHeight
+    drawCard(y, 72 + Math.max(settlements.length, 1) * rowHeight)
+    context.fillStyle = '#0F172A'
+    context.font = '900 26px Inter, Segoe UI, sans-serif'
+    context.fillText('Settlements', cardX + 30, y + 42)
+    if (settlements.length === 0) {
+      context.fillStyle = '#64748B'
+      context.font = '700 20px Inter, Segoe UI, sans-serif'
+      context.fillText('Add payments to calculate who pays whom.', cardX + 30, y + 90)
+    }
+    settlements.forEach((settlement, index) => {
+      const complete = ['received', 'paid', 'settled'].includes(settlement.status) || settlement.remainingAmount <= 0
+      const rowY = y + 88 + index * rowHeight
+
+      context.fillStyle = '#0F172A'
+      context.font = '850 21px Inter, Segoe UI, sans-serif'
+      drawWrappedText(
+        context,
+        `${displayPersonName(settlement.from, profile)} pays ${displayPersonName(settlement.to, profile)}`,
+        cardX + 30,
+        rowY,
+        560,
+        22,
+        1,
+      )
+      context.fillStyle = complete ? '#16A34A' : '#D97706'
+      context.font = '800 17px Inter, Segoe UI, sans-serif'
+      context.fillText(complete ? 'Paid' : 'Pending', cardX + 30, rowY + 26)
+      context.fillStyle = '#0F172A'
+      context.font = '900 22px Inter, Segoe UI, sans-serif'
+      context.textAlign = 'right'
+      context.fillText(rupees(settlement.remainingAmount || settlement.amount), cardX + cardWidth - 32, rowY + 10)
+      context.textAlign = 'left'
+    })
+
+    context.fillStyle = '#64748B'
+    context.font = '700 18px Inter, Segoe UI, sans-serif'
+    context.fillText('Generated with FBPly | fbply.com', cardX, canvas.height - 40)
+
+    downloadCanvas(canvas, `FBPly-${slugify(group.name || 'shared-trip')}-summary.png`)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export default function SharedExpensesPanel({
   groups,
@@ -26,7 +248,6 @@ export default function SharedExpensesPanel({
   const [name, setName] = useState('')
   const [ownerName, setOwnerName] = useState(() => resolveCurrentUserName(profile))
   const [people, setPeople] = useState('')
-  const [purpose, setPurpose] = useState('')
   const [paymentDrafts, setPaymentDrafts] = useState({})
   const [groupErrors, setGroupErrors] = useState({})
   const [paymentErrors, setPaymentErrors] = useState({})
@@ -49,9 +270,11 @@ export default function SharedExpensesPanel({
     })
   }
 
-  const clearPaymentError = (groupId, field) => {
+  const paymentDraftKey = (groupId, person) => `${groupId}-${slugify(normalizePersonName(person) || 'person')}`
+
+  const clearPaymentError = (draftKey, field) => {
     setPaymentErrors((current) => {
-      const groupFields = current[groupId]
+      const groupFields = current[draftKey]
 
       if (!groupFields?.[field]) {
         return current
@@ -62,7 +285,7 @@ export default function SharedExpensesPanel({
 
       return {
         ...current,
-        [groupId]: nextGroupFields,
+        [draftKey]: nextGroupFields,
       }
     })
   }
@@ -123,7 +346,6 @@ export default function SharedExpensesPanel({
       name: cleanName,
       ownerName: cleanOwnerName,
       people: peopleList,
-      purpose,
     })
 
     if (!saved) {
@@ -140,35 +362,29 @@ export default function SharedExpensesPanel({
     })
     setName('')
     setPeople('')
-    setPurpose('')
     setGroupErrors({})
   }
 
-  const updatePaymentDraft = (groupId, patch) => {
+  const updatePaymentDraft = (draftKey, patch) => {
     setPaymentDrafts((current) => ({
       ...current,
-      [groupId]: {
-        ...(current[groupId] || {}),
+      [draftKey]: {
+        ...(current[draftKey] || {}),
         ...patch,
       },
     }))
   }
 
-  const submitPayment = (event, group) => {
+  const submitPayment = (event, group, payerName) => {
     event.preventDefault()
     const form = event.currentTarget
-    const draft = paymentDrafts[group.id] || {}
+    const draftKey = paymentDraftKey(group.id, payerName)
+    const draft = paymentDrafts[draftKey] || {}
     const fieldErrors = {}
     const parsedAmount = normalizeMoney(draft.amount)
     const cleanLabel = String(draft.label || '').trim()
-    const cleanPaidBy = String(draft.paidBy || currentUserName).trim()
-    const participantText = String(draft.participants ?? group.people.map((person) => displayPersonName(person, profile)).join(', '))
-    const cleanParticipants = uniqueSharedPeople(
-      participantText
-        .split(',')
-        .map((person) => person.trim())
-        .filter(Boolean),
-    )
+    const cleanPaidBy = String(payerName || currentUserName).trim()
+    const cleanParticipants = uniqueSharedPeople(group.people || [])
 
     if (!cleanLabel) {
       fieldErrors.label = 'Add what this payment was for.'
@@ -183,7 +399,7 @@ export default function SharedExpensesPanel({
     }
 
     if (Object.keys(fieldErrors).length > 0) {
-      setPaymentErrors((current) => ({ ...current, [group.id]: fieldErrors }))
+      setPaymentErrors((current) => ({ ...current, [draftKey]: fieldErrors }))
       setMessage({ text: 'Complete the highlighted payment fields.', tone: 'error' })
       focusInvalidField(form)
       return
@@ -203,11 +419,19 @@ export default function SharedExpensesPanel({
     }
 
     setMessage({ text: `${cleanLabel} added to ${group.name}.`, tone: 'success' })
-    setPaymentErrors((current) => ({ ...current, [group.id]: {} }))
+    setPaymentErrors((current) => ({ ...current, [draftKey]: {} }))
     setPaymentDrafts((current) => ({
       ...current,
-      [group.id]: { label: '', amount: '', paidBy: '', participants: '' },
+      [draftKey]: { label: '', amount: '' },
     }))
+  }
+
+  const downloadTripCard = async (group) => {
+    const saved = await downloadTripSummaryPng(group, profile)
+
+    setMessage(saved
+      ? { text: `${group.name} PNG is ready to share.`, tone: 'success' }
+      : { text: 'Could not prepare the PNG. Please try again.', tone: 'error' })
   }
 
   return (
@@ -274,16 +498,6 @@ export default function SharedExpensesPanel({
           <small className="field-hint">Separate names with commas. Do not add your own name here.</small>
           {groupErrors.people && <small className="field-helper">{groupErrors.people}</small>}
         </label>
-        <label>
-          <span className="input-label">Expense / Purpose</span>
-          <input
-            className="plain-input"
-            id="shared-purpose"
-            value={purpose}
-            onChange={(event) => setPurpose(event.target.value)}
-            placeholder="Hotel, rent, dinner, fuel"
-          />
-        </label>
         <button className="primary-button full" type="submit">
           Create group
         </button>
@@ -322,85 +536,88 @@ export default function SharedExpensesPanel({
           />
         )}
         {reconciledGroups.map((group) => {
-          const draft = paymentDrafts[group.id] || {}
-          const payerOptions = group.people.length > 0 ? group.people : [currentUserName]
-          const selectedTripPayer = draft.paidBy || currentUserName
+          const peopleList = group.people.length > 0 ? group.people : [currentUserName]
 
           return (
             <article className="shared-card" key={group.id}>
               <div className="shared-card-top">
                 <div>
                   <h2>{group.name}</h2>
-                  <p>{group.purpose || 'Shared expenses'}</p>
-                  <small>{group.people.map((person) => displayPersonName(person, profile)).join(', ')}</small>
+                  <p>{peopleList.length} participants - {group.payments.length} payment{group.payments.length === 1 ? '' : 's'}</p>
+                  <div className="participant-chip-row" aria-label={`${group.name} participants`}>
+                    {peopleList.map((person) => (
+                      <span key={person}>{displayPersonName(person, profile)}</span>
+                    ))}
+                  </div>
                 </div>
-                <button className="icon-button" type="button" aria-label={`Remove ${group.name}`} onClick={() => removeSharedGroup(group.id)}>
-                  <Trash2 size={16} />
-                </button>
+                <div className="shared-card-actions">
+                  <button className="icon-button mini-icon-button" type="button" aria-label={`Download ${group.name} PNG`} onClick={() => downloadTripCard(group)}>
+                    <Download size={15} />
+                  </button>
+                  <button className="icon-button mini-icon-button" type="button" aria-label={`Remove ${group.name}`} onClick={() => removeSharedGroup(group.id)}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
 
-              <form className={`trip-payment-form ${Object.keys(paymentErrors[group.id] || {}).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => submitPayment(event, group)}>
-                <label>
-                  <span className="input-label">Expense / Purpose</span>
-                  <input
-                    className={`plain-input ${paymentErrors[group.id]?.label ? 'field-invalid' : ''}`}
-                    value={draft.label || ''}
-                    placeholder={group.purpose || 'Hotel, petrol, dinner'}
-                    aria-invalid={paymentErrors[group.id]?.label ? 'true' : undefined}
-                    onChange={(event) => {
-                      updatePaymentDraft(group.id, { label: event.target.value })
-                      clearPaymentError(group.id, 'label')
-                    }}
-                  />
-                  {paymentErrors[group.id]?.label && <small className="field-helper">{paymentErrors[group.id].label}</small>}
-                </label>
-                <div>
-                  <CurrencyInput
-                    label="Amount"
-                    id={`trip-payment-${slugify(group.id)}`}
-                    value={draft.amount || ''}
-                    onChange={(value) => {
-                      updatePaymentDraft(group.id, { amount: value })
-                      clearPaymentError(group.id, 'amount')
-                    }}
-                    placeholder="1200"
-                    error={paymentErrors[group.id]?.amount}
-                  />
+              <section className="participant-expense-entry" aria-label={`Add payments for ${group.name}`}>
+                <div className="participant-expense-heading">
+                  <span>Participant</span>
+                  <span>Purpose</span>
+                  <span>Amount</span>
+                  <span>Add</span>
                 </div>
-                <label>
-                  <span className="input-label">Paid by</span>
-                  <select
-                    className={`month-select stable-select ${paymentErrors[group.id]?.paidBy ? 'field-invalid' : ''}`}
-                    value={selectedTripPayer}
-                    aria-invalid={paymentErrors[group.id]?.paidBy ? 'true' : undefined}
-                    onChange={(event) => {
-                      updatePaymentDraft(group.id, { paidBy: event.target.value })
-                      clearPaymentError(group.id, 'paidBy')
-                    }}
-                  >
-                    {payerOptions.map((person) => (
-                      <option key={person} value={person}>
-                        {displayPersonName(person, profile)}
-                      </option>
-                    ))}
-                  </select>
-                  <small className="field-hint">Choose the person who paid first.</small>
-                  {paymentErrors[group.id]?.paidBy && <small className="field-helper">{paymentErrors[group.id].paidBy}</small>}
-                </label>
-                <label>
-                  <span className="input-label">Participants</span>
-                  <input
-                    className="plain-input"
-                    value={draft.participants ?? group.people.map((person) => displayPersonName(person, profile)).join(', ')}
-                    placeholder="You, Rahul, Priya"
-                    onChange={(event) => updatePaymentDraft(group.id, { participants: event.target.value })}
-                  />
-                  <small className="field-hint">Use commas for who joined this payment.</small>
-                </label>
-                <button className="ghost-button" type="submit">
-                  Add shared payment
-                </button>
-              </form>
+                {peopleList.map((person) => {
+                  const draftKey = paymentDraftKey(group.id, person)
+                  const draft = paymentDrafts[draftKey] || {}
+                  const errors = paymentErrors[draftKey] || {}
+                  const displayName = displayPersonName(person, profile)
+
+                  return (
+                    <form className={`participant-expense-row ${Object.keys(errors).length > 0 ? 'form-has-errors' : ''}`} key={person} onSubmit={(event) => submitPayment(event, group, person)}>
+                      <div className="participant-name-cell">
+                        <span className="participant-avatar">{displayName.charAt(0).toUpperCase()}</span>
+                        <span>
+                          <strong>{displayName}</strong>
+                          <small>Paid by {displayName}</small>
+                        </span>
+                      </div>
+                      <label>
+                        <span className="input-label">Purpose</span>
+                        <input
+                          className={`plain-input ${errors.label ? 'field-invalid' : ''}`}
+                          value={draft.label || ''}
+                          placeholder="Hotel, cab, dinner"
+                          aria-invalid={errors.label ? 'true' : undefined}
+                          onChange={(event) => {
+                            updatePaymentDraft(draftKey, { label: event.target.value })
+                            clearPaymentError(draftKey, 'label')
+                          }}
+                        />
+                        {errors.label && <small className="field-helper">{errors.label}</small>}
+                      </label>
+                      <div>
+                        <CurrencyInput
+                          label="Amount"
+                          id={`trip-payment-${slugify(group.id)}-${slugify(person)}`}
+                          value={draft.amount || ''}
+                          onChange={(value) => {
+                            updatePaymentDraft(draftKey, { amount: value })
+                            clearPaymentError(draftKey, 'amount')
+                          }}
+                          placeholder="1200"
+                          error={errors.amount}
+                        />
+                      </div>
+                      <button className="primary-button participant-add-button" type="submit">
+                        <Plus size={15} />
+                        Add
+                      </button>
+                      <small className="participant-split-note">Split with all participants in this group.</small>
+                    </form>
+                  )
+                })}
+              </section>
 
               {group.payments.length > 0 && (
                 <div className="trip-payment-list">
@@ -438,34 +655,31 @@ export default function SharedExpensesPanel({
                   <span className="settlement-empty">Add a shared payment to see who owes whom.</span>
                 )}
                 {group.settlements.map((item) => {
-                  const isSettled = item.status === 'received'
-                  const isPaid = item.status === 'paid'
-                  const isIncoming = item.direction === 'incoming'
-                  const isOutgoing = item.direction === 'outgoing'
-                  const label = isIncoming
-                    ? `${displayPersonName(item.from, profile)} pays you`
-                    : isOutgoing
-                      ? `You pay ${displayPersonName(item.to, profile)}`
-                      : `${displayPersonName(item.from, profile)} pays ${displayPersonName(item.to, profile)}`
-                  const actionLabel = isOutgoing ? 'Mark paid' : 'Mark received'
+                  const isComplete = ['received', 'paid', 'settled'].includes(item.status) || item.remainingAmount <= 0
+                  const label = `${displayPersonName(item.from, profile)} pays ${displayPersonName(item.to, profile)}`
+                  const actionLabel = item.direction === 'incoming' ? 'Mark received' : 'Mark paid'
                   const displayAmount = item.remainingAmount || item.amount
+                  const statusLabel = item.status === 'received'
+                    ? 'Received'
+                    : item.status === 'paid' || item.status === 'settled'
+                      ? 'Paid'
+                      : 'Pending'
 
                   return (
-                    <div className={`settlement-item ${isSettled || isPaid ? 'received' : ''}`} key={item.id}>
+                    <div className={`settlement-item ${isComplete ? 'received' : ''}`} key={item.id}>
                       <span className="settlement-text">
                         {label} <strong>{rupees(displayAmount)}</strong>
                       </span>
-                      {isIncoming || isOutgoing ? (
+                      {!isComplete ? (
                         <button
                           className="text-action-button"
                           type="button"
-                          disabled={isSettled || isPaid}
                           onClick={() => markSharedSettlementReceived(group.id, item.id)}
                         >
                           {actionLabel}
                         </button>
                       ) : (
-                        <span className="settlement-status">Pending</span>
+                        <span className="settlement-status">{statusLabel}</span>
                       )}
                     </div>
                   )
