@@ -12,6 +12,7 @@ if (-not $LogoPath) {
 }
 
 $LogoPath = Resolve-Path $LogoPath
+$PublicRoot = Join-Path $ProjectRoot "public"
 $ResourcesRoot = Join-Path $ProjectRoot "resources"
 $AndroidResRoot = Join-Path $ProjectRoot "android\app\src\main\res"
 $Navy = [System.Drawing.ColorTranslator]::FromHtml("#0B1020")
@@ -191,16 +192,32 @@ function New-FeatureGraphic($Mark) {
   return $bitmap
 }
 
+function New-WebMark([int]$Size, $Mark, [bool]$TransparentBackground) {
+  if ($TransparentBackground) {
+    $bitmap = New-TransparentBitmap $Size $Size
+  } else {
+    $bitmap = New-Bitmap $Size $Size ([System.Drawing.Color]::White)
+  }
+
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+  $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $padding = $Size * 0.06
+  Draw-FitImage $graphics $Mark ([System.Drawing.RectangleF]::new($padding, $padding, $Size - ($padding * 2), $Size - ($padding * 2)))
+  $graphics.Dispose()
+  return $bitmap
+}
+
 $logo = [System.Drawing.Image]::FromFile($LogoPath)
-$markCrop = [System.Drawing.Rectangle]::new(
-  [int]($logo.Width * 0.29),
-  [int]($logo.Height * 0.15),
-  [int]($logo.Width * 0.50),
-  [int]($logo.Height * 0.39)
-)
 $logoContent = Copy-Crop $logo (Get-ContentBounds $logo 44)
-$mark = Copy-Crop $logo $markCrop
+$mark = Copy-Crop $logo (Get-ContentBounds $logo 24)
 $markTransparent = Remove-WhiteBackground $mark
+
+$webMark = New-WebMark 512 $markTransparent $true
+Save-Png $webMark (Join-Path $PublicRoot "fbply-f-mark.png")
+
+$favicon = New-WebMark 96 $markTransparent $false
+Save-Png $favicon (Join-Path $PublicRoot "favicon.png")
 
 $sourceIcon = New-LauncherIcon 1024 $markTransparent $false
 Save-Png $sourceIcon (Join-Path $ResourcesRoot "android\icon.png")
@@ -267,6 +284,8 @@ $featureGraphic.Dispose()
 $storeIcon.Dispose()
 $sourceSplash.Dispose()
 $sourceIcon.Dispose()
+$favicon.Dispose()
+$webMark.Dispose()
 $markTransparent.Dispose()
 $mark.Dispose()
 $logoContent.Dispose()

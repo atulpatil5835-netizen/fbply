@@ -2703,7 +2703,7 @@ function SplashScreen({ onDone }) {
       </div>
       <div className="coin-loader" role="status" aria-label="Loading FBPly">
         <div className="coin" aria-hidden="true">
-          <span>{getCurrencySymbol()}</span>
+          <span className="coin-emblem" />
         </div>
         <p>Spend Smarter. Feel Better.</p>
         <button className="splash-skip-button" type="button" onClick={onDone}>

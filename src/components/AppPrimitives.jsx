@@ -60,7 +60,7 @@ export function AppModal({ children, onClose, labelledBy, sheetClassName = 'edit
 export function BrandMark({ size = 'default' }) {
   return (
     <span className={`brand-mark ${size}`} aria-hidden="true">
-      F
+      <img src="/fbply-f-mark.png" alt="" decoding="async" />
     </span>
   )
 }

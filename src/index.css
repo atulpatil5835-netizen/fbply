@@ -335,13 +335,22 @@ img {
   filter: blur(1px);
 }
 
-.coin span {
+.coin-emblem {
+  width: 52px;
+  height: 52px;
+  display: block;
   position: relative;
   z-index: 1;
-  font-size: 33px;
-  line-height: 1;
-  font-weight: 900;
-  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.28);
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.78), transparent 23%),
+    linear-gradient(145deg, #FFF7AD 0%, #FCD34D 36%, #D97706 68%, #92400E 100%);
+  filter:
+    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.48))
+    drop-shadow(0 2px 1px rgba(120, 53, 15, 0.5))
+    drop-shadow(0 5px 5px rgba(120, 53, 15, 0.22));
+  transform: translateZ(1px);
+  -webkit-mask: url("/fbply-f-mark.png") center / contain no-repeat;
+  mask: url("/fbply-f-mark.png") center / contain no-repeat;
 }
 
 @keyframes coinFlip {
@@ -411,6 +420,7 @@ img {
 }
 
 .brand-mark {
+  --brand-mark-padding: 6px;
   width: 44px;
   height: 44px;
   flex: 0 0 auto;
@@ -418,36 +428,39 @@ img {
   place-items: center;
   border: 1px solid rgba(56, 189, 248, 0.28);
   border-radius: 15px;
-  color: #F8FAFC;
-  background:
-    linear-gradient(145deg, #0F172A, #1D4ED8 58%, #0EA5E9);
-  font-size: 24px;
-  font-weight: 900;
-  letter-spacing: 0;
+  overflow: hidden;
+  background: linear-gradient(145deg, #FFFFFF, #EFF6FF 70%, #BFDBFE);
   box-shadow:
     0 12px 28px rgba(2, 6, 23, 0.22),
     inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
+.brand-mark img {
+  width: calc(100% - var(--brand-mark-padding));
+  height: calc(100% - var(--brand-mark-padding));
+  display: block;
+  object-fit: contain;
+}
+
 .brand-mark.small {
+  --brand-mark-padding: 5px;
   width: 38px;
   height: 38px;
   border-radius: 13px;
-  font-size: 20px;
 }
 
 .brand-mark.tiny {
+  --brand-mark-padding: 4px;
   width: 26px;
   height: 26px;
   border-radius: 9px;
-  font-size: 15px;
 }
 
 .brand-mark.hero {
+  --brand-mark-padding: 16px;
   width: 104px;
   height: 104px;
   border-radius: 30px;
-  font-size: 58px;
   box-shadow:
     0 26px 60px rgba(2, 6, 23, 0.3),
     inset 0 0 0 1px rgba(255, 255, 255, 0.14);
