@@ -743,6 +743,95 @@ function profileSyncFailurePayload(error, stage) {
   }
 }
 
+function authRedirectUrl() {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+
+  return window.location.origin
+}
+
+function authErrorReason(error, fallback = 'auth_error') {
+  return String(error?.code || error?.name || fallback).slice(0, 80)
+}
+
+function authErrorNotice(error, authMode = 'login') {
+  const message = String(error?.message || '').toLowerCase()
+  const code = String(error?.code || '').toLowerCase()
+  const status = Number(error?.status || 0)
+  const isEmailUnverified =
+    code.includes('email_not_confirmed') ||
+    code.includes('email_not_verified') ||
+    /email.*not.*(confirmed|verified)/.test(message) ||
+    /not.*(confirmed|verified)/.test(message)
+  const isExistingAccount =
+    code.includes('user_already_exists') ||
+    message.includes('already registered') ||
+    message.includes('already exists') ||
+    message.includes('user already')
+  const isWrongPassword =
+    status === 400 ||
+    code.includes('invalid_credentials') ||
+    message.includes('invalid login') ||
+    message.includes('invalid credentials')
+
+  if (isEmailUnverified) {
+    return {
+      message: 'Account exists but email is not verified.',
+      followUp: 'resend_verification',
+      reason: 'email_not_verified',
+    }
+  }
+
+  if (authMode === 'signup' && isExistingAccount) {
+    return {
+      message: 'Account already exists. Please sign in.',
+      followUp: 'sign_in',
+      reason: 'account_exists',
+    }
+  }
+
+  if (authMode === 'login' && isWrongPassword) {
+    return {
+      message: 'Email or password is incorrect. Please try again.',
+      followUp: 'forgot_password',
+      reason: 'invalid_login',
+    }
+  }
+
+  return {
+    message: error?.message || (authMode === 'signup' ? 'Sign up could not finish. Please try again.' : 'Login could not finish. Please try again.'),
+    followUp: authMode === 'login' ? 'forgot_password' : null,
+    reason: authErrorReason(error),
+  }
+}
+
+function signupResultNotice(data) {
+  const user = data?.user
+  const identities = Array.isArray(user?.identities) ? user.identities : null
+  const createdAt = Date.parse(user?.created_at || '')
+  const isOlderUser = Number.isFinite(createdAt) && Date.now() - createdAt > 120000
+  const isConfirmed = Boolean(user?.email_confirmed_at || user?.confirmed_at)
+
+  if (identities && identities.length === 0) {
+    return {
+      message: 'Account already exists. Please sign in.',
+      followUp: 'sign_in',
+      reason: 'account_exists',
+    }
+  }
+
+  if (user && !data?.session && !isConfirmed && isOlderUser) {
+    return {
+      message: 'Account exists but email is not verified.',
+      followUp: 'resend_verification',
+      reason: 'email_not_verified',
+    }
+  }
+
+  return null
+}
+
 function readLocalExpenseCache(fallback = []) {
   flushStorageQueue()
   const fallbackExpenses = Array.isArray(fallback) ? fallback : []
@@ -1106,8 +1195,10 @@ function App() {
     safeStorageGet('fbply-walkthrough-complete', 'false') === 'true' ? -1 : 0,
   )
   const [authMessage, setAuthMessage] = useState('')
+  const [authFollowUp, setAuthFollowUp] = useState(null)
   const [authUser, setAuthUser] = useState(null)
   const [isAuthBusy, setIsAuthBusy] = useState(false)
+  const [isAuthFollowUpBusy, setIsAuthFollowUpBusy] = useState(false)
   const [isSessionChecking, setIsSessionChecking] = useState(() => isSupabaseReady)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
   const [exportingReportType, setExportingReportType] = useState('')
@@ -1995,12 +2086,105 @@ function App() {
     ],
   )
 
+  const setAuthNotice = useCallback((message, followUp = null) => {
+    setAuthMessage(message || '')
+    setAuthFollowUp(followUp)
+  }, [])
+
+  const clearAuthNotice = useCallback(() => {
+    setAuthNotice('', null)
+  }, [setAuthNotice])
+
+  const handleResendVerification = useCallback(async (email) => {
+    const cleanEmail = String(email || '').trim().toLowerCase()
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setAuthNotice('Add a valid email address to resend verification.', null)
+      trackEvent('auth_error', { surface: 'auth', auth_mode: 'resend_verification', reason: 'invalid_email' })
+      return
+    }
+
+    if (!isSupabaseReady) {
+      setAuthNotice('Secure email verification is not available here. Please try again later.', null)
+      trackEvent('auth_error', { surface: 'auth', auth_mode: 'resend_verification', reason: 'supabase_unavailable' })
+      return
+    }
+
+    setIsAuthFollowUpBusy(true)
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: cleanEmail,
+        options: {
+          emailRedirectTo: authRedirectUrl(),
+        },
+      })
+
+      if (error) {
+        const notice = authErrorNotice(error, 'signup')
+        setAuthNotice(notice.message, notice.followUp ? { type: notice.followUp, email: cleanEmail } : null)
+        trackEvent('auth_error', { surface: 'auth', auth_mode: 'resend_verification', reason: notice.reason })
+        return
+      }
+
+      setAuthNotice('Verification email sent. Please check your inbox.', { type: 'resend_verification', email: cleanEmail })
+      trackEvent('verification_email_resent', { surface: 'auth' })
+    } catch (error) {
+      const notice = authErrorNotice(error, 'signup')
+      setAuthNotice(notice.message, notice.followUp ? { type: notice.followUp, email: cleanEmail } : { type: 'resend_verification', email: cleanEmail })
+      trackEvent('auth_error', { surface: 'auth', auth_mode: 'resend_verification', reason: notice.reason })
+    } finally {
+      setIsAuthFollowUpBusy(false)
+    }
+  }, [setAuthNotice])
+
+  const handleForgotPassword = useCallback(async (email) => {
+    const cleanEmail = String(email || '').trim().toLowerCase()
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setAuthNotice('Add your account email to reset your password.', null)
+      trackEvent('auth_error', { surface: 'auth', auth_mode: 'password_reset', reason: 'invalid_email' })
+      return
+    }
+
+    if (!isSupabaseReady) {
+      setAuthNotice('Password reset is not available here. Please try again later.', null)
+      trackEvent('auth_error', { surface: 'auth', auth_mode: 'password_reset', reason: 'supabase_unavailable' })
+      return
+    }
+
+    setIsAuthFollowUpBusy(true)
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: authRedirectUrl(),
+      })
+
+      if (error) {
+        const notice = authErrorNotice(error, 'login')
+        setAuthNotice(notice.message, { type: 'forgot_password', email: cleanEmail })
+        trackEvent('auth_error', { surface: 'auth', auth_mode: 'password_reset', reason: notice.reason })
+        return
+      }
+
+      setAuthNotice('Password reset email sent. Please check your inbox.', { type: 'forgot_password', email: cleanEmail })
+      trackEvent('password_reset_email_sent', { surface: 'auth' })
+    } catch (error) {
+      const notice = authErrorNotice(error, 'login')
+      setAuthNotice(notice.message, { type: 'forgot_password', email: cleanEmail })
+      trackEvent('auth_error', { surface: 'auth', auth_mode: 'password_reset', reason: notice.reason })
+    } finally {
+      setIsAuthFollowUpBusy(false)
+    }
+  }, [setAuthNotice])
+
   const handleEmailAuth = useCallback(async ({ mode, email, password, name }) => {
     const cleanEmail = String(email || '').trim().toLowerCase()
     const cleanName = String(name || '').trim()
     const authMode = mode === 'signup' ? 'signup' : 'login'
 
-    setAuthMessage('')
+    clearAuthNotice()
     trackEvent('auth_submit', {
       surface: 'auth',
       auth_mode: authMode,
@@ -2008,22 +2192,23 @@ function App() {
     })
 
     if (!cleanEmail || !cleanEmail.includes('@')) {
-      setAuthMessage('Add a valid email address to continue.')
+      setAuthNotice('Add a valid email address to continue.', null)
       trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: 'invalid_email' })
       return
     }
 
     if (!password || password.length < 6) {
-      setAuthMessage('Use a password with at least 6 characters.')
+      setAuthNotice('Use a password with at least 6 characters.', null)
       trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: 'short_password' })
       return
     }
 
     if (!isSupabaseReady) {
-      setAuthMessage(
+      setAuthNotice(
         hasSupabaseAnonKey
           ? 'Secure sign-in could not start. Please try again in a moment.'
           : 'Secure cloud sign-in is not active here, so FBPly will continue locally on this device.',
+        null,
       )
       setProfile((current) => ({
         ...current,
@@ -2055,8 +2240,20 @@ function App() {
         })
 
         if (error) {
-          setAuthMessage(error.message || 'Sign up could not finish. Please try again.')
-          trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: 'signup_error' })
+          const notice = authErrorNotice(error, authMode)
+          setAuthNotice(notice.message, notice.followUp ? { type: notice.followUp, email: cleanEmail } : null)
+          trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: notice.reason })
+          return
+        }
+
+        const existingAccountNotice = signupResultNotice(data)
+
+        if (existingAccountNotice) {
+          setAuthNotice(
+            existingAccountNotice.message,
+            existingAccountNotice.followUp ? { type: existingAccountNotice.followUp, email: cleanEmail } : null,
+          )
+          trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: existingAccountNotice.reason })
           return
         }
 
@@ -2073,7 +2270,7 @@ function App() {
           return
         }
 
-        setAuthMessage('Account created. Please confirm your email, then log in.')
+        setAuthNotice('Account created. Please confirm your email, then log in.', { type: 'resend_verification', email: cleanEmail })
         trackEvent('signup_success', {
           surface: 'auth',
           auth_mode: authMode,
@@ -2090,8 +2287,9 @@ function App() {
       })
 
       if (error) {
-        setAuthMessage(error.message || 'Login could not finish. Please try again.')
-        trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: 'login_error' })
+        const notice = authErrorNotice(error, authMode)
+        setAuthNotice(notice.message, notice.followUp ? { type: notice.followUp, email: cleanEmail } : null)
+        trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: notice.reason })
         return
       }
 
@@ -2103,13 +2301,17 @@ function App() {
         setup_completed: hasCompletedSetup,
       })
       setPhase(synced.setupCompleted ? 'app' : 'setup')
+    } catch (error) {
+      const notice = authErrorNotice(error, authMode)
+      setAuthNotice(notice.message, notice.followUp ? { type: notice.followUp, email: cleanEmail } : null)
+      trackEvent('auth_error', { surface: 'auth', auth_mode: authMode, reason: notice.reason })
     } finally {
       setIsAuthBusy(false)
     }
-  }, [hasCompletedSetup, loadCloudStateForUser])
+  }, [clearAuthNotice, hasCompletedSetup, loadCloudStateForUser, setAuthNotice])
 
   const handleSignOut = useCallback(async () => {
-    setAuthMessage('')
+    clearAuthNotice()
 
     if (isSupabaseReady) {
       await supabase.auth.signOut().catch(() => null)
@@ -2119,7 +2321,7 @@ function App() {
     setIsProfileSyncReady(!isSupabaseReady)
     setIsExpenseSyncReady(!isSupabaseReady)
     setPhase('auth')
-  }, [])
+  }, [clearAuthNotice])
 
   const updateCommitment = useCallback((id, patch) => {
     setProfile((current) => {
@@ -3453,8 +3655,13 @@ function App() {
             <AuthScreen
               key="auth"
               authMessage={authMessage}
+              authFollowUp={authFollowUp}
               isAuthBusy={isAuthBusy}
+              isAuthFollowUpBusy={isAuthFollowUpBusy}
+              onClearAuthNotice={clearAuthNotice}
               onEmailAuth={handleEmailAuth}
+              onForgotPassword={handleForgotPassword}
+              onResendVerification={handleResendVerification}
             />
           )
         )}
@@ -3777,7 +3984,16 @@ function AuthFallback() {
   )
 }
 
-function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
+function AuthScreen({
+  authMessage,
+  authFollowUp,
+  isAuthBusy,
+  isAuthFollowUpBusy,
+  onClearAuthNotice,
+  onEmailAuth,
+  onForgotPassword,
+  onResendVerification,
+}) {
   const [authMode, setAuthMode] = useState('login')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -3787,6 +4003,8 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
   const isSignup = authMode === 'signup'
   const authTitle = isSignup ? 'Create account' : 'Welcome back'
   const authTagline = isSignup ? 'Set up your private money workspace.' : 'Sign in to continue your money system.'
+  const followUpType = authFollowUp?.type || ''
+  const followUpEmail = authFollowUp?.email || email
   const authLegalLinks = legalLinks
     .filter((link) => ['/privacy', '/terms', '/contact'].includes(link.href))
     .map((link) => ({
@@ -3795,6 +4013,17 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
     }))
   const markAuthInteraction = () => {
     hasInteractedRef.current = true
+  }
+
+  const clearNoticeOnEdit = () => {
+    markAuthInteraction()
+    onClearAuthNotice?.()
+  }
+
+  const switchAuthMode = (mode) => {
+    markAuthInteraction()
+    setAuthMode(mode)
+    onClearAuthNotice?.()
   }
 
   useEffect(() => {
@@ -3851,7 +4080,7 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
                   placeholder="Your name"
                   autoComplete="name"
                   onChange={(event) => {
-                    markAuthInteraction()
+                    clearNoticeOnEdit()
                     setName(event.target.value)
                   }}
                 />
@@ -3870,7 +4099,7 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
               placeholder="you@example.com"
               autoComplete="email"
               onChange={(event) => {
-                markAuthInteraction()
+                clearNoticeOnEdit()
                 setEmail(event.target.value)
               }}
             />
@@ -3885,21 +4114,73 @@ function AuthScreen({ authMessage, isAuthBusy, onEmailAuth }) {
               type="password"
               placeholder="Minimum 6 characters"
               autoComplete={isSignup ? 'new-password' : 'current-password'}
-              onChange={markAuthInteraction}
+              onChange={clearNoticeOnEdit}
             />
           </div>
+          {!isSignup && (
+            <p className="auth-switch-line">
+              Forgot your password?
+              <button
+                type="button"
+                disabled={isAuthBusy || isAuthFollowUpBusy}
+                onClick={() => {
+                  markAuthInteraction()
+                  onForgotPassword?.(followUpEmail)
+                }}
+              >
+                Send reset email
+              </button>
+            </p>
+          )}
           <button className="primary-button full" type="submit" disabled={isAuthBusy}>
             {isAuthBusy ? 'Please wait...' : isSignup ? 'Create account' : 'Continue'}
           </button>
-          {authMessage && <p className="form-message">{authMessage}</p>}
+          {authMessage && (
+            <>
+              <p className="form-message">{authMessage}</p>
+              {followUpType === 'resend_verification' && (
+                <button
+                  className="ghost-button full"
+                  type="button"
+                  disabled={isAuthBusy || isAuthFollowUpBusy}
+                  onClick={() => {
+                    markAuthInteraction()
+                    onResendVerification?.(followUpEmail)
+                  }}
+                >
+                  {isAuthFollowUpBusy ? 'Sending...' : 'Resend verification email'}
+                </button>
+              )}
+              {followUpType === 'forgot_password' && (
+                <button
+                  className="ghost-button full"
+                  type="button"
+                  disabled={isAuthBusy || isAuthFollowUpBusy}
+                  onClick={() => {
+                    markAuthInteraction()
+                    onForgotPassword?.(followUpEmail)
+                  }}
+                >
+                  {isAuthFollowUpBusy ? 'Sending...' : 'Send password reset email'}
+                </button>
+              )}
+              {followUpType === 'sign_in' && (
+                <button
+                  className="ghost-button full"
+                  type="button"
+                  disabled={isAuthBusy}
+                  onClick={() => switchAuthMode('login')}
+                >
+                  Sign in
+                </button>
+              )}
+            </>
+          )}
           <p className="auth-switch-line">
             {isSignup ? 'Already have an account?' : 'New to FBPly?'}
             <button
               type="button"
-              onClick={() => {
-                markAuthInteraction()
-                setAuthMode(isSignup ? 'login' : 'signup')
-              }}
+              onClick={() => switchAuthMode(isSignup ? 'login' : 'signup')}
             >
               {isSignup ? 'Sign in' : 'Create account'}
             </button>
