@@ -81,6 +81,29 @@ import {
   normalizeReportHistory,
 } from './lib/reportHistory'
 import {
+  cloudRowToProfile,
+  hasLocalProfileData,
+  hasProfileMigrationRun,
+  loadCloudProfile,
+  markProfileMigrationRun,
+  profileToCloudPayload,
+  saveCloudProfile,
+} from './lib/profileSync'
+import {
+  appendExpenseSyncQueue,
+  applyExpenseSyncOperations,
+  buildExpenseSyncOperations,
+  clearExpenseSyncQueue,
+  diffExpenseRecords,
+  hasExpenseMigrationRun,
+  loadCloudExpenses,
+  markExpenseMigrationRun,
+  normalizeExpenseRecords,
+  readExpenseSyncQueue,
+  saveCloudExpenses,
+  softDeleteCloudExpenses,
+} from './lib/expenseSync'
+import {
   learnVoiceExpense,
   parseVoiceExpense as parseSpokenExpense,
   parseVoiceExpenseEntries as parseSpokenExpenseEntries,
@@ -687,6 +710,63 @@ function readStoredJson(key, fallback) {
   }
 }
 
+function readLocalProfileCache(fallback = emptyProfile) {
+  const storedProfile = readStoredJson('fbply-profile', fallback)
+  return {
+    ...fallback,
+    ...(storedProfile && typeof storedProfile === 'object' ? storedProfile : {}),
+  }
+}
+
+function readLocalSetupComplete(fallback = false) {
+  return safeStorageGet('fbply-setup-complete', fallback ? 'true' : 'false') === 'true'
+}
+
+function withAuthProfile(profile = {}, user = {}) {
+  return {
+    ...profile,
+    name: user.user_metadata?.name || user.user_metadata?.full_name || profile.name,
+    email: user.email || profile.email,
+  }
+}
+
+function writeProfileSetupCache(profile, setupCompleted) {
+  safeStorageSetQueued('fbply-profile', JSON.stringify(profile))
+  safeStorageSet('fbply-setup-complete', String(Boolean(setupCompleted)))
+}
+
+function profileSyncFailurePayload(error, stage) {
+  return {
+    surface: 'profile_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
+function readLocalExpenseCache(fallback = []) {
+  flushStorageQueue()
+  const fallbackExpenses = Array.isArray(fallback) ? fallback : []
+  const storedExpenses = readStoredJson('fbply-expenses', fallback)
+
+  if (fallbackExpenses.length > 0) {
+    return fallbackExpenses
+  }
+
+  return Array.isArray(storedExpenses) ? storedExpenses : fallbackExpenses
+}
+
+function writeExpenseCache(expenseRecords) {
+  safeStorageSetQueued('fbply-expenses', JSON.stringify(Array.isArray(expenseRecords) ? expenseRecords : []))
+}
+
+function expenseSyncFailurePayload(error, stage) {
+  return {
+    surface: 'expense_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
 function parseVoiceExpense(transcript, memory) {
   return parseSpokenExpense(transcript, memory)
 }
@@ -1041,6 +1121,16 @@ function App() {
   const recognitionRef = useRef(null)
   const voiceSessionRef = useRef(null)
   const rewardTimerRef = useRef(null)
+  const profileRef = useRef(profile)
+  const expensesRef = useRef(expenses)
+  const hasCompletedSetupRef = useRef(hasCompletedSetup)
+  const skipNextProfileCloudSaveRef = useRef(false)
+  const skipNextExpenseCloudSaveRef = useRef(false)
+  const profileSaveSequenceRef = useRef(0)
+  const expenseSaveSequenceRef = useRef(0)
+  const previousSyncedExpensesRef = useRef(normalizeExpenseRecords(expenses))
+  const [isProfileSyncReady, setIsProfileSyncReady] = useState(() => !isSupabaseReady)
+  const [isExpenseSyncReady, setIsExpenseSyncReady] = useState(() => !isSupabaseReady)
   const isOnline = useOnlineStatus()
   const activeCurrency = normalizeCurrency(profile.currency)
   const normalizedCurrentPath = normalizeSeoPath(currentPath)
@@ -1094,6 +1184,18 @@ function App() {
   }, [phase, activeTab, currentPath])
 
   useEffect(() => {
+    profileRef.current = profile
+  }, [profile])
+
+  useEffect(() => {
+    expensesRef.current = expenses
+  }, [expenses])
+
+  useEffect(() => {
+    hasCompletedSetupRef.current = hasCompletedSetup
+  }, [hasCompletedSetup])
+
+  useEffect(() => {
     document.documentElement.dataset.currency = activeCurrency
   }, [activeCurrency])
 
@@ -1135,27 +1237,171 @@ function App() {
 
   useEffect(() => {
     if (isPublicSeoPage) {
-      return
+      return undefined
     }
 
-    safeStorageSet('fbply-setup-complete', String(hasCompletedSetup))
-  }, [hasCompletedSetup, isPublicSeoPage])
+    const saveSequence = profileSaveSequenceRef.current + 1
+    profileSaveSequenceRef.current = saveSequence
+
+    if (!authUser?.id || !isSupabaseReady) {
+      writeProfileSetupCache(profile, hasCompletedSetup)
+      return undefined
+    }
+
+    if (!isProfileSyncReady) {
+      return undefined
+    }
+
+    if (skipNextProfileCloudSaveRef.current) {
+      skipNextProfileCloudSaveRef.current = false
+      writeProfileSetupCache(profile, hasCompletedSetup)
+      return undefined
+    }
+
+    let isCancelled = false
+    const payload = profileToCloudPayload(authUser, profile, hasCompletedSetup)
+
+    saveCloudProfile(supabase, payload)
+      .then(() => {
+        trackEvent('profile_cloud_saved', {
+          surface: 'profile_sync',
+          reason: 'profile_update',
+        })
+      })
+      .catch((error) => {
+        trackEvent('profile_sync_failed', profileSyncFailurePayload(error, 'save'))
+      })
+      .finally(() => {
+        if (!isCancelled && profileSaveSequenceRef.current === saveSequence) {
+          writeProfileSetupCache(profile, hasCompletedSetup)
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, hasCompletedSetup, isProfileSyncReady, isPublicSeoPage, profile])
 
   useEffect(() => {
     if (isPublicSeoPage) {
-      return
+      return undefined
     }
 
-    safeStorageSetQueued('fbply-profile', JSON.stringify(profile))
-  }, [isPublicSeoPage, profile])
+    const normalizedExpenses = normalizeExpenseRecords(expenses)
+    const saveSequence = expenseSaveSequenceRef.current + 1
+    expenseSaveSequenceRef.current = saveSequence
+
+    if (!authUser?.id || !isSupabaseReady) {
+      writeExpenseCache(expenses)
+      previousSyncedExpensesRef.current = normalizedExpenses
+      return undefined
+    }
+
+    if (!isExpenseSyncReady) {
+      return undefined
+    }
+
+    if (skipNextExpenseCloudSaveRef.current) {
+      skipNextExpenseCloudSaveRef.current = false
+      writeExpenseCache(expenses)
+      previousSyncedExpensesRef.current = normalizedExpenses
+      return undefined
+    }
+
+    const diff = diffExpenseRecords(previousSyncedExpensesRef.current, expenses)
+
+    if (diff.upserts.length === 0 && diff.deletes.length === 0) {
+      writeExpenseCache(expenses)
+      previousSyncedExpensesRef.current = normalizedExpenses
+      return undefined
+    }
+
+    const operations = buildExpenseSyncOperations(authUser, diff)
+
+    if (!isOnline) {
+      appendExpenseSyncQueue(authUser.id, operations)
+      trackEvent('expense_sync_failed', expenseSyncFailurePayload({ name: 'offline' }, 'offline'))
+      writeExpenseCache(expenses)
+      previousSyncedExpensesRef.current = normalizedExpenses
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const syncExpenses = async () => {
+      try {
+        const pendingOperations = readExpenseSyncQueue(authUser.id)
+
+        if (pendingOperations.length > 0) {
+          await applyExpenseSyncOperations(supabase, authUser, pendingOperations)
+          clearExpenseSyncQueue(authUser.id)
+        }
+
+        await saveCloudExpenses(supabase, authUser, diff.upserts)
+        await softDeleteCloudExpenses(supabase, authUser.id, diff.deletes)
+
+        trackEvent('expense_cloud_saved', {
+          surface: 'expense_sync',
+          reason: 'expense_update',
+          upsert_count: diff.upserts.length,
+          delete_count: diff.deletes.length,
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          appendExpenseSyncQueue(authUser.id, operations)
+          trackEvent('expense_sync_failed', expenseSyncFailurePayload(error, 'save'))
+        }
+      } finally {
+        if (!isCancelled && expenseSaveSequenceRef.current === saveSequence) {
+          writeExpenseCache(expenses)
+          previousSyncedExpensesRef.current = normalizedExpenses
+        }
+      }
+    }
+
+    syncExpenses()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, expenses, isExpenseSyncReady, isOnline, isPublicSeoPage])
 
   useEffect(() => {
-    if (isPublicSeoPage) {
-      return
+    if (isPublicSeoPage || !authUser?.id || !isSupabaseReady || !isExpenseSyncReady || !isOnline) {
+      return undefined
     }
 
-    safeStorageSetQueued('fbply-expenses', JSON.stringify(expenses))
-  }, [expenses, isPublicSeoPage])
+    const pendingOperations = readExpenseSyncQueue(authUser.id)
+
+    if (pendingOperations.length === 0) {
+      return undefined
+    }
+
+    let isCancelled = false
+
+    applyExpenseSyncOperations(supabase, authUser, pendingOperations)
+      .then(() => {
+        if (isCancelled) {
+          return
+        }
+
+        clearExpenseSyncQueue(authUser.id)
+        trackEvent('expense_cloud_saved', {
+          surface: 'expense_sync',
+          reason: 'queue_flush',
+          operation_count: pendingOperations.length,
+        })
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          trackEvent('expense_sync_failed', expenseSyncFailurePayload(error, 'queue_flush'))
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isExpenseSyncReady, isOnline, isPublicSeoPage])
 
   useEffect(() => {
     if (isPublicSeoPage) {
@@ -1235,6 +1481,186 @@ function App() {
     }))
   }, [])
 
+  const loadProfileForUser = useCallback(async (user, source = 'session') => {
+    if (!user?.id || !isSupabaseReady) {
+      applyAuthUser(user)
+      setIsProfileSyncReady(true)
+      return {
+        profile: profileRef.current,
+        setupCompleted: hasCompletedSetupRef.current,
+      }
+    }
+
+    setAuthUser(user)
+    setIsProfileSyncReady(false)
+
+    const localProfile = withAuthProfile(readLocalProfileCache(profileRef.current), user)
+    const localSetupCompleted = readLocalSetupComplete(hasCompletedSetupRef.current)
+
+    try {
+      const cloudProfile = await loadCloudProfile(supabase, user.id)
+
+      if (cloudProfile) {
+        const synced = cloudRowToProfile(cloudProfile, localProfile, localSetupCompleted)
+        skipNextProfileCloudSaveRef.current = true
+        setProfile(synced.profile)
+        setHasCompletedSetup(synced.setupCompleted)
+
+        if (synced.setupCompleted) {
+          setHasSeenOnboarding(true)
+        }
+
+        trackEvent('profile_cloud_loaded', {
+          surface: 'profile_sync',
+          source,
+        })
+
+        return synced
+      }
+
+      skipNextProfileCloudSaveRef.current = true
+      setProfile(localProfile)
+      setHasCompletedSetup(localSetupCompleted)
+
+      if (localSetupCompleted) {
+        setHasSeenOnboarding(true)
+      }
+
+      if (!hasProfileMigrationRun(user.id) && hasLocalProfileData(localProfile, localSetupCompleted)) {
+        try {
+          const payload = profileToCloudPayload(user, localProfile, localSetupCompleted)
+          await saveCloudProfile(supabase, payload)
+          markProfileMigrationRun(user.id)
+          trackEvent('profile_migrated', {
+            surface: 'profile_sync',
+            source,
+          })
+          trackEvent('profile_cloud_saved', {
+            surface: 'profile_sync',
+            reason: 'migration',
+          })
+        } catch (error) {
+          trackEvent('profile_sync_failed', profileSyncFailurePayload(error, 'migrate'))
+        }
+      }
+
+      return {
+        profile: localProfile,
+        setupCompleted: localSetupCompleted,
+      }
+    } catch (error) {
+      skipNextProfileCloudSaveRef.current = true
+      setProfile(localProfile)
+      setHasCompletedSetup(localSetupCompleted)
+
+      if (localSetupCompleted) {
+        setHasSeenOnboarding(true)
+      }
+
+      trackEvent('profile_sync_failed', profileSyncFailurePayload(error, 'load'))
+
+      return {
+        profile: localProfile,
+        setupCompleted: localSetupCompleted,
+        failed: true,
+      }
+    } finally {
+      setIsProfileSyncReady(true)
+    }
+  }, [applyAuthUser])
+
+  const loadExpensesForUser = useCallback(async (user, source = 'session') => {
+    const localExpenses = readLocalExpenseCache(expensesRef.current)
+    const normalizedLocalExpenses = normalizeExpenseRecords(localExpenses)
+
+    if (!user?.id || !isSupabaseReady) {
+      skipNextExpenseCloudSaveRef.current = true
+      setExpenses(localExpenses)
+      previousSyncedExpensesRef.current = normalizedLocalExpenses
+      setIsExpenseSyncReady(true)
+      return {
+        expenses: localExpenses,
+      }
+    }
+
+    setIsExpenseSyncReady(false)
+
+    try {
+      const pendingOperations = readExpenseSyncQueue(user.id)
+
+      if (pendingOperations.length > 0) {
+        await applyExpenseSyncOperations(supabase, user, pendingOperations)
+        clearExpenseSyncQueue(user.id)
+      }
+
+      const cloudExpenses = await loadCloudExpenses(supabase, user.id)
+
+      if (cloudExpenses.length > 0) {
+        skipNextExpenseCloudSaveRef.current = true
+        setExpenses(cloudExpenses)
+        previousSyncedExpensesRef.current = normalizeExpenseRecords(cloudExpenses)
+        trackEvent('expense_cloud_loaded', {
+          surface: 'expense_sync',
+          source,
+          record_count: cloudExpenses.length,
+        })
+        return {
+          expenses: cloudExpenses,
+        }
+      }
+
+      skipNextExpenseCloudSaveRef.current = true
+      setExpenses(localExpenses)
+      previousSyncedExpensesRef.current = normalizedLocalExpenses
+
+      if (!hasExpenseMigrationRun(user.id)) {
+        if (normalizedLocalExpenses.length > 0) {
+          try {
+            await saveCloudExpenses(supabase, user, normalizedLocalExpenses)
+            trackEvent('expense_migrated', {
+              surface: 'expense_sync',
+              source,
+              record_count: normalizedLocalExpenses.length,
+            })
+            trackEvent('expense_cloud_saved', {
+              surface: 'expense_sync',
+              reason: 'migration',
+              upsert_count: normalizedLocalExpenses.length,
+              delete_count: 0,
+            })
+          } catch (error) {
+            appendExpenseSyncQueue(user.id, buildExpenseSyncOperations(user, { upserts: normalizedLocalExpenses }))
+            trackEvent('expense_sync_failed', expenseSyncFailurePayload(error, 'migrate'))
+          }
+        }
+
+        markExpenseMigrationRun(user.id)
+      }
+
+      return {
+        expenses: localExpenses,
+      }
+    } catch (error) {
+      skipNextExpenseCloudSaveRef.current = true
+      setExpenses(localExpenses)
+      previousSyncedExpensesRef.current = normalizedLocalExpenses
+      trackEvent('expense_sync_failed', expenseSyncFailurePayload(error, 'load'))
+
+      return {
+        expenses: localExpenses,
+        failed: true,
+      }
+    } finally {
+      setIsExpenseSyncReady(true)
+    }
+  }, [])
+
+  const loadCloudStateForUser = useCallback(async (user, source = 'session') => {
+    const syncedProfile = await loadProfileForUser(user, source)
+    await loadExpensesForUser(user, source)
+    return syncedProfile
+  }, [loadExpensesForUser, loadProfileForUser])
+
   useEffect(() => {
     if (isPublicSeoPage || !isSupabaseReady) {
       return undefined
@@ -1242,18 +1668,27 @@ function App() {
 
     let isMounted = true
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!isMounted) {
         return
       }
 
       const user = data.session?.user || null
-      applyAuthUser(user)
-      setIsSessionChecking(false)
 
       if (user) {
-        setPhase(hasCompletedSetup ? 'app' : 'setup')
+        const synced = await loadCloudStateForUser(user, 'session')
+
+        if (!isMounted) {
+          return
+        }
+
+        setIsSessionChecking(false)
+        setPhase(synced.setupCompleted ? 'app' : 'setup')
+        return
       }
+
+      applyAuthUser(user)
+      setIsSessionChecking(false)
     }).catch(() => {
       if (isMounted) {
         setIsSessionChecking(false)
@@ -1263,23 +1698,40 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      applyAuthUser(session?.user || null)
+      const user = session?.user || null
 
       if (event === 'SIGNED_IN') {
         setAuthMessage('')
-        setPhase((currentPhase) => (currentPhase === 'auth' ? (hasCompletedSetup ? 'app' : 'setup') : currentPhase))
+        setIsSessionChecking(true)
+        loadCloudStateForUser(user, 'auth_state')
+          .then((synced) => {
+            setIsSessionChecking(false)
+            setPhase((currentPhase) => (currentPhase === 'auth' || currentPhase === 'setup'
+              ? (synced.setupCompleted ? 'app' : 'setup')
+              : currentPhase))
+          })
+          .catch(() => {
+            setIsSessionChecking(false)
+          })
+        return
       }
 
       if (event === 'SIGNED_OUT') {
+        applyAuthUser(null)
+        setIsProfileSyncReady(!isSupabaseReady)
+        setIsExpenseSyncReady(!isSupabaseReady)
         setPhase('auth')
+        return
       }
+
+      applyAuthUser(user)
     })
 
     return () => {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [applyAuthUser, hasCompletedSetup, isPublicSeoPage])
+  }, [applyAuthUser, isPublicSeoPage, loadCloudStateForUser])
 
   const financialActivity = useMemo(
     () => buildUnifiedFinanceEngine({
@@ -1609,7 +2061,7 @@ function App() {
         }
 
         if (data.session?.user) {
-          applyAuthUser(data.session.user)
+          const synced = await loadCloudStateForUser(data.session.user, 'signup')
           trackEvent('signup_success', {
             surface: 'auth',
             auth_mode: authMode,
@@ -1617,7 +2069,7 @@ function App() {
             session_created: true,
             setup_completed: hasCompletedSetup,
           })
-          setPhase(hasCompletedSetup ? 'app' : 'setup')
+          setPhase(synced.setupCompleted ? 'app' : 'setup')
           return
         }
 
@@ -1643,18 +2095,18 @@ function App() {
         return
       }
 
-      applyAuthUser(data.user)
+      const synced = await loadCloudStateForUser(data.user, 'login')
       trackEvent('login_success', {
         surface: 'auth',
         auth_mode: authMode,
         auth_provider: 'supabase',
         setup_completed: hasCompletedSetup,
       })
-      setPhase(hasCompletedSetup ? 'app' : 'setup')
+      setPhase(synced.setupCompleted ? 'app' : 'setup')
     } finally {
       setIsAuthBusy(false)
     }
-  }, [applyAuthUser, hasCompletedSetup])
+  }, [hasCompletedSetup, loadCloudStateForUser])
 
   const handleSignOut = useCallback(async () => {
     setAuthMessage('')
@@ -1664,6 +2116,8 @@ function App() {
     }
 
     setAuthUser(null)
+    setIsProfileSyncReady(!isSupabaseReady)
+    setIsExpenseSyncReady(!isSupabaseReady)
     setPhase('auth')
   }, [])
 
