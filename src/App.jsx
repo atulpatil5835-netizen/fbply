@@ -119,6 +119,19 @@ import {
   saveCloudCommitments,
 } from './lib/commitmentSync'
 import {
+  applySavingsSyncOperations,
+  buildSavingsSyncOperations,
+  buildSavingsSyncRecords,
+  diffSavingsSyncRecords,
+  flushSavingsSyncQueue,
+  hasSavingsMigrationRun,
+  loadCloudSavingsBucketState,
+  markSavingsMigrationRun,
+  normalizeSavingsBuckets,
+  queueSavingsSyncOperations,
+  saveCloudSavingsBuckets,
+} from './lib/savingsSync'
+import {
   learnVoiceExpense,
   parseVoiceExpense as parseSpokenExpense,
   parseVoiceExpenseEntries as parseSpokenExpenseEntries,
@@ -859,6 +872,18 @@ function readLocalExpenseCache(fallback = []) {
   return Array.isArray(storedExpenses) ? storedExpenses : fallbackExpenses
 }
 
+function readLocalSavingsBucketCache(fallback = []) {
+  flushStorageQueue()
+  const fallbackBuckets = normalizeSavingsBuckets(fallback)
+  const storedBuckets = normalizeSavingsBuckets(readStoredJson('fbply-savings-buckets', fallbackBuckets))
+
+  if (fallbackBuckets.length > 0) {
+    return fallbackBuckets
+  }
+
+  return storedBuckets
+}
+
 function readLocalRecurringScheduleCache(fallback = []) {
   flushStorageQueue()
   const fallbackSchedules = normalizeRecurringSchedules(fallback)
@@ -886,6 +911,14 @@ function expenseSyncFailurePayload(error, stage) {
 function commitmentSyncFailurePayload(error, stage) {
   return {
     surface: 'commitment_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
+function savingsSyncFailurePayload(error, stage) {
+  return {
+    surface: 'savings_sync',
     stage,
     reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
   }
@@ -1194,7 +1227,9 @@ function App() {
   const [activeTab, setActiveTab] = useState('home')
   const [profile, setProfile] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-profile', emptyProfile) : emptyProfile))
   const [expenses, setExpenses] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-expenses', []) : []))
-  const [savingsBuckets, setSavingsBuckets] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-savings-buckets', []) : []))
+  const [savingsBuckets, setSavingsBuckets] = useState(() =>
+    hasCompletedSetup ? normalizeSavingsBuckets(readStoredJson('fbply-savings-buckets', [])) : [],
+  )
   const [recurringSchedules, setRecurringSchedules] = useState(() =>
     hasCompletedSetup ? normalizeRecurringSchedules(readStoredJson('fbply-recurring-schedules', [])) : [],
   )
@@ -1249,18 +1284,23 @@ function App() {
   const rewardTimerRef = useRef(null)
   const profileRef = useRef(profile)
   const expensesRef = useRef(expenses)
+  const savingsBucketsRef = useRef(savingsBuckets)
   const recurringSchedulesRef = useRef(recurringSchedules)
   const hasCompletedSetupRef = useRef(hasCompletedSetup)
   const skipNextProfileCloudSaveRef = useRef(false)
   const skipNextExpenseCloudSaveRef = useRef(false)
+  const skipNextSavingsCloudSaveRef = useRef(false)
   const skipNextCommitmentCloudSaveRef = useRef(false)
   const profileSaveSequenceRef = useRef(0)
   const expenseSaveSequenceRef = useRef(0)
+  const savingsSaveSequenceRef = useRef(0)
   const commitmentSaveSequenceRef = useRef(0)
   const previousSyncedExpensesRef = useRef(normalizeExpenseRecords(expenses))
+  const previousSyncedSavingsRef = useRef(buildSavingsSyncRecords(savingsBuckets))
   const previousSyncedCommitmentsRef = useRef(buildCommitmentSyncRecords({ profile, recurringSchedules }))
   const [isProfileSyncReady, setIsProfileSyncReady] = useState(() => !isSupabaseReady)
   const [isExpenseSyncReady, setIsExpenseSyncReady] = useState(() => !isSupabaseReady)
+  const [isSavingsSyncReady, setIsSavingsSyncReady] = useState(() => !isSupabaseReady)
   const [isCommitmentSyncReady, setIsCommitmentSyncReady] = useState(() => !isSupabaseReady)
   const isOnline = useOnlineStatus()
   const activeCurrency = normalizeCurrency(profile.currency)
@@ -1321,6 +1361,10 @@ function App() {
   useEffect(() => {
     expensesRef.current = expenses
   }, [expenses])
+
+  useEffect(() => {
+    savingsBucketsRef.current = savingsBuckets
+  }, [savingsBuckets])
 
   useEffect(() => {
     recurringSchedulesRef.current = recurringSchedules
@@ -1655,6 +1699,110 @@ function App() {
 
   useEffect(() => {
     if (isPublicSeoPage) {
+      return undefined
+    }
+
+    const normalizedSavings = buildSavingsSyncRecords(savingsBuckets)
+    const saveSequence = savingsSaveSequenceRef.current + 1
+    savingsSaveSequenceRef.current = saveSequence
+
+    if (!authUser?.id || !isSupabaseReady) {
+      previousSyncedSavingsRef.current = normalizedSavings
+      return undefined
+    }
+
+    if (!isSavingsSyncReady) {
+      return undefined
+    }
+
+    if (skipNextSavingsCloudSaveRef.current) {
+      skipNextSavingsCloudSaveRef.current = false
+      previousSyncedSavingsRef.current = normalizedSavings
+      return undefined
+    }
+
+    const diff = diffSavingsSyncRecords(previousSyncedSavingsRef.current, savingsBuckets)
+
+    if (diff.upserts.length === 0 && diff.deletes.length === 0) {
+      previousSyncedSavingsRef.current = normalizedSavings
+      return undefined
+    }
+
+    const operations = buildSavingsSyncOperations(authUser, diff)
+
+    if (!isOnline) {
+      queueSavingsSyncOperations(authUser.id, operations)
+      trackEvent('savings_sync_failed', savingsSyncFailurePayload({ name: 'offline' }, 'offline'))
+      previousSyncedSavingsRef.current = diff.nextRecords
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const syncSavings = async () => {
+      try {
+        const flushed = await flushSavingsSyncQueue(supabase, authUser)
+
+        await applySavingsSyncOperations(supabase, authUser, operations)
+
+        trackEvent('savings_cloud_saved', {
+          surface: 'savings_sync',
+          reason: flushed.operationCount > 0 ? 'queue_flush_and_update' : 'savings_update',
+          upsert_count: diff.upserts.length,
+          delete_count: diff.deletes.length,
+          queued_operation_count: flushed.operationCount,
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          queueSavingsSyncOperations(authUser.id, operations)
+          trackEvent('savings_sync_failed', savingsSyncFailurePayload(error, 'save'))
+        }
+      } finally {
+        if (!isCancelled && savingsSaveSequenceRef.current === saveSequence) {
+          previousSyncedSavingsRef.current = diff.nextRecords
+        }
+      }
+    }
+
+    syncSavings()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isOnline, isPublicSeoPage, isSavingsSyncReady, savingsBuckets])
+
+  useEffect(() => {
+    if (isPublicSeoPage || !authUser?.id || !isSupabaseReady || !isSavingsSyncReady || !isOnline) {
+      return undefined
+    }
+
+    let isCancelled = false
+
+    flushSavingsSyncQueue(supabase, authUser)
+      .then((result) => {
+        if (isCancelled || !result.operationCount) {
+          return
+        }
+
+        trackEvent('savings_cloud_saved', {
+          surface: 'savings_sync',
+          reason: 'queue_flush',
+          operation_count: result.operationCount,
+        })
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          trackEvent('savings_sync_failed', savingsSyncFailurePayload(error, 'queue_flush'))
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isOnline, isPublicSeoPage, isSavingsSyncReady])
+
+  useEffect(() => {
+    if (isPublicSeoPage) {
       return
     }
 
@@ -1905,6 +2053,97 @@ function App() {
     }
   }, [])
 
+  const loadSavingsForUser = useCallback(async (user, source = 'session') => {
+    const localSavingsBuckets = readLocalSavingsBucketCache(savingsBucketsRef.current)
+    const normalizedLocalSavings = buildSavingsSyncRecords(localSavingsBuckets)
+
+    if (!user?.id || !isSupabaseReady) {
+      skipNextSavingsCloudSaveRef.current = true
+      setSavingsBuckets(localSavingsBuckets)
+      previousSyncedSavingsRef.current = normalizedLocalSavings
+      setIsSavingsSyncReady(true)
+      return {
+        savingsBuckets: localSavingsBuckets,
+      }
+    }
+
+    setIsSavingsSyncReady(false)
+
+    try {
+      const flushed = await flushSavingsSyncQueue(supabase, user)
+
+      if (flushed.operationCount > 0) {
+        trackEvent('savings_cloud_saved', {
+          surface: 'savings_sync',
+          reason: 'login_queue_flush',
+          operation_count: flushed.operationCount,
+        })
+      }
+
+      const cloudSavingsState = await loadCloudSavingsBucketState(supabase, user.id)
+      const cloudSavingsBuckets = cloudSavingsState.buckets
+
+      if (cloudSavingsState.rowCount > 0) {
+        skipNextSavingsCloudSaveRef.current = true
+        setSavingsBuckets(cloudSavingsBuckets)
+        previousSyncedSavingsRef.current = buildSavingsSyncRecords(cloudSavingsBuckets)
+        trackEvent('savings_cloud_loaded', {
+          surface: 'savings_sync',
+          source,
+          record_count: cloudSavingsBuckets.length,
+          cloud_row_count: cloudSavingsState.rowCount,
+        })
+        return {
+          savingsBuckets: cloudSavingsBuckets,
+        }
+      }
+
+      skipNextSavingsCloudSaveRef.current = true
+      setSavingsBuckets(localSavingsBuckets)
+      previousSyncedSavingsRef.current = normalizedLocalSavings
+
+      if (!hasSavingsMigrationRun(user.id) && normalizedLocalSavings.length > 0) {
+        try {
+          await saveCloudSavingsBuckets(supabase, user, normalizedLocalSavings)
+          markSavingsMigrationRun(user.id)
+          trackEvent('savings_migrated', {
+            surface: 'savings_sync',
+            source,
+            record_count: normalizedLocalSavings.length,
+          })
+          trackEvent('savings_cloud_saved', {
+            surface: 'savings_sync',
+            reason: 'migration',
+            upsert_count: normalizedLocalSavings.length,
+            delete_count: 0,
+          })
+        } catch (error) {
+          queueSavingsSyncOperations(
+            user.id,
+            buildSavingsSyncOperations(user, { upserts: normalizedLocalSavings }),
+          )
+          trackEvent('savings_sync_failed', savingsSyncFailurePayload(error, 'migrate'))
+        }
+      }
+
+      return {
+        savingsBuckets: localSavingsBuckets,
+      }
+    } catch (error) {
+      skipNextSavingsCloudSaveRef.current = true
+      setSavingsBuckets(localSavingsBuckets)
+      previousSyncedSavingsRef.current = normalizedLocalSavings
+      trackEvent('savings_sync_failed', savingsSyncFailurePayload(error, 'load'))
+
+      return {
+        savingsBuckets: localSavingsBuckets,
+        failed: true,
+      }
+    } finally {
+      setIsSavingsSyncReady(true)
+    }
+  }, [])
+
   const loadCommitmentsForUser = useCallback(async (user, source = 'session') => {
     flushStorageQueue()
     const currentProfileCommitments = normalizeProfileCommitments(profileRef.current)
@@ -2015,9 +2254,10 @@ function App() {
   const loadCloudStateForUser = useCallback(async (user, source = 'session') => {
     const syncedProfile = await loadProfileForUser(user, source)
     await loadCommitmentsForUser(user, source)
+    await loadSavingsForUser(user, source)
     await loadExpensesForUser(user, source)
     return syncedProfile
-  }, [loadCommitmentsForUser, loadExpensesForUser, loadProfileForUser])
+  }, [loadCommitmentsForUser, loadExpensesForUser, loadProfileForUser, loadSavingsForUser])
 
   useEffect(() => {
     if (isPublicSeoPage || !isSupabaseReady) {
@@ -2078,6 +2318,7 @@ function App() {
         applyAuthUser(null)
         setIsProfileSyncReady(!isSupabaseReady)
         setIsExpenseSyncReady(!isSupabaseReady)
+        setIsSavingsSyncReady(!isSupabaseReady)
         setIsCommitmentSyncReady(!isSupabaseReady)
         setPhase('auth')
         return
@@ -2588,6 +2829,7 @@ function App() {
     setAuthUser(null)
     setIsProfileSyncReady(!isSupabaseReady)
     setIsExpenseSyncReady(!isSupabaseReady)
+    setIsSavingsSyncReady(!isSupabaseReady)
     setIsCommitmentSyncReady(!isSupabaseReady)
     setPhase('auth')
   }, [clearAuthNotice])
