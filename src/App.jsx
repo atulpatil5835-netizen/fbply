@@ -104,6 +104,21 @@ import {
   softDeleteCloudExpenses,
 } from './lib/expenseSync'
 import {
+  appendCommitmentSyncQueue,
+  applyCommitmentSyncOperations,
+  buildCommitmentSyncOperations,
+  buildCommitmentSyncRecords,
+  clearCommitmentSyncQueue,
+  diffCommitmentState,
+  hasCommitmentMigrationRun,
+  hasLocalCommitmentData,
+  loadCloudCommitments,
+  markCommitmentMigrationRun,
+  normalizeProfileCommitments,
+  readCommitmentSyncQueue,
+  saveCloudCommitments,
+} from './lib/commitmentSync'
+import {
   learnVoiceExpense,
   parseVoiceExpense as parseSpokenExpense,
   parseVoiceExpenseEntries as parseSpokenExpenseEntries,
@@ -844,6 +859,18 @@ function readLocalExpenseCache(fallback = []) {
   return Array.isArray(storedExpenses) ? storedExpenses : fallbackExpenses
 }
 
+function readLocalRecurringScheduleCache(fallback = []) {
+  flushStorageQueue()
+  const fallbackSchedules = normalizeRecurringSchedules(fallback)
+  const storedSchedules = normalizeRecurringSchedules(readStoredJson('fbply-recurring-schedules', fallbackSchedules))
+
+  if (fallbackSchedules.length > 0) {
+    return fallbackSchedules
+  }
+
+  return storedSchedules
+}
+
 function writeExpenseCache(expenseRecords) {
   safeStorageSetQueued('fbply-expenses', JSON.stringify(Array.isArray(expenseRecords) ? expenseRecords : []))
 }
@@ -851,6 +878,14 @@ function writeExpenseCache(expenseRecords) {
 function expenseSyncFailurePayload(error, stage) {
   return {
     surface: 'expense_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
+function commitmentSyncFailurePayload(error, stage) {
+  return {
+    surface: 'commitment_sync',
     stage,
     reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
   }
@@ -1214,14 +1249,19 @@ function App() {
   const rewardTimerRef = useRef(null)
   const profileRef = useRef(profile)
   const expensesRef = useRef(expenses)
+  const recurringSchedulesRef = useRef(recurringSchedules)
   const hasCompletedSetupRef = useRef(hasCompletedSetup)
   const skipNextProfileCloudSaveRef = useRef(false)
   const skipNextExpenseCloudSaveRef = useRef(false)
+  const skipNextCommitmentCloudSaveRef = useRef(false)
   const profileSaveSequenceRef = useRef(0)
   const expenseSaveSequenceRef = useRef(0)
+  const commitmentSaveSequenceRef = useRef(0)
   const previousSyncedExpensesRef = useRef(normalizeExpenseRecords(expenses))
+  const previousSyncedCommitmentsRef = useRef(buildCommitmentSyncRecords({ profile, recurringSchedules }))
   const [isProfileSyncReady, setIsProfileSyncReady] = useState(() => !isSupabaseReady)
   const [isExpenseSyncReady, setIsExpenseSyncReady] = useState(() => !isSupabaseReady)
+  const [isCommitmentSyncReady, setIsCommitmentSyncReady] = useState(() => !isSupabaseReady)
   const isOnline = useOnlineStatus()
   const activeCurrency = normalizeCurrency(profile.currency)
   const normalizedCurrentPath = normalizeSeoPath(currentPath)
@@ -1281,6 +1321,10 @@ function App() {
   useEffect(() => {
     expensesRef.current = expenses
   }, [expenses])
+
+  useEffect(() => {
+    recurringSchedulesRef.current = recurringSchedules
+  }, [recurringSchedules])
 
   useEffect(() => {
     hasCompletedSetupRef.current = hasCompletedSetup
@@ -1493,6 +1537,121 @@ function App() {
       isCancelled = true
     }
   }, [authUser, isExpenseSyncReady, isOnline, isPublicSeoPage])
+
+  useEffect(() => {
+    if (isPublicSeoPage) {
+      return undefined
+    }
+
+    const normalizedCommitments = buildCommitmentSyncRecords({ profile, recurringSchedules })
+    const saveSequence = commitmentSaveSequenceRef.current + 1
+    commitmentSaveSequenceRef.current = saveSequence
+
+    if (!authUser?.id || !isSupabaseReady) {
+      previousSyncedCommitmentsRef.current = normalizedCommitments
+      return undefined
+    }
+
+    if (!isCommitmentSyncReady) {
+      return undefined
+    }
+
+    if (skipNextCommitmentCloudSaveRef.current) {
+      skipNextCommitmentCloudSaveRef.current = false
+      previousSyncedCommitmentsRef.current = normalizedCommitments
+      return undefined
+    }
+
+    const diff = diffCommitmentState(previousSyncedCommitmentsRef.current, { profile, recurringSchedules })
+
+    if (diff.upserts.length === 0 && diff.deletes.length === 0) {
+      previousSyncedCommitmentsRef.current = normalizedCommitments
+      return undefined
+    }
+
+    const operations = buildCommitmentSyncOperations(authUser, diff)
+
+    if (!isOnline) {
+      appendCommitmentSyncQueue(authUser.id, operations)
+      trackEvent('commitments_sync_failed', commitmentSyncFailurePayload({ name: 'offline' }, 'offline'))
+      previousSyncedCommitmentsRef.current = diff.nextRecords
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const syncCommitments = async () => {
+      try {
+        const pendingOperations = readCommitmentSyncQueue(authUser.id)
+
+        if (pendingOperations.length > 0) {
+          await applyCommitmentSyncOperations(supabase, authUser, pendingOperations)
+          clearCommitmentSyncQueue(authUser.id)
+        }
+
+        await applyCommitmentSyncOperations(supabase, authUser, operations)
+
+        trackEvent('commitments_cloud_saved', {
+          surface: 'commitment_sync',
+          reason: 'commitment_update',
+          upsert_count: diff.upserts.length,
+          delete_count: diff.deletes.length,
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          appendCommitmentSyncQueue(authUser.id, operations)
+          trackEvent('commitments_sync_failed', commitmentSyncFailurePayload(error, 'save'))
+        }
+      } finally {
+        if (!isCancelled && commitmentSaveSequenceRef.current === saveSequence) {
+          previousSyncedCommitmentsRef.current = diff.nextRecords
+        }
+      }
+    }
+
+    syncCommitments()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isCommitmentSyncReady, isOnline, isPublicSeoPage, profile, recurringSchedules])
+
+  useEffect(() => {
+    if (isPublicSeoPage || !authUser?.id || !isSupabaseReady || !isCommitmentSyncReady || !isOnline) {
+      return undefined
+    }
+
+    const pendingOperations = readCommitmentSyncQueue(authUser.id)
+
+    if (pendingOperations.length === 0) {
+      return undefined
+    }
+
+    let isCancelled = false
+
+    applyCommitmentSyncOperations(supabase, authUser, pendingOperations)
+      .then(() => {
+        if (isCancelled) {
+          return
+        }
+
+        clearCommitmentSyncQueue(authUser.id)
+        trackEvent('commitments_cloud_saved', {
+          surface: 'commitment_sync',
+          reason: 'queue_flush',
+          operation_count: pendingOperations.length,
+        })
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          trackEvent('commitments_sync_failed', commitmentSyncFailurePayload(error, 'queue_flush'))
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isCommitmentSyncReady, isOnline, isPublicSeoPage])
 
   useEffect(() => {
     if (isPublicSeoPage) {
@@ -1746,11 +1905,119 @@ function App() {
     }
   }, [])
 
+  const loadCommitmentsForUser = useCallback(async (user, source = 'session') => {
+    flushStorageQueue()
+    const currentProfileCommitments = normalizeProfileCommitments(profileRef.current)
+    const storedProfileCommitments = normalizeProfileCommitments(readLocalProfileCache(profileRef.current))
+    const localProfileCommitments = currentProfileCommitments.length > 0
+      ? currentProfileCommitments
+      : storedProfileCommitments
+    const localRecurringSchedules = readLocalRecurringScheduleCache(recurringSchedulesRef.current)
+    const localCommitmentState = {
+      profile: {
+        commitments: localProfileCommitments,
+      },
+      recurringSchedules: localRecurringSchedules,
+    }
+    const normalizedLocalCommitments = buildCommitmentSyncRecords(localCommitmentState)
+
+    if (!user?.id || !isSupabaseReady) {
+      skipNextCommitmentCloudSaveRef.current = true
+      skipNextProfileCloudSaveRef.current = true
+      setProfile((current) => ({ ...current, commitments: localProfileCommitments }))
+      setRecurringSchedules(localRecurringSchedules)
+      previousSyncedCommitmentsRef.current = normalizedLocalCommitments
+      setIsCommitmentSyncReady(true)
+      return localCommitmentState
+    }
+
+    setIsCommitmentSyncReady(false)
+
+    try {
+      const pendingOperations = readCommitmentSyncQueue(user.id)
+
+      if (pendingOperations.length > 0) {
+        await applyCommitmentSyncOperations(supabase, user, pendingOperations)
+        clearCommitmentSyncQueue(user.id)
+      }
+
+      const cloudCommitments = await loadCloudCommitments(supabase, user.id)
+
+      if (cloudCommitments.syncRecords.length > 0) {
+        skipNextCommitmentCloudSaveRef.current = true
+        skipNextProfileCloudSaveRef.current = true
+        setProfile((current) => ({ ...current, commitments: cloudCommitments.profileCommitments }))
+        setRecurringSchedules(cloudCommitments.recurringSchedules)
+        previousSyncedCommitmentsRef.current = cloudCommitments.syncRecords
+        trackEvent('commitments_cloud_loaded', {
+          surface: 'commitment_sync',
+          source,
+          record_count: cloudCommitments.syncRecords.length,
+          profile_count: cloudCommitments.profileCommitments.length,
+          schedule_count: cloudCommitments.recurringSchedules.length,
+        })
+        return cloudCommitments
+      }
+
+      skipNextCommitmentCloudSaveRef.current = true
+      skipNextProfileCloudSaveRef.current = true
+      setProfile((current) => ({ ...current, commitments: localProfileCommitments }))
+      setRecurringSchedules(localRecurringSchedules)
+      previousSyncedCommitmentsRef.current = normalizedLocalCommitments
+
+      if (!hasCommitmentMigrationRun(user.id)) {
+        if (hasLocalCommitmentData(localCommitmentState)) {
+          try {
+            await saveCloudCommitments(supabase, user, localCommitmentState)
+            trackEvent('commitments_migrated', {
+              surface: 'commitment_sync',
+              source,
+              record_count: normalizedLocalCommitments.length,
+              profile_count: localProfileCommitments.length,
+              schedule_count: localRecurringSchedules.length,
+            })
+            trackEvent('commitments_cloud_saved', {
+              surface: 'commitment_sync',
+              reason: 'migration',
+              upsert_count: normalizedLocalCommitments.length,
+              delete_count: 0,
+            })
+          } catch (error) {
+            appendCommitmentSyncQueue(
+              user.id,
+              buildCommitmentSyncOperations(user, { upserts: normalizedLocalCommitments }),
+            )
+            trackEvent('commitments_sync_failed', commitmentSyncFailurePayload(error, 'migrate'))
+          }
+        }
+
+        markCommitmentMigrationRun(user.id)
+      }
+
+      return localCommitmentState
+    } catch (error) {
+      skipNextCommitmentCloudSaveRef.current = true
+      skipNextProfileCloudSaveRef.current = true
+      setProfile((current) => ({ ...current, commitments: localProfileCommitments }))
+      setRecurringSchedules(localRecurringSchedules)
+      previousSyncedCommitmentsRef.current = normalizedLocalCommitments
+      trackEvent('commitments_sync_failed', commitmentSyncFailurePayload(error, 'load'))
+
+      return {
+        ...localCommitmentState,
+        failed: true,
+      }
+    } finally {
+      setIsCommitmentSyncReady(true)
+    }
+  }, [])
+
   const loadCloudStateForUser = useCallback(async (user, source = 'session') => {
     const syncedProfile = await loadProfileForUser(user, source)
+    await loadCommitmentsForUser(user, source)
     await loadExpensesForUser(user, source)
     return syncedProfile
-  }, [loadExpensesForUser, loadProfileForUser])
+  }, [loadCommitmentsForUser, loadExpensesForUser, loadProfileForUser])
 
   useEffect(() => {
     if (isPublicSeoPage || !isSupabaseReady) {
@@ -1811,6 +2078,7 @@ function App() {
         applyAuthUser(null)
         setIsProfileSyncReady(!isSupabaseReady)
         setIsExpenseSyncReady(!isSupabaseReady)
+        setIsCommitmentSyncReady(!isSupabaseReady)
         setPhase('auth')
         return
       }
@@ -2320,6 +2588,7 @@ function App() {
     setAuthUser(null)
     setIsProfileSyncReady(!isSupabaseReady)
     setIsExpenseSyncReady(!isSupabaseReady)
+    setIsCommitmentSyncReady(!isSupabaseReady)
     setPhase('auth')
   }, [clearAuthNotice])
 
