@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Download, Plus, Trash2, User } from 'lucide-react'
-import { CurrencyInput, EmptyState } from '../components/AppPrimitives.jsx'
+import { CurrencyInput } from '../components/AppPrimitives.jsx'
+import { EmptyState as MoneyOSEmptyState, SuccessState as MoneyOSSuccessState } from '../design-system'
 import {
   displayPersonName,
   normalizePersonName,
@@ -501,7 +502,27 @@ export default function SharedExpensesPanel({
         <button className="primary-button full" type="submit">
           Create group
         </button>
-        {message.text && <p className={`form-message ${message.tone === 'error' ? 'form-message-error' : ''}`}>{message.text}</p>}
+        {message.text && (
+          message.tone === 'success' && !message.text.includes('PNG') ? (
+            <MoneyOSSuccessState
+              title={message.text}
+              detail="Successfully added."
+              actions={[
+                {
+                  label: 'Add another',
+                  onClick: () => {
+                    setMessage({ text: '', tone: 'info' })
+                    focusSharedGroupName('success_state')
+                  },
+                  variant: 'primary',
+                },
+              ]}
+              className="shared-money-success-state"
+            />
+          ) : (
+            <p className={`form-message ${message.tone === 'error' ? 'form-message-error' : ''}`}>{message.text}</p>
+          )
+        )}
       </form>
 
       {sharedSummary?.activeGroups > 0 && (
@@ -527,12 +548,11 @@ export default function SharedExpensesPanel({
 
       <div className="shared-list">
         {groups.length === 0 && (
-          <EmptyState
+          <MoneyOSEmptyState
             title="Split your first trip expense"
             detail="Create a group, add people, then record the first payment when it happens."
-            actionLabel="Create trip group"
-            onAction={() => focusSharedGroupName('empty_state')}
             icon={User}
+            action={{ label: 'Create trip group', onClick: () => focusSharedGroupName('empty_state') }}
           />
         )}
         {reconciledGroups.map((group) => {

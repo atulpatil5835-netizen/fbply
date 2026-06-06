@@ -1,11 +1,15 @@
+import { useState } from 'react'
 import { PiggyBank, Plus, Trash2 } from 'lucide-react'
 import { CurrencyInput, EmptyState } from './AppPrimitives.jsx'
+import { SuccessState as MoneyOSSuccessState } from '../design-system'
 import { normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { slugify } from '../lib/uiHelpers'
 import { trackEvent } from '../lib/analytics'
 
 export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavingsBucket, removeSavingsBucket }) {
+  const [successMessage, setSuccessMessage] = useState('')
+
   const handleAddGoal = (source = 'header') => {
     trackEvent(source === 'empty_state' ? 'empty_state_cta_clicked' : 'feature_discovery_click', {
       surface: 'planner',
@@ -15,6 +19,7 @@ export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavings
       target: 'create_goal',
     })
     addSavingsBucket?.()
+    setSuccessMessage('Savings goal created.')
   }
 
   return (
@@ -30,6 +35,20 @@ export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavings
           Add goal
         </button>
       </div>
+      {successMessage && (
+        <MoneyOSSuccessState
+          title="Savings Goal Created"
+          detail={`${successMessage} Successfully added.`}
+          actions={[
+            {
+              label: 'Add another',
+              onClick: () => handleAddGoal('success_state'),
+              variant: 'primary',
+            },
+          ]}
+          className="savings-goal-success-state"
+        />
+      )}
       <div className="bucket-grid">
         {buckets.length === 0 ? (
           <EmptyState

@@ -9,7 +9,16 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react'
-import { EmptyState } from '../components/AppPrimitives.jsx'
+import { EmptyState as LegacyEmptyState } from '../components/AppPrimitives.jsx'
+import {
+  EmptyState as MoneyOSEmptyState,
+  InsightCard,
+  MoneyCard,
+  MoneyOSProvider,
+  SectionHeader,
+  StatCard,
+  StatusBadge,
+} from '../design-system'
 import { aggregateExpenses, categoryColor, normalizeSpendCategory } from '../lib/categoryIntelligence.js'
 import { addMoney, divideMoney, normalizeMoney, sumMoney } from '../lib/money.js'
 import { rupees, shortRupees } from '../lib/ruleEngine.js'
@@ -22,6 +31,9 @@ const historyFilters = [
   { key: '30d', label: '30 Days' },
   { key: 'custom', label: 'Custom Range' },
 ]
+
+const DAILY_BOOK_PRESENTATION_VERSION =
+  typeof window !== 'undefined' && window.__FBPLY_LEGACY_DAILY_BOOK__ ? 'legacy' : 'money-os-v2'
 
 function todayDateKey() {
   return new Date().toISOString().slice(0, 10)
@@ -304,6 +316,38 @@ function buildInsightCards(expenses = [], todayKey) {
   ]
 }
 
+function moneyOSToneForDailyBook(tone) {
+  if (tone === 'outgoing' || tone === 'up') {
+    return 'danger'
+  }
+
+  if (tone === 'month' || tone === 'average' || tone === 'category' || tone === 'steady') {
+    return 'neutral'
+  }
+
+  if (tone === 'down') {
+    return 'success'
+  }
+
+  return 'warning'
+}
+
+function moneyOSCardToneForDailyBook(tone) {
+  if (tone === 'outgoing' || tone === 'up') {
+    return 'danger'
+  }
+
+  if (tone === 'down') {
+    return 'success'
+  }
+
+  if (tone === 'month') {
+    return 'tint'
+  }
+
+  return 'neutral'
+}
+
 function RangeFilters({ selectedFilter, onSelect }) {
   return (
     <div className="activity-filter-row daily-book-filter-row" aria-label="Expense history filters">
@@ -360,6 +404,30 @@ function DailyExpenseRow({ expense }) {
         </time>
       </div>
     </article>
+  )
+}
+
+function MoneyOSExpenseRow({ expense }) {
+  const title = expense.label || expense.category || 'Expense'
+  const note = expense.note || expense.type || ''
+  const displayCategory = expense.displayCategory || expense.category || 'Other'
+
+  return (
+    <MoneyCard
+      title={title}
+      detail={note ? `${displayCategory} - ${note}` : displayCategory}
+      icon={Receipt}
+      tone="danger"
+      actions={<StatusBadge tone="danger">-{rupees(expense.amount)}</StatusBadge>}
+      className="mos-daily-book-expense-card"
+    >
+      <div className="mos-daily-book-expense-meta">
+        <span style={{ color: expense.color || categoryColor(displayCategory) }}>{displayCategory}</span>
+        <time dateTime={expense.createdAt || expense.dateKey}>
+          {formatExpenseTime(expense.createdAt || `${expense.dateKey}T12:00:00`)}
+        </time>
+      </div>
+    </MoneyCard>
   )
 }
 
@@ -463,102 +531,294 @@ export default function DailyBookScreen({ expenses = [], openAddSheet }) {
     })
   }, [customRange.end, customRange.start])
 
-  return (
-    <section className="screen-content daily-book-screen" id="daily-book-section">
-      <div className="screen-heading daily-book-heading">
-        <div>
-          <p className="eyebrow">Daily Book</p>
-          <h1>Daily expense book</h1>
-        </div>
-        <button className="primary-button small-button daily-book-add-button" type="button" onClick={openExpenseFromDailyBook}>
-          <Plus size={16} />
-          Add Expense
-        </button>
-      </div>
+  const todayInsight = insightCards.find((insight) => insight.key === 'today') || insightCards[0]
+  const monthInsight = insightCards.find((insight) => insight.key === 'month') || insightCards[1]
+  const secondaryInsights = insightCards.filter((insight) => !['today', 'month'].includes(insight.key))
+  const recentExpenses = filteredExpenses.slice(0, 5)
+  const rangeDateLabel = `${formatDateLabel(activeRange.start, todayKey)}${activeRange.start !== activeRange.end ? ` to ${formatDateLabel(activeRange.end, todayKey)}` : ''}`
 
-      <section className="daily-book-summary-panel" aria-label="Daily expense summary">
-        <div>
-          <span>{activeRange.label}</span>
-          <strong>{rupees(rangeTotal)}</strong>
-          <p>{filteredExpenses.length} expense{filteredExpenses.length === 1 ? '' : 's'} from saved records</p>
-        </div>
-        <span className="daily-book-date-pill">
-          {formatDateLabel(activeRange.start, todayKey)}
-          {activeRange.start !== activeRange.end ? ` to ${formatDateLabel(activeRange.end, todayKey)}` : ''}
-        </span>
-      </section>
-
-      <RangeFilters selectedFilter={selectedFilter} onSelect={selectFilter} />
-
-      {selectedFilter === 'custom' && (
-        <div className="daily-book-custom-range">
-          <label>
-            <span>Start</span>
-            <input
-              type="date"
-              value={customRange.start}
-              onChange={(event) => updateCustomRange('start', event.target.value)}
-            />
-          </label>
-          <label>
-            <span>End</span>
-            <input
-              type="date"
-              value={customRange.end}
-              onChange={(event) => updateCustomRange('end', event.target.value)}
-            />
-          </label>
-          <button className="ghost-button" type="button" onClick={applyCustomRange}>
-            Apply
+  if (DAILY_BOOK_PRESENTATION_VERSION === 'legacy') {
+    return (
+      <section className="screen-content daily-book-screen" id="daily-book-section">
+        <div className="screen-heading daily-book-heading">
+          <div>
+            <p className="eyebrow">Daily Book</p>
+            <h1>Daily expense book</h1>
+          </div>
+          <button className="primary-button small-button daily-book-add-button" type="button" onClick={openExpenseFromDailyBook}>
+            <Plus size={16} />
+            Add Expense
           </button>
         </div>
-      )}
 
-      <section className="daily-book-insight-grid" aria-label="Daily Book Insights">
-        {insightCards.map((insight) => (
-          <DailyBookInsightCard insight={insight} key={insight.key} />
-        ))}
+        <section className="daily-book-summary-panel" aria-label="Daily expense summary">
+          <div>
+            <span>{activeRange.label}</span>
+            <strong>{rupees(rangeTotal)}</strong>
+            <p>{filteredExpenses.length} expense{filteredExpenses.length === 1 ? '' : 's'} from saved records</p>
+          </div>
+          <span className="daily-book-date-pill">
+            {formatDateLabel(activeRange.start, todayKey)}
+            {activeRange.start !== activeRange.end ? ` to ${formatDateLabel(activeRange.end, todayKey)}` : ''}
+          </span>
+        </section>
+
+        <RangeFilters selectedFilter={selectedFilter} onSelect={selectFilter} />
+
+        {selectedFilter === 'custom' && (
+          <div className="daily-book-custom-range">
+            <label>
+              <span>Start</span>
+              <input
+                type="date"
+                value={customRange.start}
+                onChange={(event) => updateCustomRange('start', event.target.value)}
+              />
+            </label>
+            <label>
+              <span>End</span>
+              <input
+                type="date"
+                value={customRange.end}
+                onChange={(event) => updateCustomRange('end', event.target.value)}
+              />
+            </label>
+            <button className="ghost-button" type="button" onClick={applyCustomRange}>
+              Apply
+            </button>
+          </div>
+        )}
+
+        <section className="daily-book-insight-grid" aria-label="Daily Book Insights">
+          {insightCards.map((insight) => (
+            <DailyBookInsightCard insight={insight} key={insight.key} />
+          ))}
+        </section>
+
+        <section className="daily-book-history-panel" aria-label="Expense history">
+          <div className="section-heading-row">
+            <div>
+              <p className="eyebrow">History</p>
+              <h2>{activeRange.label}</h2>
+            </div>
+            <span>{shortRupees(rangeTotal)}</span>
+          </div>
+
+          {groupedExpenses.length === 0 ? (
+            <LegacyEmptyState
+              title="No expenses in this range"
+              detail="Add an expense to start today's book."
+              actionLabel="Add expense"
+              onAction={openExpenseFromDailyBook}
+              icon={Receipt}
+            />
+          ) : (
+            <div className="daily-book-day-list">
+              {groupedExpenses.map((group) => (
+                <article className="daily-book-day-group" key={group.key}>
+                  <div className="daily-book-day-heading">
+                    <span>
+                      <CalendarDays size={15} />
+                      {group.label}
+                    </span>
+                    <strong>{shortRupees(group.total)}</strong>
+                    <small>{group.items.length} expense{group.items.length === 1 ? '' : 's'}</small>
+                  </div>
+                  <div className="daily-book-expense-list">
+                    {group.items.map((expense) => (
+                      <DailyExpenseRow expense={expense} key={expense.id || `${expense.dateKey}-${expense.label}-${expense.amount}`} />
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </section>
+    )
+  }
+
+  return (
+    <MoneyOSProvider as="section" className="screen-content daily-book-screen money-os-daily-book" id="daily-book-section">
+      <SectionHeader
+        eyebrow="Daily Book"
+        title="Daily expense book"
+        detail="A clearer view of today's spend, this month, and recent expense activity."
+        className="mos-daily-book-header"
+        actions={(
+          <button className="primary-button small-button daily-book-add-button" type="button" onClick={openExpenseFromDailyBook}>
+            <Plus size={16} />
+            Add Expense
+          </button>
+        )}
+      />
+
+      <section className="mos-daily-book-priority-grid" aria-label="Daily Book priority summary">
+        <MoneyCard
+          title="Today"
+          detail={todayInsight.detail}
+          icon={Receipt}
+          tone="danger"
+          actions={<StatusBadge tone="danger">{formatDateLabel(todayKey, todayKey)}</StatusBadge>}
+          className="mos-daily-book-today-card"
+        >
+          <div className="mos-daily-book-hero-value">
+            <strong>{todayInsight.value}</strong>
+            <span>Today's spending from saved expense records.</span>
+          </div>
+        </MoneyCard>
+
+        <StatCard
+          label="This Month"
+          value={monthInsight.value}
+          detail={monthInsight.detail}
+          icon={CalendarDays}
+          tone="tint"
+          className="mos-daily-book-month-card"
+        />
       </section>
 
-      <section className="daily-book-history-panel" aria-label="Expense history">
-        <div className="section-heading-row">
-          <div>
-            <p className="eyebrow">History</p>
-            <h2>{activeRange.label}</h2>
-          </div>
-          <span>{shortRupees(rangeTotal)}</span>
-        </div>
+      <section className="mos-daily-book-section" aria-label="Daily Book filters">
+        <SectionHeader
+          eyebrow="Filter"
+          title={activeRange.label}
+          detail={rangeDateLabel}
+          actions={<StatusBadge>{shortRupees(rangeTotal)}</StatusBadge>}
+        />
 
-        {groupedExpenses.length === 0 ? (
-          <EmptyState
+        <RangeFilters selectedFilter={selectedFilter} onSelect={selectFilter} />
+
+        {selectedFilter === 'custom' && (
+          <div className="daily-book-custom-range mos-daily-book-custom-range">
+            <label>
+              <span>Start</span>
+              <input
+                type="date"
+                value={customRange.start}
+                onChange={(event) => updateCustomRange('start', event.target.value)}
+              />
+            </label>
+            <label>
+              <span>End</span>
+              <input
+                type="date"
+                value={customRange.end}
+                onChange={(event) => updateCustomRange('end', event.target.value)}
+              />
+            </label>
+            <button className="ghost-button" type="button" onClick={applyCustomRange}>
+              Apply
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section className="mos-daily-book-section" aria-label="Recent Activity">
+        <SectionHeader
+          eyebrow="Recent Activity"
+          title="Latest expenses"
+          detail={`Showing ${activeRange.label.toLowerCase()} activity first.`}
+          actions={<StatusBadge>{filteredExpenses.length} expense{filteredExpenses.length === 1 ? '' : 's'}</StatusBadge>}
+        />
+
+        {recentExpenses.length === 0 ? (
+          <MoneyOSEmptyState
             title="No expenses in this range"
             detail="Add an expense to start today's book."
-            actionLabel="Add expense"
-            onAction={openExpenseFromDailyBook}
             icon={Receipt}
+            action={{ label: 'Add expense', onClick: openExpenseFromDailyBook }}
+            className="mos-daily-book-empty-state"
           />
         ) : (
-          <div className="daily-book-day-list">
-            {groupedExpenses.map((group) => (
-              <article className="daily-book-day-group" key={group.key}>
-                <div className="daily-book-day-heading">
-                  <span>
-                    <CalendarDays size={15} />
-                    {group.label}
-                  </span>
-                  <strong>{shortRupees(group.total)}</strong>
-                  <small>{group.items.length} expense{group.items.length === 1 ? '' : 's'}</small>
-                </div>
-                <div className="daily-book-expense-list">
-                  {group.items.map((expense) => (
-                    <DailyExpenseRow expense={expense} key={expense.id || `${expense.dateKey}-${expense.label}-${expense.amount}`} />
-                  ))}
-                </div>
-              </article>
+          <div className="mos-daily-book-card-list">
+            {recentExpenses.map((expense) => (
+              <MoneyOSExpenseRow expense={expense} key={expense.id || `${expense.dateKey}-${expense.label}-${expense.amount}`} />
             ))}
           </div>
         )}
       </section>
-    </section>
+
+      <details className="mos-daily-book-secondary-details">
+        <summary>
+          <span>
+            <span className="mos-eyebrow">More Daily Book Context</span>
+            <strong>Signals and extended history</strong>
+          </span>
+          <StatusBadge>Open</StatusBadge>
+        </summary>
+
+        <div className="mos-daily-book-secondary-stack">
+          <section className="mos-daily-book-section" aria-label="Daily Book secondary insights">
+            <SectionHeader eyebrow="Signals" title="Average, high day, category, and trend" />
+            <div className="mos-daily-book-secondary-grid">
+              {secondaryInsights.map((insight) => {
+                if (insight.key === 'trend') {
+                  return (
+                    <InsightCard
+                      title={insight.value}
+                      insight={insight.detail}
+                      detail={insight.label}
+                      icon={insight.icon}
+                      tone={moneyOSCardToneForDailyBook(insight.tone)}
+                      key={insight.key}
+                    />
+                  )
+                }
+
+                return (
+                  <StatCard
+                    label={insight.label}
+                    value={insight.value}
+                    detail={insight.detail}
+                    icon={insight.icon}
+                    tone={moneyOSToneForDailyBook(insight.tone)}
+                    key={insight.key}
+                  />
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="mos-daily-book-section" aria-label="Extended History">
+            <SectionHeader
+              eyebrow="Extended History"
+              title={activeRange.label}
+              detail={rangeDateLabel}
+              actions={<StatusBadge>{shortRupees(rangeTotal)}</StatusBadge>}
+            />
+
+            {groupedExpenses.length === 0 ? (
+              <MoneyOSEmptyState
+                title="No expenses in this range"
+                detail="Change the filter or add an expense."
+                icon={Receipt}
+                action={{ label: 'Add expense', onClick: openExpenseFromDailyBook }}
+                className="mos-daily-book-empty-state"
+              />
+            ) : (
+              <div className="mos-daily-book-history-list">
+                {groupedExpenses.map((group) => (
+                  <section className="mos-daily-book-day-section" key={group.key} aria-label={`${group.label} expenses`}>
+                    <header>
+                      <span>
+                        <CalendarDays size={15} />
+                        {group.label}
+                      </span>
+                      <StatusBadge>{shortRupees(group.total)}</StatusBadge>
+                      <small>{group.items.length} expense{group.items.length === 1 ? '' : 's'}</small>
+                    </header>
+                    <div className="mos-daily-book-card-list">
+                      {group.items.map((expense) => (
+                        <MoneyOSExpenseRow expense={expense} key={expense.id || `${expense.dateKey}-${expense.label}-${expense.amount}`} />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </details>
+    </MoneyOSProvider>
   )
 }

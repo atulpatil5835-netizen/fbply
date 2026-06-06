@@ -1,6 +1,7 @@
 import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
 import {
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   CreditCard,
   Pencil,
@@ -8,24 +9,61 @@ import {
   Plane,
   Plus,
   Receipt,
+  Sparkles,
   Target,
   Trash2,
   User,
   Wallet,
   X,
 } from 'lucide-react'
-import { AppModal, CurrencyInput, EmptyState } from '../components/AppPrimitives.jsx'
+import { AppModal, CurrencyInput } from '../components/AppPrimitives.jsx'
+import {
+  ActionCard,
+  EmptyState as MoneyOSEmptyState,
+  InsightCard,
+  MoneyCard,
+  SectionHeader,
+  StatCard,
+  StatusBadge,
+} from '../design-system'
 import { buildRelatedTransactionGroups } from '../lib/financeIntelligence'
 import { addMoney, normalizeMoney, sumMoney } from '../lib/money'
 import { rupees, shortRupees } from '../lib/ruleEngine'
 import { focusInvalidField } from '../lib/uiHelpers'
 import SharedExpensesPanel from './SharedExpenseScreen.jsx'
 import { trackEvent } from '../lib/analytics'
+import { displayPersonName, reconcileSharedGroup } from '../lib/financialActivity'
 
 const HISTORY_GROUP_BATCH_SIZE = 12
 
+function isLegacyPeopleExperience() {
+  return typeof window !== 'undefined' && Boolean(
+    window.__FBPLY_LEGACY_PEOPLE__ ||
+    window.__FBPLY_LEGACY_BORROW_LEND__ ||
+    window.__FBPLY_LEGACY_SHARED_EXPENSES__,
+  )
+}
+
 function todayDateKey() {
   return new Date().toISOString().slice(0, 10)
+}
+
+function formatPeopleDate(value) {
+  const cleanValue = String(value || '').slice(0, 10)
+  const parsed = cleanValue ? new Date(`${cleanValue}T00:00:00`) : null
+
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return 'No date'
+  }
+
+  return parsed.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+function settlementSortDate(item = {}) {
+  return String(item.receivedAt || item.settledAt || item.updatedAt || item.date || '').slice(0, 10)
 }
 
 function formatActivityTime(value) {
@@ -242,21 +280,9 @@ export default function ActivityScreen({
     })
     setMoneyBookModalEntry({ kind: 'given', date: todayDateKey() })
   }, [])
-
-  return (
-    <section className="screen-content history-screen">
-      <div className="screen-heading">
-        <div>
-          <p className="eyebrow">Activity</p>
-          <h1>Your money timeline</h1>
-        </div>
-        <MonthSelector
-          monthOptions={monthOptions}
-          selectedMonthKey={selectedMonthKey}
-          setSelectedMonthKey={setSelectedMonthKey}
-        />
-      </div>
-
+  const useLegacyPeople = isLegacyPeopleExperience()
+  const activityTimelineContent = (
+    <>
       <div className="activity-filter-row" aria-label="Activity filters">
         {activityFilterOptions.map((option) => {
           const Icon = option.icon
@@ -278,11 +304,10 @@ export default function ActivityScreen({
 
       <section className="history-feed" aria-label="Unified financial activity timeline">
         {!hasHistory ? (
-          <EmptyState
+          <MoneyOSEmptyState
             title={activityFilter === 'all' ? 'Track your first spending move' : `No ${activityFilter} activity yet`}
             detail="Add one expense to start the timeline. Income, goals, trips, and borrow/lend activity will appear as they are added."
-            actionLabel="Add expense"
-            onAction={openExpenseFromEmptyState}
+            action={{ label: 'Add expense', onClick: openExpenseFromEmptyState }}
             icon={CalendarDays}
           />
         ) : visibleGroups.map((group) => {
@@ -346,7 +371,10 @@ export default function ActivityScreen({
       </section>
 
       <CashflowStrip events={cashflowTimeline} />
-
+    </>
+  )
+  const peopleToolsContent = (
+    <>
       <MoneyBookPanel
         summary={moneyBookSummary}
         onAdd={openMoneyBookFromDiscovery}
@@ -365,6 +393,57 @@ export default function ActivityScreen({
         removeSharedGroup={removeSharedGroup}
         variant="activity"
       />
+    </>
+  )
+
+  return (
+    <section className="screen-content history-screen">
+      <div className="screen-heading">
+        <div>
+          <p className="eyebrow">{useLegacyPeople ? 'Activity' : 'People'}</p>
+          <h1>{useLegacyPeople ? 'Your money timeline' : 'People money in one place'}</h1>
+        </div>
+        <MonthSelector
+          monthOptions={monthOptions}
+          selectedMonthKey={selectedMonthKey}
+          setSelectedMonthKey={setSelectedMonthKey}
+        />
+      </div>
+
+      {useLegacyPeople ? (
+        <>
+          {activityTimelineContent}
+          {peopleToolsContent}
+        </>
+      ) : (
+        <>
+          <PeopleHubPanel
+            moneyBookSummary={moneyBookSummary}
+            profile={profile}
+            sharedGroups={sharedGroups}
+            sharedSummary={sharedSummary}
+            onAddMoneyBook={openMoneyBookFromDiscovery}
+            onEditMoneyBook={(entry) => setMoneyBookModalEntry(entry)}
+            onToggleMoneyBookSettlement={onToggleMoneyBookSettlement}
+            onDeleteMoneyBookEntry={onDeleteMoneyBookEntry}
+            markSharedSettlementReceived={markSharedSettlementReceived}
+          >
+            {peopleToolsContent}
+          </PeopleHubPanel>
+          <details className="money-os mos-people-secondary-details" open>
+            <summary>
+              <span>
+                <strong>Daily activity timeline</strong>
+                <small>Expenses, income, transfers, and people money history remain available.</small>
+              </span>
+              <StatusBadge>Activity</StatusBadge>
+            </summary>
+            <div className="mos-people-secondary-stack">
+              {activityTimelineContent}
+            </div>
+          </details>
+        </>
+      )}
 
       {moneyBookModalEntry && (
         <MoneyBookEntryModal
@@ -374,6 +453,438 @@ export default function ActivityScreen({
         />
       )}
     </section>
+  )
+}
+
+function PeopleHubPanel({
+  moneyBookSummary = {},
+  profile = {},
+  sharedGroups = [],
+  sharedSummary = {},
+  onAddMoneyBook,
+  onEditMoneyBook,
+  onToggleMoneyBookSettlement,
+  onDeleteMoneyBookEntry,
+  markSharedSettlementReceived,
+  children,
+}) {
+  const [toolsOpen, setToolsOpen] = useState(true)
+  const moneyBookEntries = moneyBookSummary.visibleEntries || []
+  const reconciledGroups = useMemo(
+    () => sharedGroups.map((group) => reconcileSharedGroup(group, profile)),
+    [profile, sharedGroups],
+  )
+  const receivableEntries = moneyBookEntries.filter((entry) => entry.kind === 'given' && entry.status !== 'settled')
+  const repayableEntries = moneyBookEntries.filter((entry) => entry.kind === 'taken' && entry.status !== 'settled')
+  const sharedSettlementRows = useMemo(
+    () => reconciledGroups.flatMap((group) =>
+      (group.settlements || []).map((settlement) => ({
+        id: `shared-${group.id}-${settlement.id}`,
+        type: 'shared',
+        group,
+        settlement,
+        date: settlementSortDate({ ...settlement, date: group.date }),
+      }))),
+    [reconciledGroups],
+  )
+  const incomingSharedSettlements = sharedSettlementRows.filter((item) =>
+    item.settlement.direction === 'incoming' && normalizeMoney(item.settlement.remainingAmount) > 0)
+  const outgoingSharedSettlements = sharedSettlementRows.filter((item) =>
+    item.settlement.direction === 'outgoing' && normalizeMoney(item.settlement.remainingAmount) > 0)
+  const settledMoneyBookRows = moneyBookEntries
+    .filter((entry) => entry.status === 'settled')
+    .map((entry) => ({
+      id: `money-book-settlement-${entry.id}`,
+      type: 'money-book',
+      entry,
+      date: settlementSortDate(entry),
+    }))
+  const recentSettlementRows = [...sharedSettlementRows, ...settledMoneyBookRows]
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .slice(0, 6)
+  const totalToReceive = addMoney(moneyBookSummary.needToReceive || 0, sharedSummary.pendingRecoverable || 0)
+  const totalToRepay = addMoney(moneyBookSummary.needToPay || 0, sharedSummary.pendingLiability || 0)
+  const openSettlementCount = incomingSharedSettlements.length + outgoingSharedSettlements.length + (moneyBookSummary.pendingCount || 0)
+  const hasPeopleData = moneyBookEntries.length > 0 || reconciledGroups.length > 0
+
+  const openPeopleTools = useCallback((targetId) => {
+    setToolsOpen(true)
+
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.setTimeout(() => {
+      const target = targetId ? document.getElementById(targetId) : document.getElementById('people-tools-section')
+      target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+
+      if (target && 'focus' in target) {
+        target.focus()
+      }
+    }, 40)
+  }, [])
+
+  const openSharedGroupForm = useCallback(() => openPeopleTools('shared-group-name'), [openPeopleTools])
+
+  return (
+    <section className="money-os money-os-people-hub" id="people-hub-section" aria-label="People">
+      <SectionHeader
+        eyebrow="Money OS"
+        title="People"
+        detail="Borrow, lend, split, and settle without mixing the underlying records."
+        actions={<StatusBadge tone={openSettlementCount > 0 ? 'warning' : 'success'}>{openSettlementCount} open</StatusBadge>}
+      />
+
+      <div className="mos-people-priority-grid" aria-label="People money priorities">
+        <StatCard
+          label="Money To Receive"
+          value={rupees(totalToReceive)}
+          detail={`${rupees(moneyBookSummary.needToReceive || 0)} borrow/lend + ${rupees(sharedSummary.pendingRecoverable || 0)} shared`}
+          icon={Wallet}
+          tone={totalToReceive > 0 ? 'success' : 'neutral'}
+        />
+        <StatCard
+          label="Money To Repay"
+          value={rupees(totalToRepay)}
+          detail={`${rupees(moneyBookSummary.needToPay || 0)} borrow/lend + ${rupees(sharedSummary.pendingLiability || 0)} shared`}
+          icon={CreditCard}
+          tone={totalToRepay > 0 ? 'warning' : 'neutral'}
+        />
+        <StatCard
+          label="Shared Groups"
+          value={String(sharedSummary.activeGroups || reconciledGroups.length)}
+          detail={`${rupees(sharedSummary.netSharedImpact || 0)} current shared impact`}
+          icon={User}
+          tone={(sharedSummary.activeGroups || reconciledGroups.length) > 0 ? 'tint' : 'neutral'}
+        />
+        <StatCard
+          label="Recent Settlements"
+          value={String(recentSettlementRows.length)}
+          detail={`${rupees(sharedSummary.receivedRecoveries || 0)} received back this view`}
+          icon={CheckCircle2}
+          tone={recentSettlementRows.length > 0 ? 'success' : 'neutral'}
+        />
+      </div>
+
+      <div className="mos-people-action-grid" aria-label="People actions">
+        <ActionCard
+          title="Add Borrow/Lend"
+          detail="Record money given or taken with the existing Money Book save flow."
+          actionLabel="Add entry"
+          icon={Wallet}
+          tone="tint"
+          onClick={() => onAddMoneyBook?.('people_hub')}
+        />
+        <ActionCard
+          title="Create Shared Group"
+          detail="Open the existing shared expenses form for trips, rent, food, or group bills."
+          actionLabel="Create group"
+          icon={User}
+          tone="success"
+          onClick={openSharedGroupForm}
+        />
+      </div>
+
+      {hasPeopleData ? (
+        <InsightCard
+          title="People Snapshot"
+          insight={totalToReceive > totalToRepay
+            ? 'Receivables are the first thing to follow up on.'
+            : totalToRepay > 0
+              ? 'Repayments are visible before lower-priority details.'
+              : 'No pending people balance needs action right now.'}
+          detail="This combines existing Borrow/Lend and Shared Expense outputs only for display."
+          icon={Sparkles}
+          actions={<StatusBadge tone={totalToReceive >= totalToRepay ? 'success' : 'warning'}>{rupees(Math.max(totalToReceive, totalToRepay))}</StatusBadge>}
+        />
+      ) : (
+        <MoneyOSEmptyState
+          title="No people money yet"
+          detail="Add a borrow/lend entry or create a shared group when money involves another person."
+          icon={User}
+          action={{ label: 'Add borrow/lend', onClick: () => onAddMoneyBook?.('empty_state') }}
+          secondaryAction={{ label: 'Create group', onClick: openSharedGroupForm }}
+        />
+      )}
+
+      <PeoplePrioritySection
+        eyebrow="Priority 1"
+        title="Money To Receive"
+        detail="People who owe you from Borrow/Lend or Shared Expenses."
+        action={<StatusBadge tone={totalToReceive > 0 ? 'success' : 'neutral'}>{rupees(totalToReceive)}</StatusBadge>}
+      >
+        {receivableEntries.length === 0 && incomingSharedSettlements.length === 0 ? (
+          <MoneyOSEmptyState
+            title="Nothing to receive"
+            detail="New recoverable balances will appear here without changing the source records."
+            icon={Wallet}
+            action={{ label: 'Add borrow/lend', onClick: () => onAddMoneyBook?.('empty_state') }}
+          />
+        ) : (
+          <>
+            {receivableEntries.slice(0, 4).map((entry) => (
+              <PeopleMoneyBookCard
+                entry={entry}
+                key={entry.id}
+                onEdit={() => onEditMoneyBook?.(entry)}
+                onToggleSettled={() => onToggleMoneyBookSettlement?.(entry.id)}
+                onDelete={() => onDeleteMoneyBookEntry?.(entry.id)}
+              />
+            ))}
+            {incomingSharedSettlements.slice(0, 4).map((item) => (
+              <PeopleSettlementCard
+                group={item.group}
+                key={item.id}
+                settlement={item.settlement}
+                profile={profile}
+                onSettle={() => markSharedSettlementReceived?.(item.group.id, item.settlement.id)}
+              />
+            ))}
+          </>
+        )}
+      </PeoplePrioritySection>
+
+      <PeoplePrioritySection
+        eyebrow="Priority 2"
+        title="Money To Repay"
+        detail="Borrowed money and shared expense liabilities that still need attention."
+        action={<StatusBadge tone={totalToRepay > 0 ? 'warning' : 'neutral'}>{rupees(totalToRepay)}</StatusBadge>}
+      >
+        {repayableEntries.length === 0 && outgoingSharedSettlements.length === 0 ? (
+          <MoneyOSEmptyState
+            title="Nothing to repay"
+            detail="Borrowed money or shared expenses you owe will appear here."
+            icon={CreditCard}
+          />
+        ) : (
+          <>
+            {repayableEntries.slice(0, 4).map((entry) => (
+              <PeopleMoneyBookCard
+                entry={entry}
+                key={entry.id}
+                onEdit={() => onEditMoneyBook?.(entry)}
+                onToggleSettled={() => onToggleMoneyBookSettlement?.(entry.id)}
+                onDelete={() => onDeleteMoneyBookEntry?.(entry.id)}
+              />
+            ))}
+            {outgoingSharedSettlements.slice(0, 4).map((item) => (
+              <PeopleSettlementCard
+                group={item.group}
+                key={item.id}
+                settlement={item.settlement}
+                profile={profile}
+                onSettle={() => markSharedSettlementReceived?.(item.group.id, item.settlement.id)}
+              />
+            ))}
+          </>
+        )}
+      </PeoplePrioritySection>
+
+      <PeoplePrioritySection
+        eyebrow="Priority 3"
+        title="Shared Groups"
+        detail="Trips, flatmate costs, food, rent, and other shared groups."
+        action={<StatusBadge>{sharedSummary.activeGroups || reconciledGroups.length} group{(sharedSummary.activeGroups || reconciledGroups.length) === 1 ? '' : 's'}</StatusBadge>}
+      >
+        {reconciledGroups.length === 0 ? (
+          <MoneyOSEmptyState
+            title="No shared groups"
+            detail="Create one group, then add payments through the existing shared expense form."
+            icon={User}
+            action={{ label: 'Create group', onClick: openSharedGroupForm }}
+          />
+        ) : reconciledGroups.slice(0, 4).map((group) => (
+          <PeopleSharedGroupCard
+            group={group}
+            key={group.id}
+            profile={profile}
+            onManage={() => openPeopleTools('shared-expenses-section')}
+          />
+        ))}
+      </PeoplePrioritySection>
+
+      <PeoplePrioritySection
+        eyebrow="Priority 4"
+        title="Recent Settlements"
+        detail="Recent shared settlements and settled borrow/lend entries."
+        action={<StatusBadge>{recentSettlementRows.length} item{recentSettlementRows.length === 1 ? '' : 's'}</StatusBadge>}
+      >
+        {recentSettlementRows.length === 0 ? (
+          <MoneyOSEmptyState
+            title="No settlements yet"
+            detail="When a shared settlement or borrow/lend entry is marked settled, it stays visible here."
+            icon={CheckCircle2}
+          />
+        ) : recentSettlementRows.map((item) => (
+          item.type === 'money-book' ? (
+            <PeopleMoneyBookCard
+              entry={item.entry}
+              key={item.id}
+              onEdit={() => onEditMoneyBook?.(item.entry)}
+              onToggleSettled={() => onToggleMoneyBookSettlement?.(item.entry.id)}
+              onDelete={() => onDeleteMoneyBookEntry?.(item.entry.id)}
+            />
+          ) : (
+            <PeopleSettlementCard
+              group={item.group}
+              key={item.id}
+              settlement={item.settlement}
+              profile={profile}
+              onSettle={() => markSharedSettlementReceived?.(item.group.id, item.settlement.id)}
+            />
+          )
+        ))}
+      </PeoplePrioritySection>
+
+      <details
+        className="money-os mos-people-secondary-details"
+        id="people-tools-section"
+        open={toolsOpen}
+        onToggle={(event) => setToolsOpen(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Borrow/Lend and Shared tools</strong>
+            <small>Forms, payment rows, exports, and detailed controls remain unchanged.</small>
+          </span>
+          <StatusBadge>Rollback-safe</StatusBadge>
+        </summary>
+        <div className="mos-people-secondary-stack">
+          {children}
+        </div>
+      </details>
+    </section>
+  )
+}
+
+function PeoplePrioritySection({ eyebrow, title, detail, action = null, children }) {
+  return (
+    <section className="mos-people-section">
+      <SectionHeader eyebrow={eyebrow} title={title} detail={detail} actions={action} />
+      <div className="mos-people-card-list">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function PeopleMoneyBookCard({ entry = {}, onEdit, onToggleSettled, onDelete }) {
+  const isSettled = entry.status === 'settled'
+  const isGiven = entry.kind === 'given'
+  const due = moneyBookEntryDue(entry)
+  const title = entry.person || 'Someone'
+  const directionLabel = isGiven ? 'To receive' : 'To repay'
+  const statusLabel = isSettled ? 'Settled' : directionLabel
+
+  return (
+    <MoneyCard
+      className={`mos-people-row-card ${isGiven ? 'mos-people-row-card--receive' : 'mos-people-row-card--repay'} ${isSettled ? 'mos-people-row-card--settled' : ''}`}
+      eyebrow="Borrow/Lend"
+      title={title}
+      detail={entry.note || (isGiven ? 'Money to receive' : 'Money to repay')}
+      icon={isGiven ? Wallet : CreditCard}
+      tone={isSettled ? 'success' : isGiven ? 'success' : 'warning'}
+      actions={<StatusBadge tone={isSettled ? 'success' : isGiven ? 'success' : 'warning'}>{statusLabel}</StatusBadge>}
+    >
+      <div className="mos-people-money-row">
+        <strong>{rupees(due)}</strong>
+        <span>{isSettled ? `Settled ${formatPeopleDate(entry.settledAt || entry.updatedAt)}` : entry.dueDate ? `Due ${formatPeopleDate(entry.dueDate)}` : `Added ${formatPeopleDate(entry.date)}`}</span>
+      </div>
+      <div className="mos-people-inline-actions">
+        <button className="text-action-button" type="button" onClick={onToggleSettled}>
+          {isSettled ? 'Reopen' : 'Settle'}
+        </button>
+        <button className="icon-button mini-icon-button" type="button" aria-label={`Edit ${title}`} onClick={onEdit}>
+          <Pencil size={14} />
+        </button>
+        <button className="icon-button mini-icon-button" type="button" aria-label={`Delete ${title}`} onClick={onDelete}>
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </MoneyCard>
+  )
+}
+
+function PeopleSharedGroupCard({ group = {}, profile = {}, onManage }) {
+  const pendingAmount = addMoney(group.pendingRecoverable || 0, group.pendingLiability || 0)
+  const isSettled = pendingAmount <= 0
+  const people = group.people || []
+
+  return (
+    <MoneyCard
+      className="mos-people-row-card mos-people-group-card"
+      eyebrow="Shared Group"
+      title={group.name || 'Shared group'}
+      detail={`${group.payments?.length || 0} payment${group.payments?.length === 1 ? '' : 's'} across ${people.length} participant${people.length === 1 ? '' : 's'}`}
+      icon={User}
+      tone={isSettled ? 'success' : 'tint'}
+      actions={<StatusBadge tone={isSettled ? 'success' : 'warning'}>{isSettled ? 'Settled' : `${rupees(pendingAmount)} open`}</StatusBadge>}
+    >
+      <div className="mos-people-group-metrics">
+        <span>
+          <small>Total shared</small>
+          <strong>{rupees(group.amount || 0)}</strong>
+        </span>
+        <span>
+          <small>Your share impact</small>
+          <strong>{rupees(group.cashImpact || 0)}</strong>
+        </span>
+        <span>
+          <small>To receive</small>
+          <strong>{rupees(group.pendingRecoverable || 0)}</strong>
+        </span>
+      </div>
+      <div className="mos-people-chip-row" aria-label={`${group.name || 'Shared group'} participants`}>
+        {people.slice(0, 6).map((person) => (
+          <StatusBadge key={person}>{displayPersonName(person, profile)}</StatusBadge>
+        ))}
+      </div>
+      <div className="mos-people-inline-actions">
+        <button className="text-action-button" type="button" onClick={onManage}>
+          Manage group
+        </button>
+      </div>
+    </MoneyCard>
+  )
+}
+
+function PeopleSettlementCard({ group = {}, settlement = {}, profile = {}, onSettle }) {
+  const isComplete = ['received', 'paid', 'settled'].includes(settlement.status) || normalizeMoney(settlement.remainingAmount) <= 0
+  const amount = isComplete ? settlement.amount : settlement.remainingAmount || settlement.amount
+  const isIncoming = settlement.direction === 'incoming'
+  const isOutgoing = settlement.direction === 'outgoing'
+  const from = displayPersonName(settlement.from, profile)
+  const to = displayPersonName(settlement.to, profile)
+  const title = isIncoming ? `${from} owes you` : isOutgoing ? `You owe ${to}` : `${from} pays ${to}`
+  const actionLabel = isIncoming ? 'Mark received' : 'Mark paid'
+  const statusLabel = isComplete
+    ? settlement.status === 'received'
+      ? 'Received'
+      : 'Paid'
+    : 'Pending'
+
+  return (
+    <MoneyCard
+      className="mos-people-row-card mos-people-settlement-card"
+      eyebrow={group.name || 'Shared settlement'}
+      title={title}
+      detail={`${group.name || 'Shared group'} settlement`}
+      icon={Plane}
+      tone={isComplete ? 'success' : isIncoming ? 'success' : isOutgoing ? 'warning' : 'neutral'}
+      actions={<StatusBadge tone={isComplete ? 'success' : 'warning'}>{statusLabel}</StatusBadge>}
+    >
+      <div className="mos-people-money-row">
+        <strong>{rupees(amount || 0)}</strong>
+        <span>{isComplete ? `Settled ${formatPeopleDate(settlement.receivedAt)}` : 'Open settlement'}</span>
+      </div>
+      {!isComplete && (isIncoming || isOutgoing) && (
+        <div className="mos-people-inline-actions">
+          <button className="text-action-button" type="button" onClick={onSettle}>
+            {actionLabel}
+          </button>
+        </div>
+      )}
+    </MoneyCard>
   )
 }
 
@@ -472,15 +983,13 @@ function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete
       </div>
 
       {!hasEntries ? (
-        <button className="money-book-empty" type="button" onClick={() => onAdd?.('empty_state')}>
-          <span className="soft-icon">
-            <Wallet size={17} />
-          </span>
-          <span>
-            <strong>Track your first borrow/lend entry</strong>
-            <small>Add money given or taken so pending settlements stay visible.</small>
-          </span>
-        </button>
+        <MoneyOSEmptyState
+          className="money-book-empty-state"
+          title="Track your first borrow/lend entry"
+          detail="Add money given or taken so pending settlements stay visible."
+          icon={Wallet}
+          action={{ label: 'Add entry', onClick: () => onAdd?.('empty_state') }}
+        />
       ) : (
         <div className="money-book-entry-list">
           {entries.slice(0, 5).map((entry) => (

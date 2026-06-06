@@ -22,6 +22,19 @@ import { getGreeting } from '../lib/financeVisuals'
 import { normalizeMoney, sumMoney } from '../lib/money'
 import { normalizeCommitments, rupees } from '../lib/ruleEngine'
 import { trackEvent, trackFeatureUsage } from '../lib/analytics'
+import {
+  EmptyState,
+  InsightCard,
+  MoneyCard,
+  MoneyOSProvider,
+  PrimaryButton,
+  SectionHeader,
+  StatCard,
+  StatusBadge,
+} from '../design-system'
+
+const HOME_PRESENTATION_VERSION =
+  typeof window !== 'undefined' && window.__FBPLY_LEGACY_HOME__ ? 'legacy' : 'money-os-v2'
 
 function buildDailyMoneyStatus(state, safeToSpend) {
   const safeAmount = normalizeMoney(safeToSpend?.comfortablyUsable)
@@ -665,6 +678,33 @@ function eventTone(event = {}) {
   return 'outgoing'
 }
 
+function moneyOSTone(tone = '') {
+  if (['good', 'balanced', 'steady', 'incoming', 'success', 'transfer'].includes(tone)) {
+    return 'success'
+  }
+
+  if (['warm', 'careful', 'slight-pressure', 'warning'].includes(tone)) {
+    return 'warning'
+  }
+
+  if (['tight', 'outgoing', 'danger'].includes(tone)) {
+    return 'danger'
+  }
+
+  return 'neutral'
+}
+
+function moneyOSCardTone(tone = '') {
+  const mappedTone = moneyOSTone(tone)
+
+  return mappedTone === 'neutral' ? 'neutral' : mappedTone
+}
+
+function signedAmountForTone(tone, amount) {
+  const prefix = tone === 'incoming' ? '+' : tone === 'outgoing' ? '-' : ''
+  return `${prefix}${rupees(amount)}`
+}
+
 function hasUpcomingMoney(upcomingMoney = {}) {
   return normalizeMoney(upcomingMoney.next7?.inflow) > 0
     || normalizeMoney(upcomingMoney.next7?.outflow) > 0
@@ -866,6 +906,27 @@ export default function TodayScreen({
     { label: 'Reports', icon: ChartPie, tab: 'reports', targetId: 'reports-export-section' },
   ]
   const hasFutureSnapshot = hasUpcomingMoney(upcomingMoney) || futureSnapshot.events.length > 0
+  const upcomingCommitments = useMemo(
+    () => [
+      ...importantItems.map((item) => ({
+        key: `important-${item.key}`,
+        title: item.label,
+        detail: item.value,
+        tone: item.tone,
+        icon: item.icon,
+        meta: 'Today',
+      })),
+      ...futureSnapshot.events.map((event) => ({
+        key: `event-${event.id}`,
+        title: event.title,
+        detail: event.amount > 0 ? rupees(event.amount) : event.type,
+        tone: eventTone(event),
+        icon: calendarEventIcon(event),
+        meta: `${shortDueLabel(event.dueDate)} - ${event.type}`,
+      })),
+    ].slice(0, 6),
+    [futureSnapshot.events, importantItems],
+  )
   const navigateToExistingTarget = (target = {}) => {
     if (target.target === 'expense') {
       openAddSheet?.('expense')
@@ -942,7 +1003,8 @@ export default function TodayScreen({
     })
   }, [completedActivationCount, showActivationGuide, totalActivationCount])
 
-  return (
+  if (HOME_PRESENTATION_VERSION === 'legacy') {
+    return (
     <section className={`screen-content today-screen today-${status.tone}`}>
       <div className="today-v2-header">
         <div className="today-header-copy">
@@ -1306,5 +1368,413 @@ export default function TodayScreen({
       </div>
 
     </section>
+    )
+  }
+
+  return (
+    <MoneyOSProvider as="section" className={`screen-content today-screen today-${status.tone} money-os-home`}>
+      <SectionHeader
+        eyebrow={smartHeader.eyebrow}
+        title="Money OS Home"
+        detail={smartHeader.detail}
+        actions={(
+          <StatusBadge tone={moneyOSTone(financialState.pressureTone)}>{statusLabel}</StatusBadge>
+        )}
+        className="mos-home-header"
+      />
+
+      <section className="mos-home-priority-grid" aria-label="Primary money status">
+        <MoneyCard
+          title="Available This Month"
+          detail={status.detail}
+          icon={Wallet}
+          tone={moneyOSCardTone(status.tone)}
+          elevated
+          className="mos-home-hero-card"
+        >
+          <div className="mos-home-hero-value">
+            <strong>{rupees(safeToSpend.comfortablyUsable)}</strong>
+            <span>{status.title}</span>
+          </div>
+          <div className="mos-home-hero-metrics" aria-label="Money status summary">
+            <span>
+              <small>Used</small>
+              <b>{financialState.usagePercent || 0}%</b>
+            </span>
+            <span>
+              <small>Tracked days</small>
+              <b>{trackedDays > 0 ? trackedDays : 0}</b>
+            </span>
+          </div>
+        </MoneyCard>
+
+        <StatCard
+          label="Protected Savings"
+          value={rupees(safeToSpend.protectedAmount)}
+          detail="Kept aside before flexible spends."
+          trend={`${financialState.usagePercent || 0}% used`}
+          icon={PiggyBank}
+          tone="success"
+          className="mos-home-protected-card"
+        />
+      </section>
+
+      {showActivationGuide && (
+        <section className="mos-home-section" aria-label="Getting Started">
+          <SectionHeader
+            eyebrow="Getting Started"
+            title={`${completedActivationCount}/${totalActivationCount} complete`}
+            detail="Finish the basics so Home can stay useful."
+            actions={<StatusBadge tone="success">{activationProgress}%</StatusBadge>}
+          />
+          <div className="mos-home-progress-bar" aria-label={`${activationProgress}% complete`}>
+            <span style={{ width: `${activationProgress}%` }} />
+          </div>
+          <div className="mos-home-action-card-grid">
+            {activationItems.map((item) => {
+              const Icon = item.completed ? CheckCircle2 : item.icon
+              return (
+                <MoneyCard
+                  as="button"
+                  className="mos-home-card-button"
+                  type="button"
+                  title={item.title}
+                  detail={item.detail}
+                  icon={Icon}
+                  tone={item.completed ? 'success' : 'neutral'}
+                  key={item.key}
+                  onClick={() => handleActivationClick(item, 'step_row')}
+                  disabled={item.completed}
+                  interactive={!item.completed}
+                  actions={<StatusBadge tone={item.completed ? 'success' : 'neutral'}>{item.completed ? 'Done' : 'Start'}</StatusBadge>}
+                />
+              )
+            })}
+          </div>
+          {nextActivationItem && (
+            <PrimaryButton
+              className="mos-home-primary-action"
+              onClick={() => handleActivationClick(nextActivationItem, 'primary_cta')}
+              icon={nextActivationItem.icon}
+            >
+              {nextActivationItem.cta}
+            </PrimaryButton>
+          )}
+        </section>
+      )}
+
+      {showIntentShortcuts && (
+        <section className="mos-home-section" aria-label="Start with your intent">
+          <SectionHeader eyebrow="Start Here" title="Choose what you want to do first" />
+          <div className="mos-home-action-card-grid">
+            {intentShortcuts.map((shortcut) => (
+              <MoneyCard
+                as="button"
+                className="mos-home-card-button"
+                type="button"
+                title={shortcut.label}
+                detail={shortcut.detail}
+                icon={shortcut.icon}
+                key={shortcut.key}
+                onClick={() => handleIntentShortcut(shortcut)}
+                interactive
+                actions={<StatusBadge>{shortcut.target}</StatusBadge>}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="mos-home-section" aria-label="Action center">
+        <SectionHeader eyebrow="Action Center" title="Move money work forward" />
+        <div className="mos-home-action-grid">
+          {actionChips.map((chip) => (
+            <PrimaryButton
+              className="mos-home-action-button"
+              size="sm"
+              icon={chip.icon}
+              key={chip.label}
+              onClick={() => {
+                trackHomeInteraction('home_action', { target: chip.label, section: chip.targetId })
+                if (navigateToTarget) {
+                  navigateToTarget(chip.tab, chip.targetId)
+                  return
+                }
+                navigateFromHome(setActiveTab, chip.tab, 'home_action', { target: chip.label })
+              }}
+            >
+              {chip.label}
+            </PrimaryButton>
+          ))}
+        </div>
+      </section>
+
+      <section className="mos-home-section" aria-label="Upcoming Commitments">
+        <SectionHeader
+          eyebrow="Upcoming Commitments"
+          title="Money that needs attention"
+          detail="Collect, repay, and upcoming reminders in one place."
+          actions={<StatusBadge>{upcomingCommitments.length} item{upcomingCommitments.length === 1 ? '' : 's'}</StatusBadge>}
+        />
+        {upcomingCommitments.length === 0 ? (
+          <EmptyState
+            title="No commitments need attention"
+            detail="Bills, repayments, settlements, and reminders will appear here when they are due."
+            icon={CalendarDays}
+            className="mos-home-empty-state"
+          />
+        ) : (
+          <div className="mos-home-card-list">
+            {upcomingCommitments.map((item) => (
+              <MoneyCard
+                title={item.title}
+                detail={item.detail}
+                icon={item.icon}
+                tone={moneyOSCardTone(item.tone)}
+                key={item.key}
+                actions={<StatusBadge tone={moneyOSTone(item.tone)}>{item.meta}</StatusBadge>}
+                className="mos-home-row-card"
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {activeTrips.length > 0 && (
+        <section className="mos-home-section" aria-label="Active trips">
+          <SectionHeader
+            eyebrow="Active Trips"
+            title="Shared money"
+            actions={(
+              <PrimaryButton
+                size="sm"
+                className="mos-home-action-button"
+                icon={Plane}
+                onClick={() => navigateFromHome(setActiveTab, 'history', 'trip_card_open')}
+              >
+                View
+              </PrimaryButton>
+            )}
+          />
+          <div className="mos-home-card-list">
+            {activeTrips.map((trip) => {
+              const incoming = normalizeMoney(trip.pendingRecoverable)
+              const outgoing = normalizeMoney(trip.pendingLiability)
+              const label = incoming > 0 ? 'You are owed' : outgoing > 0 ? 'You owe' : 'Shared total'
+              const amount = incoming > 0 ? incoming : outgoing > 0 ? outgoing : trip.amount
+              const tripTone = incoming > 0 ? 'incoming' : outgoing > 0 ? 'outgoing' : 'transfer'
+
+              return (
+                <MoneyCard
+                  as="button"
+                  className="mos-home-card-button mos-home-trip-card"
+                  type="button"
+                  title={trip.name || 'Shared trip'}
+                  detail={`${trip.memberCount || 0} members - ${rupees(trip.amount)} total`}
+                  icon={Plane}
+                  tone={moneyOSCardTone(tripTone)}
+                  key={trip.id}
+                  onClick={() => navigateFromHome(setActiveTab, 'history', 'trip_card_open', { trip_id: trip.id })}
+                  interactive
+                  actions={<StatusBadge tone={moneyOSTone(tripTone)}>{label}: {rupees(amount)}</StatusBadge>}
+                >
+                  <div className="mos-home-progress-bar" aria-label={`${trip.settledPercent}% settled`}>
+                    <span style={{ width: `${trip.settledPercent}%` }} />
+                  </div>
+                  <p className="mos-home-card-note">{trip.settledPercent}% settled - {trip.pendingPercent}% pending</p>
+                </MoneyCard>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="mos-home-section" aria-label="Recent Activity">
+        <SectionHeader
+          eyebrow="Recent Activity"
+          title="Latest money moves"
+          detail="Recent activity from expenses, income, goals, shared money, and borrow/lend."
+          actions={<StatusBadge>{moneyFeed.length} item{moneyFeed.length === 1 ? '' : 's'}</StatusBadge>}
+        />
+        {moneyFeed.length === 0 ? (
+          <EmptyState
+            title="No recent money moves"
+            detail="Add a money move and it will appear here."
+            icon={Receipt}
+            action={{ label: 'Add expense', onClick: () => openAddSheet?.('expense') }}
+            className="mos-home-empty-state"
+          />
+        ) : (
+          <div className="mos-home-card-list">
+            {moneyFeed.map((item) => {
+              const merchant = merchantMetaFor(item)
+
+              return (
+                <MoneyCard
+                  title={item.title}
+                  detail={item.detail || item.category}
+                  icon={item.icon}
+                  tone={moneyOSCardTone(item.tone)}
+                  key={item.key}
+                  actions={<StatusBadge tone={moneyOSTone(item.tone)}>{signedAmountForTone(item.tone, item.amount)}</StatusBadge>}
+                  className="mos-home-row-card"
+                >
+                  <div className="mos-home-feed-meta">
+                    <span>
+                      <Store size={12} />
+                      {merchant.name} - {item.label}
+                    </span>
+                    <time dateTime={item.dateTime}>{formatActivityTime(item.dateTime)}</time>
+                  </div>
+                </MoneyCard>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      <details className="mos-home-secondary-details">
+        <summary>
+          <span>
+            <span className="mos-eyebrow">More Context</span>
+            <strong>Pulse, story, reports, and replay</strong>
+          </span>
+          <StatusBadge>Open</StatusBadge>
+        </summary>
+        <div className="mos-home-secondary-stack">
+          <InsightCard
+            title="Money Story Of The Day"
+            insight={storySentence}
+            icon={Sparkles}
+            tone={moneyOSCardTone(insight.tone)}
+          />
+
+          {financialPulse.length > 0 && (
+            <section className="mos-home-section" aria-label="Financial Pulse">
+              <SectionHeader
+                eyebrow="Financial Pulse"
+                title="What needs attention"
+                actions={<StatusBadge tone="success">{financialPulse.length} live</StatusBadge>}
+              />
+              <div className="mos-home-action-card-grid">
+                {financialPulse.map((item) => (
+                  <MoneyCard
+                    as="button"
+                    className="mos-home-card-button"
+                    type="button"
+                    title={item.title}
+                    detail={item.detail}
+                    icon={item.icon}
+                    tone={moneyOSCardTone(item.tone)}
+                    key={item.key}
+                    onClick={() => navigateFromHome(setActiveTab, item.tab, 'pulse_interaction', { pulse_type: item.analytics })}
+                    interactive
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {hasFutureSnapshot && (
+            <section className="mos-home-section" aria-label="Future Snapshot" onClickCapture={() => trackHomeInteraction('future_snapshot_open')}>
+              <SectionHeader eyebrow="Future Snapshot" title="Next 7 and 30 days" />
+              <div className="mos-home-stat-grid">
+                <StatCard
+                  label="Next 7 Days In"
+                  value={rupees(futureSnapshot.next7.inflow || 0)}
+                  detail={`Out: ${rupees(futureSnapshot.next7.outflow || 0)}`}
+                  icon={ArrowDownLeft}
+                  tone="success"
+                />
+                <StatCard
+                  label="Next 30 Days In"
+                  value={rupees(futureSnapshot.next30.inflow || 0)}
+                  detail={`Out: ${rupees(futureSnapshot.next30.outflow || 0)}`}
+                  icon={ArrowUpRight}
+                  tone="warning"
+                />
+              </div>
+              {futureSnapshot.events.length > 0 && (
+                <div className="mos-home-card-list">
+                  {futureSnapshot.events.map((event) => (
+                    <MoneyCard
+                      title={event.title}
+                      detail={`${shortDueLabel(event.dueDate)} - ${event.type}`}
+                      icon={calendarEventIcon(event)}
+                      tone={moneyOSCardTone(eventTone(event))}
+                      key={event.id}
+                      actions={event.amount > 0 ? <StatusBadge tone={moneyOSTone(eventTone(event))}>{rupees(event.amount)}</StatusBadge> : null}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {latestReport && (
+            <MoneyCard
+              title={latestReport.name}
+              detail={`${latestReport.reportId} - ${latestReport.period}`}
+              eyebrow="Latest Report"
+              icon={FileText}
+              tone="tint"
+              actions={(
+                <PrimaryButton size="sm" className="mos-home-action-button" icon={FileText} onClick={openLatestReport}>
+                  Open
+                </PrimaryButton>
+              )}
+            />
+          )}
+
+          <details className="mos-home-nested-details" onToggle={(event) => {
+            if (event.currentTarget.open) {
+              trackHomeInteraction('replay_open')
+            }
+          }}>
+            <summary>
+              <span>
+                <span className="mos-eyebrow">Month Replay</span>
+                <strong>Your month as a short story</strong>
+              </span>
+              <TrendingUp size={18} />
+            </summary>
+            <div className="mos-home-stat-grid">
+              <StatCard label="Income" value={rupees(monthlyReplay.income)} icon={Wallet} tone="success" />
+              <StatCard label="Expenses" value={rupees(monthlyReplay.expenses)} icon={Receipt} tone="danger" />
+              <StatCard
+                label="Top Category"
+                value={monthlyReplay.topCategory?.name || 'Review'}
+                detail={monthlyReplay.topCategory ? rupees(monthlyReplay.topCategory.amount) : ''}
+                icon={ChartPie}
+              />
+              <StatCard label="Goal Progress" value={`${monthlyReplay.goalProgress}%`} icon={Target} tone="success" />
+              {monthlyReplay.biggestPurchase && (
+                <StatCard
+                  label="Biggest Purchase"
+                  value={monthlyReplay.biggestPurchase.title}
+                  detail={rupees(monthlyReplay.biggestPurchase.amount)}
+                  icon={Receipt}
+                  tone="warning"
+                />
+              )}
+              {monthlyReplay.settlementAmount > 0 && (
+                <StatCard
+                  label="Settlement Activity"
+                  value={rupees(monthlyReplay.settlementAmount)}
+                  detail="Pending or active shared/borrow-lend money"
+                  icon={Plane}
+                  tone="warning"
+                />
+              )}
+            </div>
+          </details>
+        </div>
+      </details>
+
+      <div className="mos-home-footer-strip">
+        <StatusBadge>{trackedDays > 0 ? `${trackedDays} tracked day${trackedDays === 1 ? '' : 's'}` : 'Ready for today'}</StatusBadge>
+        <StatusBadge tone="success">{rupees(safeToSpend.protectedAmount)} protected</StatusBadge>
+      </div>
+    </MoneyOSProvider>
   )
 }

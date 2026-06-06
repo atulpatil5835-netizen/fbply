@@ -2,6 +2,7 @@ import { CheckCircle2, LogOut, X } from 'lucide-react'
 import { AppModal, BrandMark, CurrencyInput } from '../components/AppPrimitives.jsx'
 import FinanceDonut from '../components/FinanceDonut.jsx'
 import { CommitmentsEditor, CurrencyPreference } from '../components/ProfileSettingsControls.jsx'
+import ProfileHub from '../components/ProfileHub.jsx'
 import RecurringScheduleManager from '../components/RecurringScheduleManager.jsx'
 import { getProfileBalanceMessage } from '../lib/financeVisuals'
 import { normalizeMoney } from '../lib/money'
@@ -25,8 +26,22 @@ export default function SettingsScreen({
   updateRecurringSchedule,
   removeRecurringSchedule,
   toggleRecurringSchedule,
+  navigateToTarget,
+  openStatementImport,
+  supportEmail,
+  supportPaymentUrl,
+  founderName,
+  founderLinkedInUrl,
 }) {
   const balanceMessage = getProfileBalanceMessage(financialState)
+  const navigateFromHub = (tab, targetId) => {
+    onClose()
+    navigateToTarget?.(tab, targetId)
+  }
+  const openStatementImportFromHub = () => {
+    onClose()
+    openStatementImport?.()
+  }
 
   return (
     <AppModal
@@ -37,8 +52,8 @@ export default function SettingsScreen({
     >
       <div className="editor-sheet-header">
         <div>
-          <p className="eyebrow">Settings</p>
-          <h2 id="settings-title">Profile and money setup</h2>
+          <p className="eyebrow">Profile</p>
+          <h2 id="settings-title">Profile Hub</h2>
         </div>
         <button className="icon-button" type="button" aria-label="Close settings" onClick={onClose}>
           <X size={17} />
@@ -46,6 +61,15 @@ export default function SettingsScreen({
       </div>
 
       <div className="editor-sheet-body settings-body">
+        <ProfileHub
+          supportEmail={supportEmail}
+          supportPaymentUrl={supportPaymentUrl}
+          founderName={founderName}
+          founderLinkedInUrl={founderLinkedInUrl}
+          onNavigate={navigateFromHub}
+          onOpenStatementAnalysis={openStatementImportFromHub}
+        />
+
         <section className="settings-compact-group">
           <div className="profile-menu-account settings-account">
             <BrandMark size="small" />

@@ -29,6 +29,7 @@ import {
   Square,
   Trash2,
   Target,
+  Upload,
   User,
   Utensils,
   Wallet,
@@ -203,8 +204,17 @@ import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { AppModal, BrandMark, CurrencyInput, EmptyState, HeaderLogo } from './components/AppPrimitives.jsx'
 import CategoryPicker from './components/CategoryPicker.jsx'
 import FinanceDonut from './components/FinanceDonut.jsx'
+import ProfileHub from './components/ProfileHub.jsx'
 import { CommitmentsEditor, CurrencyPreference } from './components/ProfileSettingsControls.jsx'
 import { SavingsBucketsManager } from './components/SavingsBucketsManager.jsx'
+import {
+  ActionCard,
+  BottomSheet,
+  FLoader,
+  PrimaryButton,
+  SecondaryButton,
+  SuccessState,
+} from './design-system'
 import { focusInvalidField, slugify, titleCase } from './lib/uiHelpers'
 import { applySeoMetadata, getSeoMetaForPath, isPublicSeoRoute, normalizeSeoPath } from './lib/seoRoutes.js'
 import { trackActivation, trackEvent, trackFeatureUsage } from './lib/analytics'
@@ -224,6 +234,17 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -14 },
   transition: { duration: 0.22, ease: 'easeOut' },
+}
+
+function isLegacyAddExperience() {
+  return typeof window !== 'undefined' && window.__FBPLY_LEGACY_ADD__
+}
+
+function isLegacyFooterExperience() {
+  return typeof window !== 'undefined' && Boolean(
+    window.__FBPLY_LEGACY_FOOTER__ ||
+    window.__FBPLY_LEGACY_PROFILE_HUB__,
+  )
 }
 
 const expenseCategories = [
@@ -6309,6 +6330,7 @@ function MainApp(props) {
     removeSavingsBucket,
   } = props
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [statementImportRequestId, setStatementImportRequestId] = useState(0)
   useEffect(() => {
     trackFeatureUsage(activeTab, {
       surface: 'app_shell',
@@ -6345,6 +6367,10 @@ function MainApp(props) {
     setActiveTab(tab)
     scrollToTargetId(targetId)
   }, [scrollToTargetId, setActiveTab])
+  const openStatementImportFromAddHub = useCallback(() => {
+    setActiveTab('reports')
+    setStatementImportRequestId((current) => current + 1)
+  }, [setActiveTab])
   const handleReportPromptAction = useCallback((prompt) => {
     if (!prompt?.tab || !prompt?.targetId) {
       return
@@ -6393,7 +6419,7 @@ function MainApp(props) {
       <QuickAddFab openAddSheet={openAddSheet} />
       <main className="screen-panel">
         {activeTab === 'home' && (
-          <Suspense fallback={<ScreenFallback eyebrow="Today" title="Preparing your money view" />}>
+          <Suspense fallback={<HomeScreenFallback />}>
             <TodayScreen
               profile={profile}
               financialState={financialState}
@@ -6434,7 +6460,7 @@ function MainApp(props) {
           </Suspense>
         )}
         {activeTab === 'history' && (
-          <Suspense fallback={<ScreenFallback eyebrow="Daily Book" title="Preparing expense history" />}>
+          <Suspense fallback={<DailyBookScreenFallback />}>
             <DailyBookScreen
               expenses={expenses}
               openAddSheet={openAddSheet}
@@ -6513,6 +6539,7 @@ function MainApp(props) {
               selectedMonthKey={selectedMonthKey}
               setSelectedMonthKey={setSelectedMonthKey}
               monthOptions={monthOptions}
+              statementImportRequestId={statementImportRequestId}
             />
             {pdfError && <p className="form-message">{pdfError}</p>}
           </Suspense>
@@ -6567,10 +6594,12 @@ function MainApp(props) {
             addExpense={addExpense}
             quickExpenseChips={quickExpenseChips}
             applyQuickExpense={applyQuickExpense}
+            navigateToTarget={navigateToTarget}
+            openStatementImport={openStatementImportFromAddHub}
           />
         )}
       </main>
-      <LoggedInLegalFooter />
+      {isLegacyFooterExperience() && <LoggedInLegalFooter />}
       {addSheetMode && (
         <QuickAddSheet
           mode={addSheetMode}
@@ -6617,10 +6646,12 @@ function MainApp(props) {
           lastVoiceSave={lastVoiceSave}
           saveMoneyBookEntry={saveMoneyBookEntry}
           setActiveTab={setActiveTab}
+          navigateToTarget={navigateToTarget}
+          openStatementImport={openStatementImportFromAddHub}
         />
       )}
       {isSettingsOpen && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<FLoader fullPage label="Opening Profile Hub" />}>
           <SettingsScreen
             authUser={authUser}
             profile={profile}
@@ -6639,6 +6670,12 @@ function MainApp(props) {
             updateRecurringSchedule={updateRecurringSchedule}
             removeRecurringSchedule={removeRecurringSchedule}
             toggleRecurringSchedule={toggleRecurringSchedule}
+            navigateToTarget={navigateToTarget}
+            openStatementImport={openStatementImportFromAddHub}
+            supportEmail={supportEmail}
+            supportPaymentUrl={supportPaymentUrl}
+            founderName={founderName}
+            founderLinkedInUrl={founderLinkedInUrl}
           />
         </Suspense>
       )}
@@ -6650,6 +6687,7 @@ function MainApp(props) {
 function QuickAddFab({ openAddSheet }) {
   const longPressTimerRef = useRef(null)
   const didLongPressRef = useRef(false)
+  const useLegacyAdd = isLegacyAddExperience()
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current) {
@@ -6673,24 +6711,24 @@ function QuickAddFab({ openAddSheet }) {
     <button
       className="top-quick-add-button"
       type="button"
-      aria-label="Add expense"
-      title="Add expense"
+      aria-label={useLegacyAdd ? 'Add expense' : 'Add money action'}
+      title={useLegacyAdd ? 'Add expense' : 'Add money action'}
       onClick={() => {
         if (didLongPressRef.current) {
           didLongPressRef.current = false
           return
         }
 
-        openAddSheet('expense')
+        openAddSheet(useLegacyAdd ? 'expense' : 'menu')
       }}
       onContextMenu={(event) => {
         event.preventDefault()
         openAddSheet('menu')
       }}
-      onPointerDown={startLongPressTimer}
-      onPointerLeave={clearLongPressTimer}
-      onPointerCancel={clearLongPressTimer}
-      onPointerUp={clearLongPressTimer}
+      onPointerDown={useLegacyAdd ? startLongPressTimer : undefined}
+      onPointerLeave={useLegacyAdd ? clearLongPressTimer : undefined}
+      onPointerCancel={useLegacyAdd ? clearLongPressTimer : undefined}
+      onPointerUp={useLegacyAdd ? clearLongPressTimer : undefined}
     >
       <Plus size={20} />
     </button>
@@ -6700,15 +6738,23 @@ function QuickAddFab({ openAddSheet }) {
 function ReportsFallback() {
   return (
     <section className="screen-content reports-screen">
-      <div className="screen-heading">
-        <div>
-          <p className="eyebrow">Reports</p>
-          <h1>Preparing monthly financial reports</h1>
-        </div>
-      </div>
-      <article className="chart-card skeleton-card" />
-      <article className="chart-card skeleton-card" />
-      <article className="chart-card skeleton-card" />
+      <FLoader fullPage label="Preparing Money Intelligence Center" />
+    </section>
+  )
+}
+
+function HomeScreenFallback() {
+  return (
+    <section className="screen-content">
+      <FLoader fullPage label="Preparing your money view" />
+    </section>
+  )
+}
+
+function DailyBookScreenFallback() {
+  return (
+    <section className="screen-content">
+      <FLoader fullPage label="Preparing daily book" />
     </section>
   )
 }
@@ -6883,6 +6929,8 @@ function QuickAddSheet({
   lastVoiceSave,
   saveMoneyBookEntry,
   setActiveTab,
+  navigateToTarget,
+  openStatementImport,
 }) {
   const title = {
     menu: 'Add money move',
@@ -6891,6 +6939,281 @@ function QuickAddSheet({
     transfer: 'Move to goal',
     borrow: 'Borrow or lend',
   }[mode] || 'Add money move'
+  const [successState, setSuccessState] = useState(null)
+
+  const openHubDestination = (tab, targetId) => {
+    onClose()
+
+    if (navigateToTarget) {
+      navigateToTarget(tab, targetId)
+      return
+    }
+
+    setActiveTab?.(tab)
+  }
+
+  const buildSuccessActions = (nextMode = 'menu') => [
+    { label: 'Done', onClick: onClose, variant: 'secondary' },
+    {
+      label: 'Add another',
+      onClick: () => {
+        setSuccessState(null)
+        setMode(nextMode)
+      },
+      variant: 'primary',
+    },
+  ]
+
+  const showActionSuccess = ({ title: successTitle, detail, mode: nextMode = mode, actions }) => {
+    setSuccessState({
+      title: successTitle,
+      detail,
+      actions: actions || buildSuccessActions(nextMode),
+    })
+  }
+
+  const openSharedExpense = () => {
+    trackFeatureUsage('add_hub_action_selected', {
+      surface: 'add_hub',
+      action: 'shared_expense',
+    })
+    openHubDestination('history', 'shared-expenses-section')
+  }
+
+  const openStatementImportFromHub = () => {
+    trackFeatureUsage('add_hub_action_selected', {
+      surface: 'add_hub',
+      action: 'statement_import',
+    })
+    onClose()
+    openStatementImport?.()
+  }
+
+  const openSavingsGoalFromHub = () => {
+    trackFeatureUsage('add_hub_action_selected', {
+      surface: 'add_hub',
+      action: 'savings_goal',
+    })
+    addSavingsBucket?.()
+
+    if (navigateToTarget) {
+      navigateToTarget('planner', 'savings-goals-section')
+    } else {
+      setActiveTab?.('planner')
+    }
+
+    const showGoalSuccess = (detail = 'New goal. Successfully added.') => {
+      setSuccessState({
+        title: 'Savings Goal Created',
+        detail,
+        actions: [
+          {
+            label: 'Edit goal',
+            onClick: () => openHubDestination('planner', 'savings-goals-section'),
+            variant: 'secondary',
+          },
+          {
+            label: 'Add another',
+            onClick: () => {
+              addSavingsBucket?.()
+              if (navigateToTarget) {
+                navigateToTarget('planner', 'savings-goals-section')
+              } else {
+                setActiveTab?.('planner')
+              }
+              showGoalSuccess('Another new goal. Successfully added.')
+            },
+            variant: 'primary',
+          },
+        ],
+      })
+    }
+
+    showGoalSuccess()
+  }
+
+  if (!isLegacyAddExperience()) {
+    const isMenu = mode === 'menu'
+    const sheetTitle = successState ? successState.title : title
+    const sheetDescription = successState
+      ? 'Saved through the existing FBPLY workflow.'
+      : isMenu
+        ? 'Start any money action from one place.'
+        : 'Use the existing form. Your current logic stays unchanged.'
+    const footer = successState
+      ? null
+      : isMenu
+        ? (
+            <div className="mos-add-hub-footer-actions">
+              <SecondaryButton onClick={onClose}>Close</SecondaryButton>
+              <PrimaryButton icon={Receipt} onClick={() => {
+                setSuccessState(null)
+                setMode('expense')
+              }}>Add expense</PrimaryButton>
+            </div>
+          )
+        : (
+            <SecondaryButton onClick={() => {
+              setSuccessState(null)
+              setMode('menu')
+            }}>Back to actions</SecondaryButton>
+          )
+
+    return (
+      <BottomSheet
+        open={Boolean(mode)}
+        onClose={onClose}
+        title={sheetTitle}
+        description={sheetDescription}
+        className="mos-add-hub-sheet"
+        bodyClassName="mos-add-hub-body"
+        footer={footer}
+      >
+        {successState && (
+          <SuccessState
+            title={successState.title}
+            detail={successState.detail}
+            actions={successState.actions}
+            className="mos-add-hub-success"
+          />
+        )}
+
+        {!successState && mode === 'menu' && (
+          <div className="mos-add-hub-grid" aria-label="Money action options">
+            <ActionCard
+              title="Expense"
+              detail="Food, petrol, bill, shopping"
+              actionLabel="Add"
+              icon={Receipt}
+              tone="danger"
+              onClick={() => setMode('expense')}
+            />
+            <ActionCard
+              title="Income"
+              detail="Update monthly income"
+              actionLabel="Add"
+              icon={Wallet}
+              tone="success"
+              onClick={() => setMode('income')}
+            />
+            <ActionCard
+              title="Borrow / Lend"
+              detail="Track simple udhar"
+              actionLabel="Open"
+              icon={CreditCard}
+              tone="warning"
+              onClick={() => setMode('borrow')}
+            />
+            <ActionCard
+              title="Shared Expense"
+              detail="Create a trip, group, or shared bill"
+              actionLabel="Open"
+              icon={Plane}
+              tone="tint"
+              onClick={openSharedExpense}
+            />
+            <ActionCard
+              title="Savings Goal"
+              detail="Create a goal using the existing editor"
+              actionLabel="Create"
+              icon={PiggyBank}
+              tone="success"
+              onClick={openSavingsGoalFromHub}
+            />
+            <ActionCard
+              title="Statement Import"
+              detail="Open the existing statement review flow"
+              actionLabel="Import"
+              icon={Upload}
+              tone="neutral"
+              onClick={openStatementImportFromHub}
+            />
+          </div>
+        )}
+
+        {!successState && mode === 'expense' && (
+          <QuickExpenseEntry
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            customExpenseName={customExpenseName}
+            setCustomExpenseName={setCustomExpenseName}
+            expenseAmount={expenseAmount}
+            setExpenseAmount={setExpenseAmount}
+            expenseNote={expenseNote}
+            setExpenseNote={setExpenseNote}
+            expenseError={expenseError}
+            expenseFieldErrors={expenseFieldErrors}
+            clearExpenseFieldError={clearExpenseFieldError}
+            addExpense={addExpense}
+            quickExpenseChips={quickExpenseChips}
+            applyQuickExpense={applyQuickExpense}
+            onSaved={(saved) => showActionSuccess({
+              title: 'Expense Added',
+              detail: `${rupees(saved?.amount || 0)} ${saved?.label || saved?.category || 'Expense'}. Successfully added.`,
+              mode: 'expense',
+            })}
+            voiceState={voiceState}
+            voiceDraft={voiceDraft}
+            voiceDrafts={voiceDrafts}
+            voiceStatus={voiceStatus}
+            voiceTranscriptDraft={voiceTranscriptDraft}
+            setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+            voiceTranscriptOptions={voiceTranscriptOptions}
+            isListening={isListening}
+            startVoiceExpense={startVoiceExpense}
+            stopVoiceExpense={stopVoiceExpense}
+            reviewVoiceTranscript={reviewVoiceTranscript}
+            confirmVoiceExpense={confirmVoiceExpense}
+            updateVoiceDraft={updateVoiceDraft}
+            updateVoiceDraftAt={updateVoiceDraftAt}
+            removeVoiceDraftAt={removeVoiceDraftAt}
+            clearVoiceDraft={clearVoiceDraft}
+            useVoiceManualFallback={useVoiceManualFallback}
+            useVoiceDraftInForm={useVoiceDraftInForm}
+            undoVoiceSave={undoVoiceSave}
+            lastVoiceSave={lastVoiceSave}
+          />
+        )}
+
+        {!successState && mode === 'income' && (
+          <QuickIncomeEntry
+            profile={profile}
+            setProfile={setProfile}
+            onSaved={(saved) => showActionSuccess({
+              title: 'Income Added',
+              detail: `${rupees(saved?.amount || 0)} monthly income. Successfully added.`,
+              mode: 'income',
+            })}
+          />
+        )}
+
+        {!successState && mode === 'transfer' && (
+          <QuickTransferEntry
+            savingsBuckets={savingsBuckets}
+            addSavingsBucket={addSavingsBucket}
+            updateSavingsBucket={updateSavingsBucket}
+            onSaved={() => showActionSuccess({
+              title: 'Savings Updated',
+              detail: 'Goal amount. Successfully added.',
+              mode: 'transfer',
+            })}
+            setActiveTab={setActiveTab}
+          />
+        )}
+
+        {!successState && mode === 'borrow' && (
+          <QuickBorrowLendEntry
+            saveMoneyBookEntry={saveMoneyBookEntry}
+            onSaved={(saved) => showActionSuccess({
+              title: 'Borrow / Lend Added',
+              detail: `${rupees(saved?.amount || 0)} ${saved?.person || 'entry'}. Successfully added.`,
+              mode: 'borrow',
+            })}
+          />
+        )}
+      </BottomSheet>
+    )
+  }
 
   return (
     <AppModal
@@ -7060,7 +7383,7 @@ function QuickExpenseEntry({
       const saved = addExpense(event)
 
       if (saved) {
-        onSaved()
+        onSaved(saved)
         return
       }
 
@@ -7179,7 +7502,7 @@ function QuickIncomeEntry({ profile, setProfile, onSaved }) {
         })
       }
 
-      onSaved()
+      onSaved({ amount: parsed })
     }}>
       <CurrencyInput
         label="Monthly income"
@@ -7336,7 +7659,7 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
         return
       }
 
-      onSaved()
+      onSaved({ kind, person: person.trim(), amount: parsedAmount })
     }}>
       <div className="segmented-control quick-kind-toggle" aria-label="Borrow or lend type">
         <button className={kind === 'given' ? 'active' : ''} type="button" onClick={() => setKind('given')}>
@@ -7956,6 +8279,8 @@ function ProfileScreen({
   addExpense,
   quickExpenseChips,
   applyQuickExpense,
+  navigateToTarget,
+  openStatementImport,
 }) {
   const commitments = normalizeMonthlyBillsForEdit(profile)
   const greeting = getGreeting(profile.name)
@@ -8055,7 +8380,16 @@ function ProfileScreen({
         removeSavingsBucket={removeSavingsBucket}
       />
 
-      <HomeFooter />
+      <ProfileHub
+        supportEmail={supportEmail}
+        supportPaymentUrl={supportPaymentUrl}
+        founderName={founderName}
+        founderLinkedInUrl={founderLinkedInUrl}
+        onNavigate={navigateToTarget}
+        onOpenStatementAnalysis={openStatementImport}
+      />
+
+      {isLegacyFooterExperience() && <HomeFooter />}
 
       {isCommitmentEditorOpen && (
         <CommitmentEditorSheet

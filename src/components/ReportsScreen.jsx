@@ -1,10 +1,36 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useMemo,
   useState,
 } from 'react'
-import { ChevronRight, Download, FileText, HeartHandshake, Trash2, Upload } from 'lucide-react'
+import {
+  ChartPie,
+  ChevronRight,
+  CreditCard,
+  Download,
+  FileText,
+  HeartHandshake,
+  PiggyBank,
+  Receipt,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Upload,
+  Wallet,
+} from 'lucide-react'
+import {
+  ActionCard,
+  EmptyState,
+  FLoader,
+  InsightCard,
+  MoneyCard,
+  MoneyOSProvider,
+  SectionHeader,
+  StatCard,
+  StatusBadge,
+} from '../design-system'
 import { getFinanceColor } from '../lib/financeColors'
 import { addMoney, normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
@@ -13,29 +39,15 @@ import { trackEvent, trackFeatureUsage } from '../lib/analytics'
 const StatementUploadSheet = lazy(() => import('./StatementUploadSheet.jsx'))
 const ReportCharts = lazy(() => import('./ReportCharts.jsx'))
 
+function isLegacyReportsExperience() {
+  return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_REPORTS__)
+}
+
 function StatementUploadFallback() {
   return (
     <div className="statement-upload-backdrop" role="presentation">
       <section className="statement-upload-sheet" aria-label="Loading statement import">
-        <div className="statement-sheet-header">
-          <div className="skeleton-text-group">
-            <span className="skeleton-line short" />
-            <span className="skeleton-line wide" />
-          </div>
-          <span className="skeleton-icon" />
-        </div>
-        <div className="privacy-note-card skeleton-block" />
-        <div className="statement-mode-row skeleton-block" />
-        <div className="statement-option-grid">
-          <span className="skeleton-option" />
-          <span className="skeleton-option" />
-          <span className="skeleton-option" />
-        </div>
-        <div className="statement-intelligence-card">
-          <span className="skeleton-line wide" />
-          <span className="skeleton-line" />
-          <span className="skeleton-line short" />
-        </div>
+        <FLoader fullPage label="Opening statement analysis" />
       </section>
     </div>
   )
@@ -93,10 +105,7 @@ function chartDateLabel(value) {
 
 function ChartDetailsFallback() {
   return (
-    <>
-      <article className="chart-card skeleton-card" />
-      <article className="chart-card skeleton-card" />
-    </>
+    <FLoader label="Preparing report charts" />
   )
 }
 
@@ -256,6 +265,39 @@ function reportGeneratedLabel(value) {
   })
 }
 
+function moneyHealthFromFinancialState(financialState = {}) {
+  if (financialState.pressureTone === 'slight-pressure') {
+    return {
+      label: 'Attention',
+      tone: 'warning',
+      detail: financialState.comfort || 'This report needs a closer look.',
+    }
+  }
+
+  if (financialState.pressureTone === 'warm') {
+    return {
+      label: 'Moderate',
+      tone: 'warning',
+      detail: financialState.comfort || 'The month is usable, but should stay measured.',
+    }
+  }
+
+  return {
+    label: 'Healthy',
+    tone: 'success',
+    detail: financialState.comfort || 'The month looks readable from saved data.',
+  }
+}
+
+function reportTypeLabel(type = 'monthly') {
+  return {
+    monthly: 'Monthly Report',
+    statement: 'Statement Report',
+    trip: 'Trip Report',
+    settlement: 'Settlement Report',
+  }[type] || 'Report'
+}
+
 export default function ReportsScreen({
   advancedReport,
   expenseBreakdown = [],
@@ -280,8 +322,10 @@ export default function ReportsScreen({
   selectedMonthKey,
   setSelectedMonthKey,
   monthOptions = [],
+  statementImportRequestId = 0,
 }) {
   const [isImportOpen, setIsImportOpen] = useState(false)
+  const [dismissedStatementImportRequestId, setDismissedStatementImportRequestId] = useState(0)
   const [activeCategory, setActiveCategory] = useState('all')
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const report = useMemo(
@@ -334,7 +378,7 @@ export default function ReportsScreen({
   )
   const activeExportType = exportingReportType || (isExportingPdf ? 'monthly' : '')
   const isPreparingReport = (type) => isExportingPdf && activeExportType === type
-  const openStatementAnalysis = (source = 'header') => {
+  const openStatementAnalysis = useCallback((source = 'header') => {
     setIsImportOpen(true)
     trackEvent('statement_analysis_opened', {
       surface: 'reports',
@@ -344,6 +388,13 @@ export default function ReportsScreen({
       surface: 'reports',
       source,
     })
+  }, [])
+
+  const isAddHubImportOpen = statementImportRequestId > 0 && dismissedStatementImportRequestId !== statementImportRequestId
+  const isStatementImportOpen = isImportOpen || isAddHubImportOpen
+  const closeStatementAnalysis = () => {
+    setIsImportOpen(false)
+    setDismissedStatementImportRequestId(statementImportRequestId)
   }
 
   const generateStatementReport = (statementPayload = {}) => {
@@ -352,6 +403,7 @@ export default function ReportsScreen({
     }
 
     setIsImportOpen(false)
+    setDismissedStatementImportRequestId(statementImportRequestId)
     window.setTimeout(() => {
       requestReportExport('statement', {
         template: statementPayload.template || reportTemplate,
@@ -362,6 +414,581 @@ export default function ReportsScreen({
         period: statementPayload.statementReport?.dateRange || selectedMonthKey,
       })
     }, 0)
+  }
+
+  const snapshotStats = [
+    {
+      label: 'Income',
+      value: rupees(financialState.income || 0),
+      detail: 'Saved monthly income',
+      icon: Wallet,
+      tone: 'success',
+    },
+    {
+      label: 'Expenses',
+      value: rupees(transactionSummary?.outgoing || financialState.committed || 0),
+      detail: `${financialState.usagePercent || 0}% of income used`,
+      icon: Receipt,
+      tone: 'danger',
+    },
+    {
+      label: 'Available',
+      value: rupees(financialState.safeToSpend ?? financialState.breathingRoom ?? 0),
+      detail: financialState.pressure || 'Current pressure',
+      icon: CreditCard,
+      tone: financialState.pressureTone === 'slight-pressure' ? 'warning' : 'tint',
+    },
+    {
+      label: 'Protected',
+      value: rupees(financialState.reserveTarget || 0),
+      detail: 'Savings buffer from current preference',
+      icon: PiggyBank,
+      tone: 'success',
+    },
+  ]
+  const moneyHealth = moneyHealthFromFinancialState(financialState)
+  const keyInsights = storyItems.length > 0
+    ? storyItems
+    : report.advisory
+      ? [{ title: financialState.pressure || 'Money note', detail: report.advisory }]
+      : []
+  const reportHistoryCounts = recentReportHistory.reduce((counts, entry) => {
+    const type = entry.type || 'monthly'
+    counts[type] = (counts[type] || 0) + 1
+    return counts
+  }, {})
+  const monthlyReportCount = reportHistoryCounts.monthly || 0
+  const statementReportCount = reportHistoryCounts.statement || 0
+  const tripReportCount = reportHistoryCounts.trip || 0
+  const canExport = !isExportingPdf
+  const handleStatementDiscovery = (source = 'statement_discovery_card') => {
+    trackEvent('feature_discovery_click', {
+      surface: 'reports',
+      feature: 'statement_analysis',
+      source,
+    })
+    trackFeatureUsage('feature_discovery_card', {
+      surface: 'reports',
+      feature: 'statement_analysis',
+      source,
+    })
+    openStatementAnalysis(source)
+  }
+  const handleMonthlyPdfExport = (placement = 'money_os_exports') => {
+    trackEvent('report_conversion_click', {
+      surface: 'reports',
+      report_type: 'monthly',
+      source: placement,
+    })
+    trackEvent('report_export_click', {
+      surface: 'reports',
+      report_type: 'monthly',
+      export_type: 'pdf',
+      placement,
+    })
+    downloadPdf?.()
+  }
+  const handleTripPdfExport = (placement = 'money_os_exports') => {
+    trackEvent('report_conversion_click', {
+      surface: 'reports',
+      report_type: 'trip',
+      source: placement,
+    })
+    trackEvent('report_export_click', {
+      surface: 'reports',
+      report_type: 'trip',
+      export_type: 'pdf',
+      placement,
+    })
+    requestReportExport?.('trip', { template: reportTemplate })
+  }
+  const handleSettlementPdfExport = (placement = 'money_os_exports') => {
+    trackEvent('report_conversion_click', {
+      surface: 'reports',
+      report_type: 'settlement',
+      source: placement,
+    })
+    trackEvent('report_export_click', {
+      surface: 'reports',
+      report_type: 'settlement',
+      export_type: 'pdf',
+      placement,
+    })
+    requestReportExport?.('settlement', { template: reportTemplate })
+  }
+  const handleCsvExport = (placement = 'money_os_exports') => {
+    trackEvent('report_export_click', {
+      surface: 'reports',
+      export_type: 'csv',
+      placement,
+    })
+    exportCsv?.()
+  }
+  const toggleReportDetails = (event) => {
+    event.preventDefault()
+    setIsDetailsOpen((current) => {
+      const nextOpen = !current
+      if (nextOpen) {
+        trackFeatureUsage('report_details_opened', {
+          surface: 'reports',
+        })
+      }
+      return nextOpen
+    })
+  }
+
+  if (!isLegacyReportsExperience()) {
+    return (
+      <MoneyOSProvider as="section" className="screen-content reports-screen advanced-reports-screen money-os-reports">
+        <SectionHeader
+          eyebrow="Money Intelligence"
+          title="Money Intelligence Center"
+          detail="A plain-language report view built from your existing monthly data, exports, and reviewed statements."
+          actions={(
+            <>
+              <button
+                className="report-import-button mos-report-legacy-button"
+                type="button"
+                onClick={() => openStatementAnalysis('header')}
+              >
+                <Upload size={16} />
+                <span>Analyze</span>
+              </button>
+              <select
+                className="month-select compact-month-select mos-report-month-select"
+                value={selectedMonthKey}
+                aria-label="Month selector"
+                onChange={(event) => setSelectedMonthKey(event.target.value)}
+              >
+                {monthOptions.map((month) => (
+                  <option key={month.key} value={month.key}>
+                    {month.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        />
+
+        {isStatementImportOpen && (
+          <Suspense fallback={<StatementUploadFallback />}>
+            <StatementUploadSheet
+              isOpen={isStatementImportOpen}
+              onClose={closeStatementAnalysis}
+              onGenerateStatementReport={generateStatementReport}
+              onCategoryMappingsChange={onStatementMappingsChange}
+              reportTemplate={reportTemplate}
+            />
+          </Suspense>
+        )}
+
+        <section className="mos-report-section" aria-label="Money Snapshot">
+          <SectionHeader
+            eyebrow="Priority 1"
+            title="Money Snapshot"
+            detail="The same monthly numbers, surfaced before document exports."
+          />
+          <div className="mos-report-snapshot-grid">
+            {snapshotStats.map((stat) => (
+              <StatCard
+                key={stat.label}
+                label={stat.label}
+                value={stat.value}
+                detail={stat.detail}
+                icon={stat.icon}
+                tone={stat.tone}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="mos-report-section" aria-label="Money Health">
+          <SectionHeader
+            eyebrow="Priority 2"
+            title="Money Health"
+            detail="A concise state from the existing monthly pressure reading."
+            actions={<StatusBadge tone={moneyHealth.tone}>{moneyHealth.label}</StatusBadge>}
+          />
+          <InsightCard
+            title={moneyHealth.label}
+            detail={moneyHealth.detail}
+            icon={HeartHandshake}
+            tone={moneyHealth.tone}
+            actions={<StatusBadge>{financialState.usagePercent || 0}% used</StatusBadge>}
+          >
+            <div className="mos-report-health-strip">
+              <span>{financialState.pressure || 'Current pressure'}</span>
+              <strong>{financialState.comfort || 'Money state'}</strong>
+              <p>{financialState.usagePercent || 0}% of income is already used from saved data.</p>
+            </div>
+          </InsightCard>
+        </section>
+
+        <section className="mos-report-section" aria-label="Key Insights">
+          <SectionHeader
+            eyebrow="Priority 3"
+            title="Key Insights"
+            detail="Top existing report notes, kept short and actionable."
+            actions={<StatusBadge>{keyInsights.length || 0} insight{keyInsights.length === 1 ? '' : 's'}</StatusBadge>}
+          />
+          {keyInsights.length > 0 ? (
+            <div className="mos-report-insight-grid">
+              {keyInsights.slice(0, 3).map((item, index) => (
+                <InsightCard
+                  key={`${item.title || 'insight'}-${index}`}
+                  title={item.title || `Insight ${index + 1}`}
+                  detail={item.detail}
+                  icon={Sparkles}
+                  tone={index === 0 ? moneyHealth.tone : 'tint'}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="Insights need more activity"
+              detail="Income, expenses, transfers, goals, shared payments, and borrow/lend activity will turn into clearer notes here."
+              icon={Sparkles}
+            />
+          )}
+        </section>
+
+        <section className="mos-report-section" aria-label="Report Library">
+          <SectionHeader
+            eyebrow="Priority 4"
+            title="Report Library"
+            detail="Monthly, statement, and trip report flows remain separate and unchanged."
+            actions={<StatusBadge>{recentReportHistory.length} saved</StatusBadge>}
+          />
+          <div className="mos-report-library-grid">
+            <ActionCard
+              title="Monthly Reports"
+              detail="Generate the current monthly budget report."
+              actionLabel={isPreparingReport('monthly') ? 'Preparing' : 'Generate'}
+              icon={ChartPie}
+              tone="tint"
+              disabled={!canExport}
+              onClick={() => handleMonthlyPdfExport('report_library')}
+            >
+              <StatusBadge>{monthlyReportCount} saved</StatusBadge>
+            </ActionCard>
+            <ActionCard
+              title="Statement Reports"
+              detail="Review PDF or CSV rows before generating a statement report."
+              actionLabel="Analyze statement"
+              icon={Upload}
+              tone="warning"
+              onClick={() => handleStatementDiscovery('report_library')}
+            >
+              <StatusBadge>{statementReportCount} saved</StatusBadge>
+            </ActionCard>
+            <ActionCard
+              title="Trip Reports"
+              detail="Export the current shared trip report from existing groups."
+              actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Generate'}
+              icon={ShieldCheck}
+              tone="success"
+              disabled={!canExport}
+              onClick={() => handleTripPdfExport('report_library')}
+            >
+              <StatusBadge>{tripReportCount} saved</StatusBadge>
+            </ActionCard>
+          </div>
+        </section>
+
+        <section className="mos-report-section" aria-label="Report History">
+          <SectionHeader
+            eyebrow="History"
+            title="Generated reports"
+            detail="Saved report records remain available for download."
+          />
+          {recentReportHistory.length > 0 ? (
+            <div className="mos-report-history-list">
+              {recentReportHistory.map((entry) => (
+                <MoneyCard
+                  key={entry.id}
+                  className="mos-report-history-card"
+                  eyebrow={reportTypeLabel(entry.type)}
+                  title={entry.name}
+                  detail={`${entry.reportId} - ${entry.currency} - ${entry.period}`}
+                  icon={FileText}
+                  tone={entry.type === 'statement' ? 'warning' : entry.type === 'trip' ? 'success' : 'tint'}
+                  actions={<StatusBadge>{entry.template}</StatusBadge>}
+                  footer={(
+                    <div className="mos-report-history-footer">
+                      <span>{reportGeneratedLabel(entry.generatedAt)}</span>
+                      <div className="report-history-actions">
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`Download ${entry.name}`}
+                          onClick={() => redownloadReport?.(entry)}
+                          disabled={isExportingPdf}
+                        >
+                          <Download size={15} />
+                        </button>
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`Delete ${entry.name} history entry`}
+                          onClick={() => deleteReportHistoryEntry?.(entry.id)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="Generate your first financial report"
+              detail="Once created, saved reports appear here for quick re-download."
+              icon={FileText}
+              action={{
+                label: isPreparingReport('monthly') ? 'Preparing...' : 'Create monthly report',
+                onClick: () => {
+                  trackEvent('empty_state_cta_clicked', {
+                    surface: 'reports',
+                    empty_state: 'report_history',
+                    target: 'monthly_report',
+                  })
+                  handleMonthlyPdfExport('history_empty_state')
+                },
+              }}
+            />
+          )}
+        </section>
+
+        <section className="mos-report-section" id="reports-export-section" aria-label="Exports">
+          <SectionHeader
+            eyebrow="Priority 5"
+            title="Exports"
+            detail="Share-ready exports remain below the intelligence summary."
+            actions={(
+              <label className="report-template-select mos-report-template-select">
+                <span>Template</span>
+                <select
+                  className="month-select compact-month-select"
+                  value={reportTemplate}
+                  onChange={(event) => {
+                    setReportTemplate?.(event.target.value)
+                    trackFeatureUsage('report_template_selected', {
+                      surface: 'reports',
+                      template: event.target.value,
+                    })
+                  }}
+                >
+                  <option value="standard">Standard</option>
+                  <option value="executive">Executive</option>
+                  <option value="compact">Compact</option>
+                </select>
+              </label>
+            )}
+          />
+          <div className="mos-report-export-grid">
+            <ActionCard
+              title="Monthly Budget PDF"
+              detail="Executive summary, key numbers, insights, and recommendations."
+              actionLabel={isPreparingReport('monthly') ? 'Preparing' : 'Export PDF'}
+              icon={FileText}
+              tone="tint"
+              disabled={!canExport}
+              onClick={() => handleMonthlyPdfExport('money_os_exports')}
+            />
+            <ActionCard
+              title="Trip PDF"
+              detail="Shared groups and trip totals using the existing export flow."
+              actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Export trip'}
+              icon={FileText}
+              tone="success"
+              disabled={!canExport}
+              onClick={() => handleTripPdfExport('money_os_exports')}
+            />
+            <ActionCard
+              title="Settlement PDF"
+              detail="Settlement balances using the existing export flow."
+              actionLabel={isPreparingReport('settlement') ? 'Preparing' : 'Export settlement'}
+              icon={FileText}
+              tone="warning"
+              disabled={!canExport}
+              onClick={() => handleSettlementPdfExport('money_os_exports')}
+            />
+            <ActionCard
+              title="CSV Export"
+              detail="Download the current financial history export."
+              actionLabel="Export CSV"
+              icon={Download}
+              tone="neutral"
+              onClick={() => handleCsvExport('money_os_exports')}
+            />
+          </div>
+        </section>
+
+        {reportExportPrompt && (
+          <MoneyCard
+            className="mos-report-guidance-card"
+            eyebrow="Report setup"
+            title={reportExportPrompt.title}
+            detail={reportExportPrompt.message}
+            icon={FileText}
+            tone="warning"
+            actions={<StatusBadge>{reportExportPrompt.detail}</StatusBadge>}
+            aria-live="polite"
+          >
+            <div className="report-export-guidance-actions">
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => onReportPromptAction?.(reportExportPrompt)}
+              >
+                {reportExportPrompt.actionLabel}
+              </button>
+              <button className="ghost-button" type="button" onClick={clearReportExportPrompt}>
+                Later
+              </button>
+            </div>
+          </MoneyCard>
+        )}
+
+        <details
+          className="report-details-panel mos-report-details-panel"
+          open={isDetailsOpen}
+        >
+          <summary onClick={toggleReportDetails}>
+            <span>Detailed monthly report</span>
+            <ChevronRight size={16} />
+          </summary>
+          {isDetailsOpen && (
+          <div className="report-details-body">
+        <article className="report-snapshot-card">
+          <h2>This month in short</h2>
+          <div className="report-snapshot-grid">
+            {report.snapshot.slice(0, 4).map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <p>{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        {monthlyComparison.length > 0 && (
+          <article className="report-section-card monthly-comparison-card">
+            <h2>What changed</h2>
+            <div className="monthly-comparison-grid">
+              {monthlyComparison.map((item) => (
+                <div className={item.tone} key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{rupees(item.current)}</strong>
+                  <p>{item.labelText}</p>
+                </div>
+              ))}
+            </div>
+          </article>
+        )}
+
+        <ReportSection title="Spending notes" items={report.spendingPatterns} />
+        <ReportSection title="Money pressure" items={report.pressureAnalysis} />
+        <ReportSection title="Buying safely" items={report.purchaseInsights} />
+        <ReportSection title="Other notes" items={report.behaviorInsights} />
+
+        <article className="report-section-card report-direction-card">
+          <h2>Money direction</h2>
+          <div className="report-direction-list">
+            {directionData.length > 0 ? directionData.map((item) => (
+              <div key={item.name}>
+                <span>{item.name}</span>
+                <strong>{compactRupees(item.amount)}</strong>
+              </div>
+            )) : (
+              <p>Add income or transactions to see a clearer direction.</p>
+            )}
+          </div>
+        </article>
+
+        {report.sharedSummary?.activeGroups > 0 && (
+          <article className="report-section-card shared-report-card">
+            <h2>Shared money</h2>
+            <div className="report-snapshot-grid">
+              <div>
+                <span>You paid</span>
+                <strong>{rupees(report.sharedSummary.totalPaidByYou)}</strong>
+                <p>Paid upfront in groups.</p>
+              </div>
+              <div>
+                <span>To get back</span>
+                <strong>{rupees(report.sharedSummary.pendingRecoverable)}</strong>
+                <p>Expected back from friends.</p>
+              </div>
+              <div>
+                <span>Received</span>
+                <strong>{rupees(report.sharedSummary.receivedRecoveries)}</strong>
+                <p>Marked as received.</p>
+              </div>
+              <div>
+                <span>Monthly impact</span>
+                <strong>{rupees(report.sharedSummary.netSharedImpact)}</strong>
+                <p>Used in monthly totals.</p>
+              </div>
+            </div>
+          </article>
+        )}
+
+        {(moneyBookSummary.pendingCount > 0 || moneyBookSummary.totalGiven > 0 || moneyBookSummary.totalBorrowed > 0) && (
+          <article className="report-section-card money-book-report-card">
+            <h2>Borrow / lend</h2>
+            <div className="report-snapshot-grid">
+              <div>
+                <span>You gave</span>
+                <strong>{rupees(moneyBookSummary.totalGiven || 0)}</strong>
+                <p>Money lent this month.</p>
+              </div>
+              <div>
+                <span>To receive</span>
+                <strong>{rupees(moneyBookSummary.needToReceive || 0)}</strong>
+                <p>Still pending.</p>
+              </div>
+              <div>
+                <span>Borrowed</span>
+                <strong>{rupees(moneyBookSummary.totalBorrowed || 0)}</strong>
+                <p>Money taken this month.</p>
+              </div>
+              <div>
+                <span>Pending</span>
+                <strong>{rupees(moneyBookSummary.pendingSettlements || 0)}</strong>
+                <p>{moneyBookSummary.pendingCount || 0} open settlement{moneyBookSummary.pendingCount === 1 ? '' : 's'}.</p>
+              </div>
+            </div>
+          </article>
+        )}
+
+        <Suspense fallback={<ChartDetailsFallback />}>
+          <ReportCharts
+            visibleBreakdown={visibleBreakdown}
+            selectedCategory={selectedCategory}
+            setActiveCategory={setActiveCategory}
+            mixBreakdown={mixBreakdown}
+            focusedCategory={focusedCategory}
+            breakdownTotal={breakdownTotal}
+            trendData={trendData}
+          />
+        </Suspense>
+
+        <article className="report-section-card">
+          <h2>Money status</h2>
+          <div className="report-comfort-strip">
+            <span>{financialState.pressure}</span>
+            <strong>{financialState.comfort}</strong>
+            <p>{financialState.usagePercent}% of income is already used from saved data.</p>
+          </div>
+        </article>
+          </div>
+          )}
+        </details>
+      </MoneyOSProvider>
+    )
   }
 
   return (
@@ -396,11 +1023,11 @@ export default function ReportsScreen({
         </div>
       </div>
 
-      {isImportOpen && (
+      {isStatementImportOpen && (
         <Suspense fallback={<StatementUploadFallback />}>
           <StatementUploadSheet
-            isOpen={isImportOpen}
-            onClose={() => setIsImportOpen(false)}
+            isOpen={isStatementImportOpen}
+            onClose={closeStatementAnalysis}
             onGenerateStatementReport={generateStatementReport}
             onCategoryMappingsChange={onStatementMappingsChange}
             reportTemplate={reportTemplate}
@@ -668,16 +1295,9 @@ export default function ReportsScreen({
 
       <details
         className="report-details-panel"
-        onToggle={(event) => {
-          setIsDetailsOpen(event.currentTarget.open)
-          if (event.currentTarget.open) {
-            trackFeatureUsage('report_details_opened', {
-              surface: 'reports',
-            })
-          }
-        }}
+        open={isDetailsOpen}
       >
-        <summary>
+        <summary onClick={toggleReportDetails}>
           <span>Detailed monthly report</span>
           <ChevronRight size={16} />
         </summary>
