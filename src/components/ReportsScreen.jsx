@@ -270,6 +270,7 @@ export default function ReportsScreen({
   reportHistory = [],
   redownloadReport,
   deleteReportHistoryEntry,
+  onStatementMappingsChange,
   exportCsv,
   isExportingPdf,
   exportingReportType = '',
@@ -401,6 +402,7 @@ export default function ReportsScreen({
             isOpen={isImportOpen}
             onClose={() => setIsImportOpen(false)}
             onGenerateStatementReport={generateStatementReport}
+            onCategoryMappingsChange={onStatementMappingsChange}
             reportTemplate={reportTemplate}
           />
         </Suspense>

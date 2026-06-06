@@ -235,7 +235,13 @@ function StatementReportSummary({ report }) {
   )
 }
 
-export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatementReport, reportTemplate = 'standard' }) {
+export default function StatementUploadSheet({
+  isOpen,
+  onClose,
+  onGenerateStatementReport,
+  onCategoryMappingsChange,
+  reportTemplate = 'standard',
+}) {
   const inputRef = useRef(null)
   const [mode, setMode] = useState('reflection')
   const [accept, setAccept] = useState('.pdf,.csv')
@@ -400,6 +406,7 @@ export default function StatementUploadSheet({ isOpen, onClose, onGenerateStatem
     setCategoryMappings((current) => {
       const next = { ...current, [key]: category }
       safeStorageSetQueued('fbply-statement-category-mappings', JSON.stringify(next))
+      onCategoryMappingsChange?.(next)
       return next
     })
     setUserOverrides((current) => current + 1)

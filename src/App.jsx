@@ -132,6 +132,68 @@ import {
   saveCloudSavingsBuckets,
 } from './lib/savingsSync'
 import {
+  applyMoneyBookSyncOperations,
+  buildMoneyBookSyncOperations,
+  buildMoneyBookSyncRecords,
+  diffMoneyBookSyncRecords,
+  flushMoneyBookSyncQueue,
+  hasMoneyBookMigrationRun,
+  loadCloudMoneyBook,
+  markMoneyBookMigrationRun,
+  queueMoneyBookSyncOperations,
+  saveCloudMoneyBook,
+} from './lib/moneyBookSync'
+import {
+  applySharedGroupsSyncOperations,
+  buildSharedGroupsSyncOperations,
+  buildSharedGroupsSyncRecords,
+  diffSharedGroupsSyncRecords,
+  flushSharedGroupsSyncQueue,
+  hasSharedGroupsMigrationRun,
+  loadCloudSharedGroups,
+  markSharedGroupsMigrationRun,
+  queueSharedGroupsSyncOperations,
+  saveCloudSharedGroups,
+} from './lib/sharedGroupsSync'
+import {
+  applyReportHistorySyncOperations,
+  buildReportHistorySyncOperations,
+  buildReportHistorySyncRecords,
+  diffReportHistorySyncRecords,
+  flushReportHistorySyncQueue,
+  hasReportHistoryMigrationRun,
+  loadCloudReportHistory,
+  markReportHistoryMigrationRun,
+  queueReportHistorySyncOperations,
+  saveCloudReportHistory,
+} from './lib/reportHistorySync'
+import {
+  applyStatementMappingsSyncOperations,
+  buildStatementMappingsSyncOperations,
+  buildStatementMappingsSyncRecords,
+  diffStatementMappingsSyncRecords,
+  flushStatementMappingsSyncQueue,
+  hasStatementMappingsMigrationRun,
+  loadCloudStatementMappings,
+  markStatementMappingsMigrationRun,
+  normalizeStatementMappings,
+  queueStatementMappingsSyncOperations,
+  saveCloudStatementMappings,
+} from './lib/statementMappingsSync'
+import {
+  applyVoiceMemorySyncOperations,
+  buildVoiceMemorySyncOperations,
+  buildVoiceMemorySyncRecords,
+  diffVoiceMemorySyncRecords,
+  flushVoiceMemorySyncQueue,
+  hasVoiceMemoryMigrationRun,
+  loadCloudVoiceMemory,
+  markVoiceMemoryMigrationRun,
+  normalizeVoiceMemory,
+  queueVoiceMemorySyncOperations,
+  saveCloudVoiceMemory,
+} from './lib/voiceMemorySync'
+import {
   learnVoiceExpense,
   parseVoiceExpense as parseSpokenExpense,
   parseVoiceExpenseEntries as parseSpokenExpenseEntries,
@@ -896,6 +958,66 @@ function readLocalRecurringScheduleCache(fallback = []) {
   return storedSchedules
 }
 
+function readLocalSharedGroupsCache(fallback = []) {
+  flushStorageQueue()
+  const fallbackGroups = Array.isArray(fallback) ? fallback : []
+  const storedGroups = readStoredJson('fbply-shared-groups', fallbackGroups)
+
+  if (fallbackGroups.length > 0) {
+    return fallbackGroups
+  }
+
+  return Array.isArray(storedGroups) ? storedGroups : fallbackGroups
+}
+
+function readLocalMoneyBookCache(fallback = []) {
+  flushStorageQueue()
+  const fallbackEntries = normalizeMoneyBookEntries(fallback)
+  const storedEntries = normalizeMoneyBookEntries(readStoredJson('fbply-money-book', fallbackEntries))
+
+  if (fallbackEntries.length > 0) {
+    return fallbackEntries
+  }
+
+  return storedEntries
+}
+
+function readLocalReportHistoryCache(fallback = []) {
+  flushStorageQueue()
+  const fallbackHistory = normalizeReportHistory(fallback)
+  const storedHistory = normalizeReportHistory(readStoredJson('fbply-report-history', fallbackHistory))
+
+  if (fallbackHistory.length > 0) {
+    return fallbackHistory
+  }
+
+  return storedHistory
+}
+
+function readLocalStatementMappingsCache(fallback = {}) {
+  flushStorageQueue()
+  const fallbackMappings = normalizeStatementMappings(fallback)
+  const storedMappings = normalizeStatementMappings(readStoredJson('fbply-statement-category-mappings', fallbackMappings))
+
+  if (Object.keys(fallbackMappings).length > 0) {
+    return fallbackMappings
+  }
+
+  return storedMappings
+}
+
+function readLocalVoiceMemoryCache(fallback = {}) {
+  flushStorageQueue()
+  const fallbackMemory = normalizeVoiceMemory(fallback)
+  const storedMemory = normalizeVoiceMemory(readStoredJson('fbply-voice-memory', fallbackMemory))
+
+  if (Object.keys(fallbackMemory).length > 0) {
+    return fallbackMemory
+  }
+
+  return storedMemory
+}
+
 function writeExpenseCache(expenseRecords) {
   safeStorageSetQueued('fbply-expenses', JSON.stringify(Array.isArray(expenseRecords) ? expenseRecords : []))
 }
@@ -919,6 +1041,46 @@ function commitmentSyncFailurePayload(error, stage) {
 function savingsSyncFailurePayload(error, stage) {
   return {
     surface: 'savings_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
+function moneyBookSyncFailurePayload(error, stage) {
+  return {
+    surface: 'money_book_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
+function sharedGroupsSyncFailurePayload(error, stage) {
+  return {
+    surface: 'shared_groups_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
+function reportHistorySyncFailurePayload(error, stage) {
+  return {
+    surface: 'report_history_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
+function statementMappingsSyncFailurePayload(error, stage) {
+  return {
+    surface: 'statement_mappings_sync',
+    stage,
+    reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
+  }
+}
+
+function voiceMemorySyncFailurePayload(error, stage) {
+  return {
+    surface: 'voice_memory_sync',
     stage,
     reason: String(error?.code || error?.name || 'unknown').slice(0, 80),
   }
@@ -1286,22 +1448,46 @@ function App() {
   const expensesRef = useRef(expenses)
   const savingsBucketsRef = useRef(savingsBuckets)
   const recurringSchedulesRef = useRef(recurringSchedules)
+  const sharedGroupsRef = useRef(sharedGroups)
+  const moneyBookEntriesRef = useRef(moneyBookEntries)
+  const reportHistoryRef = useRef(reportHistory)
+  const voiceMemoryRef = useRef(voiceMemory)
   const hasCompletedSetupRef = useRef(hasCompletedSetup)
   const skipNextProfileCloudSaveRef = useRef(false)
   const skipNextExpenseCloudSaveRef = useRef(false)
   const skipNextSavingsCloudSaveRef = useRef(false)
   const skipNextCommitmentCloudSaveRef = useRef(false)
+  const skipNextSharedGroupsCloudSaveRef = useRef(false)
+  const skipNextMoneyBookCloudSaveRef = useRef(false)
+  const skipNextReportHistoryCloudSaveRef = useRef(false)
+  const skipNextVoiceMemoryCloudSaveRef = useRef(false)
   const profileSaveSequenceRef = useRef(0)
   const expenseSaveSequenceRef = useRef(0)
   const savingsSaveSequenceRef = useRef(0)
   const commitmentSaveSequenceRef = useRef(0)
+  const sharedGroupsSaveSequenceRef = useRef(0)
+  const moneyBookSaveSequenceRef = useRef(0)
+  const reportHistorySaveSequenceRef = useRef(0)
+  const voiceMemorySaveSequenceRef = useRef(0)
   const previousSyncedExpensesRef = useRef(normalizeExpenseRecords(expenses))
   const previousSyncedSavingsRef = useRef(buildSavingsSyncRecords(savingsBuckets))
   const previousSyncedCommitmentsRef = useRef(buildCommitmentSyncRecords({ profile, recurringSchedules }))
+  const previousSyncedSharedGroupsRef = useRef(buildSharedGroupsSyncRecords(sharedGroups))
+  const previousSyncedMoneyBookRef = useRef(buildMoneyBookSyncRecords(moneyBookEntries))
+  const previousSyncedReportHistoryRef = useRef(buildReportHistorySyncRecords(reportHistory))
+  const previousSyncedStatementMappingsRef = useRef(
+    normalizeStatementMappings(readStoredJson('fbply-statement-category-mappings', {})),
+  )
+  const previousSyncedVoiceMemoryRef = useRef(normalizeVoiceMemory(voiceMemory))
   const [isProfileSyncReady, setIsProfileSyncReady] = useState(() => !isSupabaseReady)
   const [isExpenseSyncReady, setIsExpenseSyncReady] = useState(() => !isSupabaseReady)
   const [isSavingsSyncReady, setIsSavingsSyncReady] = useState(() => !isSupabaseReady)
   const [isCommitmentSyncReady, setIsCommitmentSyncReady] = useState(() => !isSupabaseReady)
+  const [isSharedGroupsSyncReady, setIsSharedGroupsSyncReady] = useState(() => !isSupabaseReady)
+  const [isMoneyBookSyncReady, setIsMoneyBookSyncReady] = useState(() => !isSupabaseReady)
+  const [isReportHistorySyncReady, setIsReportHistorySyncReady] = useState(() => !isSupabaseReady)
+  const [isStatementMappingsSyncReady, setIsStatementMappingsSyncReady] = useState(() => !isSupabaseReady)
+  const [isVoiceMemorySyncReady, setIsVoiceMemorySyncReady] = useState(() => !isSupabaseReady)
   const isOnline = useOnlineStatus()
   const activeCurrency = normalizeCurrency(profile.currency)
   const normalizedCurrentPath = normalizeSeoPath(currentPath)
@@ -1369,6 +1555,22 @@ function App() {
   useEffect(() => {
     recurringSchedulesRef.current = recurringSchedules
   }, [recurringSchedules])
+
+  useEffect(() => {
+    sharedGroupsRef.current = sharedGroups
+  }, [sharedGroups])
+
+  useEffect(() => {
+    moneyBookEntriesRef.current = moneyBookEntries
+  }, [moneyBookEntries])
+
+  useEffect(() => {
+    reportHistoryRef.current = reportHistory
+  }, [reportHistory])
+
+  useEffect(() => {
+    voiceMemoryRef.current = voiceMemory
+  }, [voiceMemory])
 
   useEffect(() => {
     hasCompletedSetupRef.current = hasCompletedSetup
@@ -1800,6 +2002,393 @@ function App() {
       isCancelled = true
     }
   }, [authUser, isOnline, isPublicSeoPage, isSavingsSyncReady])
+
+  useEffect(() => {
+    if (isPublicSeoPage) {
+      return undefined
+    }
+
+    const normalizedGroups = buildSharedGroupsSyncRecords(sharedGroups)
+    const saveSequence = sharedGroupsSaveSequenceRef.current + 1
+    sharedGroupsSaveSequenceRef.current = saveSequence
+
+    if (!authUser?.id || !isSupabaseReady) {
+      previousSyncedSharedGroupsRef.current = normalizedGroups
+      return undefined
+    }
+
+    if (!isSharedGroupsSyncReady) {
+      return undefined
+    }
+
+    if (skipNextSharedGroupsCloudSaveRef.current) {
+      skipNextSharedGroupsCloudSaveRef.current = false
+      previousSyncedSharedGroupsRef.current = normalizedGroups
+      return undefined
+    }
+
+    const diff = diffSharedGroupsSyncRecords(previousSyncedSharedGroupsRef.current, sharedGroups)
+
+    if (diff.upserts.length === 0 && diff.deletes.length === 0) {
+      previousSyncedSharedGroupsRef.current = normalizedGroups
+      return undefined
+    }
+
+    const operations = buildSharedGroupsSyncOperations(authUser, diff)
+
+    if (!isOnline) {
+      queueSharedGroupsSyncOperations(authUser.id, operations)
+      trackEvent('shared_groups_sync_failed', sharedGroupsSyncFailurePayload({ name: 'offline' }, 'offline'))
+      previousSyncedSharedGroupsRef.current = diff.nextRecords
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const syncSharedGroups = async () => {
+      try {
+        const flushed = await flushSharedGroupsSyncQueue(supabase, authUser)
+
+        await applySharedGroupsSyncOperations(supabase, authUser, operations)
+
+        trackEvent('shared_groups_cloud_saved', {
+          surface: 'shared_groups_sync',
+          reason: flushed.operationCount > 0 ? 'queue_flush_and_update' : 'shared_groups_update',
+          upsert_count: diff.upserts.length,
+          delete_count: diff.deletes.length,
+          queued_operation_count: flushed.operationCount,
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          queueSharedGroupsSyncOperations(authUser.id, operations)
+          trackEvent('shared_groups_sync_failed', sharedGroupsSyncFailurePayload(error, 'save'))
+        }
+      } finally {
+        if (!isCancelled && sharedGroupsSaveSequenceRef.current === saveSequence) {
+          previousSyncedSharedGroupsRef.current = diff.nextRecords
+        }
+      }
+    }
+
+    syncSharedGroups()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isOnline, isPublicSeoPage, isSharedGroupsSyncReady, sharedGroups])
+
+  useEffect(() => {
+    if (isPublicSeoPage) {
+      return undefined
+    }
+
+    const normalizedEntries = buildMoneyBookSyncRecords(moneyBookEntries)
+    const saveSequence = moneyBookSaveSequenceRef.current + 1
+    moneyBookSaveSequenceRef.current = saveSequence
+
+    if (!authUser?.id || !isSupabaseReady) {
+      previousSyncedMoneyBookRef.current = normalizedEntries
+      return undefined
+    }
+
+    if (!isMoneyBookSyncReady) {
+      return undefined
+    }
+
+    if (skipNextMoneyBookCloudSaveRef.current) {
+      skipNextMoneyBookCloudSaveRef.current = false
+      previousSyncedMoneyBookRef.current = normalizedEntries
+      return undefined
+    }
+
+    const diff = diffMoneyBookSyncRecords(previousSyncedMoneyBookRef.current, moneyBookEntries)
+
+    if (diff.upserts.length === 0 && diff.deletes.length === 0) {
+      previousSyncedMoneyBookRef.current = normalizedEntries
+      return undefined
+    }
+
+    const operations = buildMoneyBookSyncOperations(authUser, diff)
+
+    if (!isOnline) {
+      queueMoneyBookSyncOperations(authUser.id, operations)
+      trackEvent('money_book_sync_failed', moneyBookSyncFailurePayload({ name: 'offline' }, 'offline'))
+      previousSyncedMoneyBookRef.current = diff.nextRecords
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const syncMoneyBook = async () => {
+      try {
+        const flushed = await flushMoneyBookSyncQueue(supabase, authUser)
+
+        await applyMoneyBookSyncOperations(supabase, authUser, operations)
+
+        trackEvent('money_book_cloud_saved', {
+          surface: 'money_book_sync',
+          reason: flushed.operationCount > 0 ? 'queue_flush_and_update' : 'money_book_update',
+          upsert_count: diff.upserts.length,
+          delete_count: diff.deletes.length,
+          queued_operation_count: flushed.operationCount,
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          queueMoneyBookSyncOperations(authUser.id, operations)
+          trackEvent('money_book_sync_failed', moneyBookSyncFailurePayload(error, 'save'))
+        }
+      } finally {
+        if (!isCancelled && moneyBookSaveSequenceRef.current === saveSequence) {
+          previousSyncedMoneyBookRef.current = diff.nextRecords
+        }
+      }
+    }
+
+    syncMoneyBook()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isMoneyBookSyncReady, isOnline, isPublicSeoPage, moneyBookEntries])
+
+  useEffect(() => {
+    if (isPublicSeoPage) {
+      return undefined
+    }
+
+    const normalizedHistory = buildReportHistorySyncRecords(reportHistory)
+    const saveSequence = reportHistorySaveSequenceRef.current + 1
+    reportHistorySaveSequenceRef.current = saveSequence
+
+    if (!authUser?.id || !isSupabaseReady) {
+      previousSyncedReportHistoryRef.current = normalizedHistory
+      return undefined
+    }
+
+    if (!isReportHistorySyncReady) {
+      return undefined
+    }
+
+    if (skipNextReportHistoryCloudSaveRef.current) {
+      skipNextReportHistoryCloudSaveRef.current = false
+      previousSyncedReportHistoryRef.current = normalizedHistory
+      return undefined
+    }
+
+    const diff = diffReportHistorySyncRecords(previousSyncedReportHistoryRef.current, reportHistory)
+
+    if (diff.upserts.length === 0 && diff.deletes.length === 0) {
+      previousSyncedReportHistoryRef.current = normalizedHistory
+      return undefined
+    }
+
+    const operations = buildReportHistorySyncOperations(authUser, diff)
+
+    if (!isOnline) {
+      queueReportHistorySyncOperations(authUser.id, operations)
+      trackEvent('report_history_sync_failed', reportHistorySyncFailurePayload({ name: 'offline' }, 'offline'))
+      previousSyncedReportHistoryRef.current = diff.nextRecords
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const syncReportHistory = async () => {
+      try {
+        const flushed = await flushReportHistorySyncQueue(supabase, authUser)
+
+        await applyReportHistorySyncOperations(supabase, authUser, operations)
+
+        trackEvent('report_history_cloud_saved', {
+          surface: 'report_history_sync',
+          reason: flushed.operationCount > 0 ? 'queue_flush_and_update' : 'report_history_update',
+          upsert_count: diff.upserts.length,
+          delete_count: diff.deletes.length,
+          queued_operation_count: flushed.operationCount,
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          queueReportHistorySyncOperations(authUser.id, operations)
+          trackEvent('report_history_sync_failed', reportHistorySyncFailurePayload(error, 'save'))
+        }
+      } finally {
+        if (!isCancelled && reportHistorySaveSequenceRef.current === saveSequence) {
+          previousSyncedReportHistoryRef.current = diff.nextRecords
+        }
+      }
+    }
+
+    syncReportHistory()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isOnline, isPublicSeoPage, isReportHistorySyncReady, reportHistory])
+
+  useEffect(() => {
+    if (isPublicSeoPage) {
+      return undefined
+    }
+
+    const normalizedMemory = normalizeVoiceMemory(voiceMemory)
+    const saveSequence = voiceMemorySaveSequenceRef.current + 1
+    voiceMemorySaveSequenceRef.current = saveSequence
+
+    if (!authUser?.id || !isSupabaseReady) {
+      previousSyncedVoiceMemoryRef.current = normalizedMemory
+      return undefined
+    }
+
+    if (!isVoiceMemorySyncReady) {
+      return undefined
+    }
+
+    if (skipNextVoiceMemoryCloudSaveRef.current) {
+      skipNextVoiceMemoryCloudSaveRef.current = false
+      previousSyncedVoiceMemoryRef.current = normalizedMemory
+      return undefined
+    }
+
+    const diff = diffVoiceMemorySyncRecords(previousSyncedVoiceMemoryRef.current, voiceMemory)
+
+    if (diff.upserts.length === 0 && diff.deletes.length === 0) {
+      previousSyncedVoiceMemoryRef.current = normalizedMemory
+      return undefined
+    }
+
+    const operations = buildVoiceMemorySyncOperations(authUser, diff)
+
+    if (!isOnline) {
+      queueVoiceMemorySyncOperations(authUser.id, operations)
+      trackEvent('voice_memory_sync_failed', voiceMemorySyncFailurePayload({ name: 'offline' }, 'offline'))
+      previousSyncedVoiceMemoryRef.current = normalizedMemory
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const syncVoiceMemory = async () => {
+      try {
+        const flushed = await flushVoiceMemorySyncQueue(supabase, authUser)
+
+        await applyVoiceMemorySyncOperations(supabase, authUser, operations)
+
+        trackEvent('voice_memory_cloud_saved', {
+          surface: 'voice_memory_sync',
+          reason: flushed.operationCount > 0 ? 'queue_flush_and_update' : 'voice_memory_update',
+          upsert_count: diff.upserts.length,
+          delete_count: diff.deletes.length,
+          queued_operation_count: flushed.operationCount,
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          queueVoiceMemorySyncOperations(authUser.id, operations)
+          trackEvent('voice_memory_sync_failed', voiceMemorySyncFailurePayload(error, 'save'))
+        }
+      } finally {
+        if (!isCancelled && voiceMemorySaveSequenceRef.current === saveSequence) {
+          previousSyncedVoiceMemoryRef.current = normalizedMemory
+        }
+      }
+    }
+
+    syncVoiceMemory()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser, isOnline, isPublicSeoPage, isVoiceMemorySyncReady, voiceMemory])
+
+  useEffect(() => {
+    if (
+      isPublicSeoPage ||
+      !authUser?.id ||
+      !isSupabaseReady ||
+      !isOnline ||
+      !isSharedGroupsSyncReady ||
+      !isMoneyBookSyncReady ||
+      !isReportHistorySyncReady ||
+      !isStatementMappingsSyncReady ||
+      !isVoiceMemorySyncReady
+    ) {
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const flushRemainingQueues = async () => {
+      const queueFlushes = [
+        {
+          flush: () => flushSharedGroupsSyncQueue(supabase, authUser),
+          savedEvent: 'shared_groups_cloud_saved',
+          failedEvent: 'shared_groups_sync_failed',
+          failurePayload: sharedGroupsSyncFailurePayload,
+          surface: 'shared_groups_sync',
+        },
+        {
+          flush: () => flushMoneyBookSyncQueue(supabase, authUser),
+          savedEvent: 'money_book_cloud_saved',
+          failedEvent: 'money_book_sync_failed',
+          failurePayload: moneyBookSyncFailurePayload,
+          surface: 'money_book_sync',
+        },
+        {
+          flush: () => flushReportHistorySyncQueue(supabase, authUser),
+          savedEvent: 'report_history_cloud_saved',
+          failedEvent: 'report_history_sync_failed',
+          failurePayload: reportHistorySyncFailurePayload,
+          surface: 'report_history_sync',
+        },
+        {
+          flush: () => flushStatementMappingsSyncQueue(supabase, authUser),
+          savedEvent: 'statement_mappings_cloud_saved',
+          failedEvent: 'statement_mappings_sync_failed',
+          failurePayload: statementMappingsSyncFailurePayload,
+          surface: 'statement_mappings_sync',
+        },
+        {
+          flush: () => flushVoiceMemorySyncQueue(supabase, authUser),
+          savedEvent: 'voice_memory_cloud_saved',
+          failedEvent: 'voice_memory_sync_failed',
+          failurePayload: voiceMemorySyncFailurePayload,
+          surface: 'voice_memory_sync',
+        },
+      ]
+
+      for (const item of queueFlushes) {
+        try {
+          const result = await item.flush()
+
+          if (!isCancelled && result.operationCount > 0) {
+            trackEvent(item.savedEvent, {
+              surface: item.surface,
+              reason: 'queue_flush',
+              operation_count: result.operationCount,
+            })
+          }
+        } catch (error) {
+          if (!isCancelled) {
+            trackEvent(item.failedEvent, item.failurePayload(error, 'queue_flush'))
+          }
+        }
+      }
+    }
+
+    flushRemainingQueues()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [
+    authUser,
+    isMoneyBookSyncReady,
+    isOnline,
+    isPublicSeoPage,
+    isReportHistorySyncReady,
+    isSharedGroupsSyncReady,
+    isStatementMappingsSyncReady,
+    isVoiceMemorySyncReady,
+  ])
 
   useEffect(() => {
     if (isPublicSeoPage) {
@@ -2251,13 +2840,465 @@ function App() {
     }
   }, [])
 
+  const loadSharedGroupsForUser = useCallback(async (user, source = 'session') => {
+    const localSharedGroups = readLocalSharedGroupsCache(sharedGroupsRef.current)
+    const normalizedLocalGroups = buildSharedGroupsSyncRecords(localSharedGroups)
+
+    if (!user?.id || !isSupabaseReady) {
+      skipNextSharedGroupsCloudSaveRef.current = true
+      setSharedGroups(localSharedGroups)
+      previousSyncedSharedGroupsRef.current = normalizedLocalGroups
+      setIsSharedGroupsSyncReady(true)
+      return {
+        sharedGroups: localSharedGroups,
+      }
+    }
+
+    setIsSharedGroupsSyncReady(false)
+
+    try {
+      const flushed = await flushSharedGroupsSyncQueue(supabase, user)
+
+      if (flushed.operationCount > 0) {
+        trackEvent('shared_groups_cloud_saved', {
+          surface: 'shared_groups_sync',
+          reason: 'login_queue_flush',
+          operation_count: flushed.operationCount,
+        })
+      }
+
+      const cloudSharedGroups = await loadCloudSharedGroups(supabase, user.id)
+
+      if (cloudSharedGroups.rowCount > 0) {
+        skipNextSharedGroupsCloudSaveRef.current = true
+        setSharedGroups(cloudSharedGroups.groups)
+        previousSyncedSharedGroupsRef.current = cloudSharedGroups.records
+        trackEvent('shared_groups_cloud_loaded', {
+          surface: 'shared_groups_sync',
+          source,
+          record_count: cloudSharedGroups.groups.length,
+          cloud_row_count: cloudSharedGroups.rowCount,
+        })
+        return cloudSharedGroups
+      }
+
+      skipNextSharedGroupsCloudSaveRef.current = true
+      setSharedGroups(localSharedGroups)
+      previousSyncedSharedGroupsRef.current = normalizedLocalGroups
+
+      if (!hasSharedGroupsMigrationRun(user.id) && normalizedLocalGroups.length > 0) {
+        try {
+          await saveCloudSharedGroups(supabase, user, localSharedGroups)
+          markSharedGroupsMigrationRun(user.id)
+          trackEvent('shared_groups_migrated', {
+            surface: 'shared_groups_sync',
+            source,
+            record_count: normalizedLocalGroups.length,
+          })
+          trackEvent('shared_groups_cloud_saved', {
+            surface: 'shared_groups_sync',
+            reason: 'migration',
+            upsert_count: normalizedLocalGroups.length,
+            delete_count: 0,
+          })
+        } catch (error) {
+          queueSharedGroupsSyncOperations(
+            user.id,
+            buildSharedGroupsSyncOperations(user, { upserts: normalizedLocalGroups }),
+          )
+          trackEvent('shared_groups_sync_failed', sharedGroupsSyncFailurePayload(error, 'migrate'))
+        }
+      }
+
+      return {
+        sharedGroups: localSharedGroups,
+      }
+    } catch (error) {
+      skipNextSharedGroupsCloudSaveRef.current = true
+      setSharedGroups(localSharedGroups)
+      previousSyncedSharedGroupsRef.current = normalizedLocalGroups
+      trackEvent('shared_groups_sync_failed', sharedGroupsSyncFailurePayload(error, 'load'))
+
+      return {
+        sharedGroups: localSharedGroups,
+        failed: true,
+      }
+    } finally {
+      setIsSharedGroupsSyncReady(true)
+    }
+  }, [])
+
+  const loadMoneyBookForUser = useCallback(async (user, source = 'session') => {
+    const localMoneyBookEntries = readLocalMoneyBookCache(moneyBookEntriesRef.current)
+    const normalizedLocalEntries = buildMoneyBookSyncRecords(localMoneyBookEntries)
+
+    if (!user?.id || !isSupabaseReady) {
+      skipNextMoneyBookCloudSaveRef.current = true
+      setMoneyBookEntries(localMoneyBookEntries)
+      previousSyncedMoneyBookRef.current = normalizedLocalEntries
+      setIsMoneyBookSyncReady(true)
+      return {
+        moneyBookEntries: localMoneyBookEntries,
+      }
+    }
+
+    setIsMoneyBookSyncReady(false)
+
+    try {
+      const flushed = await flushMoneyBookSyncQueue(supabase, user)
+
+      if (flushed.operationCount > 0) {
+        trackEvent('money_book_cloud_saved', {
+          surface: 'money_book_sync',
+          reason: 'login_queue_flush',
+          operation_count: flushed.operationCount,
+        })
+      }
+
+      const cloudMoneyBook = await loadCloudMoneyBook(supabase, user.id)
+
+      if (cloudMoneyBook.rowCount > 0) {
+        skipNextMoneyBookCloudSaveRef.current = true
+        setMoneyBookEntries(cloudMoneyBook.entries)
+        previousSyncedMoneyBookRef.current = cloudMoneyBook.records
+        trackEvent('money_book_cloud_loaded', {
+          surface: 'money_book_sync',
+          source,
+          record_count: cloudMoneyBook.entries.length,
+          cloud_row_count: cloudMoneyBook.rowCount,
+        })
+        return cloudMoneyBook
+      }
+
+      skipNextMoneyBookCloudSaveRef.current = true
+      setMoneyBookEntries(localMoneyBookEntries)
+      previousSyncedMoneyBookRef.current = normalizedLocalEntries
+
+      if (!hasMoneyBookMigrationRun(user.id) && normalizedLocalEntries.length > 0) {
+        try {
+          await saveCloudMoneyBook(supabase, user, localMoneyBookEntries)
+          markMoneyBookMigrationRun(user.id)
+          trackEvent('money_book_migrated', {
+            surface: 'money_book_sync',
+            source,
+            record_count: normalizedLocalEntries.length,
+          })
+          trackEvent('money_book_cloud_saved', {
+            surface: 'money_book_sync',
+            reason: 'migration',
+            upsert_count: normalizedLocalEntries.length,
+            delete_count: 0,
+          })
+        } catch (error) {
+          queueMoneyBookSyncOperations(
+            user.id,
+            buildMoneyBookSyncOperations(user, { upserts: normalizedLocalEntries }),
+          )
+          trackEvent('money_book_sync_failed', moneyBookSyncFailurePayload(error, 'migrate'))
+        }
+      }
+
+      return {
+        moneyBookEntries: localMoneyBookEntries,
+      }
+    } catch (error) {
+      skipNextMoneyBookCloudSaveRef.current = true
+      setMoneyBookEntries(localMoneyBookEntries)
+      previousSyncedMoneyBookRef.current = normalizedLocalEntries
+      trackEvent('money_book_sync_failed', moneyBookSyncFailurePayload(error, 'load'))
+
+      return {
+        moneyBookEntries: localMoneyBookEntries,
+        failed: true,
+      }
+    } finally {
+      setIsMoneyBookSyncReady(true)
+    }
+  }, [])
+
+  const loadReportHistoryForUser = useCallback(async (user, source = 'session') => {
+    const localReportHistory = readLocalReportHistoryCache(reportHistoryRef.current)
+    const normalizedLocalHistory = buildReportHistorySyncRecords(localReportHistory)
+
+    if (!user?.id || !isSupabaseReady) {
+      skipNextReportHistoryCloudSaveRef.current = true
+      setReportHistory(localReportHistory)
+      previousSyncedReportHistoryRef.current = normalizedLocalHistory
+      setIsReportHistorySyncReady(true)
+      return {
+        reportHistory: localReportHistory,
+      }
+    }
+
+    setIsReportHistorySyncReady(false)
+
+    try {
+      const flushed = await flushReportHistorySyncQueue(supabase, user)
+
+      if (flushed.operationCount > 0) {
+        trackEvent('report_history_cloud_saved', {
+          surface: 'report_history_sync',
+          reason: 'login_queue_flush',
+          operation_count: flushed.operationCount,
+        })
+      }
+
+      const cloudReportHistory = await loadCloudReportHistory(supabase, user.id)
+
+      if (cloudReportHistory.rowCount > 0) {
+        skipNextReportHistoryCloudSaveRef.current = true
+        setReportHistory(cloudReportHistory.history)
+        previousSyncedReportHistoryRef.current = cloudReportHistory.records
+        trackEvent('report_history_cloud_loaded', {
+          surface: 'report_history_sync',
+          source,
+          record_count: cloudReportHistory.history.length,
+          cloud_row_count: cloudReportHistory.rowCount,
+        })
+        return cloudReportHistory
+      }
+
+      skipNextReportHistoryCloudSaveRef.current = true
+      setReportHistory(localReportHistory)
+      previousSyncedReportHistoryRef.current = normalizedLocalHistory
+
+      if (!hasReportHistoryMigrationRun(user.id) && normalizedLocalHistory.length > 0) {
+        try {
+          await saveCloudReportHistory(supabase, user, localReportHistory)
+          markReportHistoryMigrationRun(user.id)
+          trackEvent('report_history_migrated', {
+            surface: 'report_history_sync',
+            source,
+            record_count: normalizedLocalHistory.length,
+          })
+          trackEvent('report_history_cloud_saved', {
+            surface: 'report_history_sync',
+            reason: 'migration',
+            upsert_count: normalizedLocalHistory.length,
+            delete_count: 0,
+          })
+        } catch (error) {
+          queueReportHistorySyncOperations(
+            user.id,
+            buildReportHistorySyncOperations(user, { upserts: normalizedLocalHistory }),
+          )
+          trackEvent('report_history_sync_failed', reportHistorySyncFailurePayload(error, 'migrate'))
+        }
+      }
+
+      return {
+        reportHistory: localReportHistory,
+      }
+    } catch (error) {
+      skipNextReportHistoryCloudSaveRef.current = true
+      setReportHistory(localReportHistory)
+      previousSyncedReportHistoryRef.current = normalizedLocalHistory
+      trackEvent('report_history_sync_failed', reportHistorySyncFailurePayload(error, 'load'))
+
+      return {
+        reportHistory: localReportHistory,
+        failed: true,
+      }
+    } finally {
+      setIsReportHistorySyncReady(true)
+    }
+  }, [])
+
+  const loadStatementMappingsForUser = useCallback(async (user, source = 'session') => {
+    const localStatementMappings = readLocalStatementMappingsCache()
+    const localMappingCount = Object.keys(localStatementMappings).length
+
+    if (!user?.id || !isSupabaseReady) {
+      previousSyncedStatementMappingsRef.current = localStatementMappings
+      setIsStatementMappingsSyncReady(true)
+      return {
+        statementMappings: localStatementMappings,
+      }
+    }
+
+    setIsStatementMappingsSyncReady(false)
+
+    try {
+      const flushed = await flushStatementMappingsSyncQueue(supabase, user)
+
+      if (flushed.operationCount > 0) {
+        trackEvent('statement_mappings_cloud_saved', {
+          surface: 'statement_mappings_sync',
+          reason: 'login_queue_flush',
+          operation_count: flushed.operationCount,
+        })
+      }
+
+      const cloudStatementMappings = await loadCloudStatementMappings(supabase, user.id)
+
+      if (cloudStatementMappings.rowCount > 0) {
+        safeStorageSetQueued('fbply-statement-category-mappings', JSON.stringify(cloudStatementMappings.mappings))
+        previousSyncedStatementMappingsRef.current = cloudStatementMappings.mappings
+        trackEvent('statement_mappings_cloud_loaded', {
+          surface: 'statement_mappings_sync',
+          source,
+          record_count: Object.keys(cloudStatementMappings.mappings).length,
+          cloud_row_count: cloudStatementMappings.rowCount,
+        })
+        return cloudStatementMappings
+      }
+
+      previousSyncedStatementMappingsRef.current = localStatementMappings
+
+      if (!hasStatementMappingsMigrationRun(user.id) && localMappingCount > 0) {
+        try {
+          await saveCloudStatementMappings(supabase, user, localStatementMappings)
+          markStatementMappingsMigrationRun(user.id)
+          trackEvent('statement_mappings_migrated', {
+            surface: 'statement_mappings_sync',
+            source,
+            record_count: localMappingCount,
+          })
+          trackEvent('statement_mappings_cloud_saved', {
+            surface: 'statement_mappings_sync',
+            reason: 'migration',
+            upsert_count: localMappingCount,
+            delete_count: 0,
+          })
+        } catch (error) {
+          queueStatementMappingsSyncOperations(
+            user.id,
+            buildStatementMappingsSyncOperations(user, {
+              upserts: buildStatementMappingsSyncRecords(localStatementMappings),
+            }),
+          )
+          trackEvent('statement_mappings_sync_failed', statementMappingsSyncFailurePayload(error, 'migrate'))
+        }
+      }
+
+      return {
+        statementMappings: localStatementMappings,
+      }
+    } catch (error) {
+      previousSyncedStatementMappingsRef.current = localStatementMappings
+      trackEvent('statement_mappings_sync_failed', statementMappingsSyncFailurePayload(error, 'load'))
+
+      return {
+        statementMappings: localStatementMappings,
+        failed: true,
+      }
+    } finally {
+      setIsStatementMappingsSyncReady(true)
+    }
+  }, [])
+
+  const loadVoiceMemoryForUser = useCallback(async (user, source = 'session') => {
+    const localVoiceMemory = readLocalVoiceMemoryCache(voiceMemoryRef.current)
+    const localMemoryCount = Object.keys(localVoiceMemory).length
+
+    if (!user?.id || !isSupabaseReady) {
+      skipNextVoiceMemoryCloudSaveRef.current = true
+      setVoiceMemory(localVoiceMemory)
+      previousSyncedVoiceMemoryRef.current = localVoiceMemory
+      setIsVoiceMemorySyncReady(true)
+      return {
+        voiceMemory: localVoiceMemory,
+      }
+    }
+
+    setIsVoiceMemorySyncReady(false)
+
+    try {
+      const flushed = await flushVoiceMemorySyncQueue(supabase, user)
+
+      if (flushed.operationCount > 0) {
+        trackEvent('voice_memory_cloud_saved', {
+          surface: 'voice_memory_sync',
+          reason: 'login_queue_flush',
+          operation_count: flushed.operationCount,
+        })
+      }
+
+      const cloudVoiceMemory = await loadCloudVoiceMemory(supabase, user.id)
+
+      if (cloudVoiceMemory.rowCount > 0) {
+        skipNextVoiceMemoryCloudSaveRef.current = true
+        setVoiceMemory(cloudVoiceMemory.memory)
+        previousSyncedVoiceMemoryRef.current = cloudVoiceMemory.memory
+        trackEvent('voice_memory_cloud_loaded', {
+          surface: 'voice_memory_sync',
+          source,
+          record_count: Object.keys(cloudVoiceMemory.memory).length,
+          cloud_row_count: cloudVoiceMemory.rowCount,
+        })
+        return cloudVoiceMemory
+      }
+
+      skipNextVoiceMemoryCloudSaveRef.current = true
+      setVoiceMemory(localVoiceMemory)
+      previousSyncedVoiceMemoryRef.current = localVoiceMemory
+
+      if (!hasVoiceMemoryMigrationRun(user.id) && localMemoryCount > 0) {
+        try {
+          await saveCloudVoiceMemory(supabase, user, localVoiceMemory)
+          markVoiceMemoryMigrationRun(user.id)
+          trackEvent('voice_memory_migrated', {
+            surface: 'voice_memory_sync',
+            source,
+            record_count: localMemoryCount,
+          })
+          trackEvent('voice_memory_cloud_saved', {
+            surface: 'voice_memory_sync',
+            reason: 'migration',
+            upsert_count: localMemoryCount,
+            delete_count: 0,
+          })
+        } catch (error) {
+          queueVoiceMemorySyncOperations(
+            user.id,
+            buildVoiceMemorySyncOperations(user, {
+              upserts: buildVoiceMemorySyncRecords(localVoiceMemory),
+            }),
+          )
+          trackEvent('voice_memory_sync_failed', voiceMemorySyncFailurePayload(error, 'migrate'))
+        }
+      }
+
+      return {
+        voiceMemory: localVoiceMemory,
+      }
+    } catch (error) {
+      skipNextVoiceMemoryCloudSaveRef.current = true
+      setVoiceMemory(localVoiceMemory)
+      previousSyncedVoiceMemoryRef.current = localVoiceMemory
+      trackEvent('voice_memory_sync_failed', voiceMemorySyncFailurePayload(error, 'load'))
+
+      return {
+        voiceMemory: localVoiceMemory,
+        failed: true,
+      }
+    } finally {
+      setIsVoiceMemorySyncReady(true)
+    }
+  }, [])
+
   const loadCloudStateForUser = useCallback(async (user, source = 'session') => {
     const syncedProfile = await loadProfileForUser(user, source)
     await loadCommitmentsForUser(user, source)
     await loadSavingsForUser(user, source)
     await loadExpensesForUser(user, source)
+    await loadSharedGroupsForUser(user, source)
+    await loadMoneyBookForUser(user, source)
+    await loadReportHistoryForUser(user, source)
+    await loadStatementMappingsForUser(user, source)
+    await loadVoiceMemoryForUser(user, source)
     return syncedProfile
-  }, [loadCommitmentsForUser, loadExpensesForUser, loadProfileForUser, loadSavingsForUser])
+  }, [
+    loadCommitmentsForUser,
+    loadExpensesForUser,
+    loadMoneyBookForUser,
+    loadProfileForUser,
+    loadReportHistoryForUser,
+    loadSavingsForUser,
+    loadSharedGroupsForUser,
+    loadStatementMappingsForUser,
+    loadVoiceMemoryForUser,
+  ])
 
   useEffect(() => {
     if (isPublicSeoPage || !isSupabaseReady) {
@@ -2320,6 +3361,11 @@ function App() {
         setIsExpenseSyncReady(!isSupabaseReady)
         setIsSavingsSyncReady(!isSupabaseReady)
         setIsCommitmentSyncReady(!isSupabaseReady)
+        setIsSharedGroupsSyncReady(!isSupabaseReady)
+        setIsMoneyBookSyncReady(!isSupabaseReady)
+        setIsReportHistorySyncReady(!isSupabaseReady)
+        setIsStatementMappingsSyncReady(!isSupabaseReady)
+        setIsVoiceMemorySyncReady(!isSupabaseReady)
         setPhase('auth')
         return
       }
@@ -2332,6 +3378,66 @@ function App() {
       subscription.unsubscribe()
     }
   }, [applyAuthUser, isPublicSeoPage, loadCloudStateForUser])
+
+  const handleStatementMappingsChange = useCallback((nextMappings = {}) => {
+    const normalizedNextMappings = normalizeStatementMappings(nextMappings)
+
+    if (isPublicSeoPage) {
+      return
+    }
+
+    safeStorageSetQueued('fbply-statement-category-mappings', JSON.stringify(normalizedNextMappings))
+
+    const diff = diffStatementMappingsSyncRecords(
+      previousSyncedStatementMappingsRef.current,
+      normalizedNextMappings,
+    )
+
+    if (diff.upserts.length === 0 && diff.deletes.length === 0) {
+      previousSyncedStatementMappingsRef.current = normalizedNextMappings
+      return
+    }
+
+    if (!authUser?.id || !isSupabaseReady) {
+      previousSyncedStatementMappingsRef.current = normalizedNextMappings
+      return
+    }
+
+    const operations = buildStatementMappingsSyncOperations(authUser, diff)
+
+    if (!isStatementMappingsSyncReady || !isOnline) {
+      queueStatementMappingsSyncOperations(authUser.id, operations)
+      trackEvent(
+        'statement_mappings_sync_failed',
+        statementMappingsSyncFailurePayload({ name: isOnline ? 'not_ready' : 'offline' }, isOnline ? 'not_ready' : 'offline'),
+      )
+      previousSyncedStatementMappingsRef.current = normalizedNextMappings
+      return
+    }
+
+    const syncStatementMappings = async () => {
+      try {
+        const flushed = await flushStatementMappingsSyncQueue(supabase, authUser)
+
+        await applyStatementMappingsSyncOperations(supabase, authUser, operations)
+
+        trackEvent('statement_mappings_cloud_saved', {
+          surface: 'statement_mappings_sync',
+          reason: flushed.operationCount > 0 ? 'queue_flush_and_update' : 'statement_mappings_update',
+          upsert_count: diff.upserts.length,
+          delete_count: diff.deletes.length,
+          queued_operation_count: flushed.operationCount,
+        })
+      } catch (error) {
+        queueStatementMappingsSyncOperations(authUser.id, operations)
+        trackEvent('statement_mappings_sync_failed', statementMappingsSyncFailurePayload(error, 'save'))
+      } finally {
+        previousSyncedStatementMappingsRef.current = normalizedNextMappings
+      }
+    }
+
+    syncStatementMappings()
+  }, [authUser, isOnline, isPublicSeoPage, isStatementMappingsSyncReady])
 
   const financialActivity = useMemo(
     () => buildUnifiedFinanceEngine({
@@ -4297,6 +5403,7 @@ function App() {
               reportHistory={reportHistory}
               redownloadReport={redownloadReport}
               deleteReportHistoryEntry={deleteReportHistoryEntry}
+              onStatementMappingsChange={handleStatementMappingsChange}
               exportCsv={exportCsv}
               isExportingPdf={isExportingPdf}
               exportingReportType={exportingReportType}
@@ -5183,6 +6290,7 @@ function MainApp(props) {
     reportHistory,
     redownloadReport,
     deleteReportHistoryEntry,
+    onStatementMappingsChange,
     exportCsv,
     isExportingPdf,
     exportingReportType,
@@ -5395,6 +6503,7 @@ function MainApp(props) {
               reportHistory={reportHistory}
               redownloadReport={redownloadReport}
               deleteReportHistoryEntry={deleteReportHistoryEntry}
+              onStatementMappingsChange={onStatementMappingsChange}
               exportCsv={exportCsv}
               isExportingPdf={isExportingPdf}
               exportingReportType={exportingReportType}
