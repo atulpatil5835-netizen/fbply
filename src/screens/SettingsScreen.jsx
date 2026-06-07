@@ -1,15 +1,56 @@
+import { lazy, Suspense } from 'react'
 import { CheckCircle2, LogOut, X } from 'lucide-react'
 import { AppModal, BrandMark, CurrencyInput } from '../components/AppPrimitives.jsx'
 import FinanceDonut from '../components/FinanceDonut.jsx'
 import { CommitmentsEditor, CurrencyPreference } from '../components/ProfileSettingsControls.jsx'
-import ProfileHub from '../components/ProfileHub.jsx'
 import RecurringScheduleManager from '../components/RecurringScheduleManager.jsx'
+import { FLoader, moneyOSThemeOptions, normalizeMoneyOSTheme } from '../design-system'
 import { getProfileBalanceMessage } from '../lib/financeVisuals'
 import { normalizeMoney } from '../lib/money'
 import { titleCase } from '../lib/uiHelpers'
 
+const ProfileHub = lazy(() => import('../components/ProfileHub.jsx'))
+
+function ThemePreference({ moneyTheme, setMoneyTheme }) {
+  const selectedTheme = normalizeMoneyOSTheme(moneyTheme)
+
+  return (
+    <section className="settings-compact-group theme-preference-group" aria-labelledby="theme-preference-title">
+      <div className="section-heading-row">
+        <div>
+          <p className="eyebrow">Appearance</p>
+          <h2 id="theme-preference-title">Theme</h2>
+        </div>
+      </div>
+      <div className="theme-choice-grid" role="radiogroup" aria-label="Theme">
+        {moneyOSThemeOptions.map((theme) => {
+          const isSelected = selectedTheme === theme.id
+
+          return (
+            <button
+              className={`theme-choice-button ${isSelected ? 'active' : ''}`}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              data-theme-option={theme.id}
+              key={theme.id}
+              onClick={() => setMoneyTheme?.(theme.id)}
+            >
+              <span className="theme-choice-swatch" aria-hidden="true" />
+              <span>{theme.label}</span>
+              {isSelected && <CheckCircle2 size={14} aria-hidden="true" />}
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 export default function SettingsScreen({
   authUser,
+  moneyTheme,
+  setMoneyTheme,
   profile,
   setProfile,
   onClose,
@@ -53,7 +94,7 @@ export default function SettingsScreen({
       <div className="editor-sheet-header">
         <div>
           <p className="eyebrow">Profile</p>
-          <h2 id="settings-title">Profile Hub</h2>
+          <h2 id="settings-title">Settings</h2>
         </div>
         <button className="icon-button" type="button" aria-label="Close settings" onClick={onClose}>
           <X size={17} />
@@ -61,15 +102,6 @@ export default function SettingsScreen({
       </div>
 
       <div className="editor-sheet-body settings-body">
-        <ProfileHub
-          supportEmail={supportEmail}
-          supportPaymentUrl={supportPaymentUrl}
-          founderName={founderName}
-          founderLinkedInUrl={founderLinkedInUrl}
-          onNavigate={navigateFromHub}
-          onOpenStatementAnalysis={openStatementImportFromHub}
-        />
-
         <section className="settings-compact-group">
           <div className="profile-menu-account settings-account">
             <BrandMark size="small" />
@@ -117,6 +149,8 @@ export default function SettingsScreen({
           </div>
         </section>
 
+        <ThemePreference moneyTheme={moneyTheme} setMoneyTheme={setMoneyTheme} />
+
         <section className="settings-compact-group">
           <div className="profile-menu-section">
             <span className="input-label">Planning style</span>
@@ -163,6 +197,17 @@ export default function SettingsScreen({
           removeSchedule={removeRecurringSchedule}
           toggleSchedule={toggleRecurringSchedule}
         />
+
+        <Suspense fallback={<FLoader label="Opening Profile Hub" />}>
+          <ProfileHub
+            supportEmail={supportEmail}
+            supportPaymentUrl={supportPaymentUrl}
+            founderName={founderName}
+            founderLinkedInUrl={founderLinkedInUrl}
+            onNavigate={navigateFromHub}
+            onOpenStatementAnalysis={openStatementImportFromHub}
+          />
+        </Suspense>
       </div>
 
       <div className="editor-sheet-footer profile-menu-footer">

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Bell, CalendarDays, ChartPie, Check, CheckCheck, CreditCard, Plane, Target, Wallet, X } from 'lucide-react'
 import { reconcileSharedGroup } from '../lib/financialActivity'
 import { normalizeMoney } from '../lib/money'
@@ -188,6 +188,8 @@ function buildNotifications({
 }
 
 export default function NotificationCenter({
+  open = false,
+  onClose,
   moneyReminders,
   savingsBuckets,
   sharedGroups,
@@ -198,7 +200,6 @@ export default function NotificationCenter({
   navigateToTarget,
   redownloadReport,
 }) {
-  const [isOpen, setIsOpen] = useState(false)
   const [readNotificationIds, setReadNotificationIds] = useState([])
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState([])
   const notifications = useMemo(
@@ -224,6 +225,17 @@ export default function NotificationCenter({
     [dismissedNotificationIds, notifications, readNotificationIds],
   )
   const unreadCount = visibleNotifications.filter((notification) => !readNotificationIds.includes(notification.id)).length
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    trackNotificationInteraction('notification_center_open', {
+      unread_count: unreadCount,
+      notification_count: visibleNotifications.length,
+    })
+  }, [open, unreadCount, visibleNotifications.length])
 
   const markRead = useCallback((notification) => {
     if (!notification) {
@@ -293,7 +305,7 @@ export default function NotificationCenter({
       notification_type: notification.type,
       priority: notification.priority,
     })
-    setIsOpen(false)
+    onClose?.()
 
     if (notification.report) {
       redownloadReport?.(notification.report)
@@ -301,39 +313,25 @@ export default function NotificationCenter({
     }
 
     navigateToTarget?.(notification.tab, notification.targetId)
-  }, [markRead, navigateToTarget, redownloadReport])
+  }, [markRead, navigateToTarget, onClose, redownloadReport])
+
+  if (!open) {
+    return null
+  }
 
   return (
-    <>
-      <button
-        className="top-notification-button"
-        type="button"
-        aria-label={`Open notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-        onClick={() => {
-          setIsOpen(true)
-          trackNotificationInteraction('notification_center_open', {
-            unread_count: unreadCount,
-            notification_count: visibleNotifications.length,
-          })
-        }}
-      >
-        <Bell size={18} />
-        {unreadCount > 0 && <span>{unreadCount}</span>}
-      </button>
-
-      {isOpen && (
-        <AppModal
-          onClose={() => setIsOpen(false)}
-          labelledBy="notification-popup-title"
-          sheetClassName="editor-sheet notification-popup-sheet chrome-popover-sheet notification-popover-sheet"
-          backdropClassName="editor-sheet-backdrop chrome-popover-backdrop"
-        >
+    <AppModal
+      onClose={onClose}
+      labelledBy="notification-popup-title"
+      sheetClassName="editor-sheet notification-popup-sheet chrome-popover-sheet notification-popover-sheet"
+      backdropClassName="editor-sheet-backdrop chrome-popover-backdrop"
+    >
           <div className="editor-sheet-header">
             <div>
               <p className="eyebrow">Notifications</p>
               <h2 id="notification-popup-title">Money alerts</h2>
             </div>
-            <button className="icon-button" type="button" aria-label="Close notifications" onClick={() => setIsOpen(false)}>
+            <button className="icon-button" type="button" aria-label="Close notifications" onClick={onClose}>
               <X size={17} />
             </button>
           </div>
@@ -396,8 +394,6 @@ export default function NotificationCenter({
               </div>
             )}
           </div>
-        </AppModal>
-      )}
-    </>
+    </AppModal>
   )
 }

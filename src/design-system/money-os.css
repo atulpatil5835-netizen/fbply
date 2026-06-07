@@ -1,25 +1,27 @@
 .money-os,
 .money-os-theme {
-  --mos-primary-navy: #102A43;
-  --mos-primary-navy-strong: #071A2E;
-  --mos-accent-blue: #2563EB;
-  --mos-accent-blue-soft: #DBEAFE;
-  --mos-success-green: #16803C;
-  --mos-success-green-soft: #DCFCE7;
-  --mos-warning-amber: #B45309;
-  --mos-warning-amber-soft: #FEF3C7;
-  --mos-error-red: #B91C1C;
-  --mos-error-red-soft: #FEE2E2;
-  --mos-neutral-50: #F8FAFC;
-  --mos-neutral-100: #F1F5F9;
-  --mos-neutral-200: #E2E8F0;
-  --mos-neutral-500: #64748B;
-  --mos-neutral-700: #334155;
-  --mos-neutral-900: #0F172A;
-  --mos-surface-base: #FFFFFF;
-  --mos-surface-raised: #FFFFFF;
-  --mos-surface-muted: #F8FAFC;
-  --mos-surface-tint: #EFF6FF;
+  --mos-primary-navy: var(--theme-primary);
+  --mos-primary-navy-strong: var(--theme-primary-strong);
+  --mos-accent-blue: var(--theme-accent);
+  --mos-accent-blue-soft: color-mix(in srgb, var(--theme-accent) 14%, var(--theme-card));
+  --mos-success-green: var(--theme-success);
+  --mos-success-green-soft: color-mix(in srgb, var(--theme-success) 13%, var(--theme-card));
+  --mos-warning-amber: var(--theme-warning);
+  --mos-warning-amber-soft: color-mix(in srgb, var(--theme-warning) 14%, var(--theme-card));
+  --mos-error-red: var(--theme-danger);
+  --mos-error-red-soft: color-mix(in srgb, var(--theme-danger) 12%, var(--theme-card));
+  --mos-neutral-50: var(--theme-bg);
+  --mos-neutral-100: var(--theme-card-soft);
+  --mos-neutral-200: color-mix(in srgb, var(--theme-muted) 22%, var(--theme-card));
+  --mos-neutral-500: var(--theme-muted);
+  --mos-neutral-600: color-mix(in srgb, var(--theme-muted) 82%, var(--theme-text));
+  --mos-neutral-700: color-mix(in srgb, var(--theme-muted) 42%, var(--theme-text));
+  --mos-neutral-900: var(--theme-text);
+  --mos-neutral-950: var(--theme-primary-strong);
+  --mos-surface-base: var(--theme-card);
+  --mos-surface-raised: var(--theme-card);
+  --mos-surface-muted: var(--theme-bg);
+  --mos-surface-tint: var(--theme-card-soft);
   --mos-font-hero-size: 34px;
   --mos-font-hero-line: 40px;
   --mos-font-section-size: 22px;
@@ -28,9 +30,9 @@
   --mos-font-body-line: 23px;
   --mos-font-caption-size: 12px;
   --mos-font-caption-line: 16px;
-  --mos-border-subtle: rgba(15, 23, 42, 0.12);
-  --mos-border-strong: rgba(16, 42, 67, 0.22);
-  --mos-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  --mos-border-subtle: color-mix(in srgb, var(--theme-text) 12%, transparent);
+  --mos-border-strong: color-mix(in srgb, var(--theme-primary) 24%, transparent);
+  --mos-focus-ring: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 18%, transparent);
   --mos-space-xs: 4px;
   --mos-space-sm: 8px;
   --mos-space-md: 12px;
@@ -39,8 +41,8 @@
   --mos-radius-sm: 4px;
   --mos-radius-md: 6px;
   --mos-radius-lg: 8px;
-  --mos-shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.08);
-  --mos-shadow-medium: 0 14px 36px rgba(15, 23, 42, 0.12);
+  --mos-shadow-soft: 0 8px 22px color-mix(in srgb, var(--theme-shadow) 8%, transparent);
+  --mos-shadow-medium: 0 14px 36px color-mix(in srgb, var(--theme-shadow) 12%, transparent);
   --mos-motion-fast: 140ms ease;
   --mos-motion-normal: 220ms ease;
   color: var(--mos-neutral-900);
@@ -80,8 +82,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
-  gap: var(--mos-space-lg);
-  padding: var(--mos-space-lg) 0;
+  gap: var(--mos-space-md);
+  padding: var(--mos-space-md) 0;
 }
 
 .mos-page-header__copy,
@@ -144,8 +146,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--mos-space-md);
-  padding: var(--mos-space-sm) 0;
+  gap: var(--mos-space-sm);
+  padding: var(--mos-space-xs) 0;
 }
 
 .mos-section-header h2 {
@@ -157,8 +159,8 @@
 
 .mos-card {
   display: grid;
-  gap: var(--mos-space-md);
-  padding: var(--mos-space-lg);
+  gap: var(--mos-space-sm);
+  padding: var(--mos-space-md);
   border: 1px solid var(--mos-border-subtle);
   border-radius: var(--mos-radius-lg);
   background: var(--mos-surface-raised);
@@ -187,22 +189,22 @@ button.mos-card:disabled {
 }
 
 .mos-card--tint {
-  border-color: rgba(37, 99, 235, 0.18);
+  border-color: color-mix(in srgb, var(--mos-accent-blue) 18%, transparent);
   background: var(--mos-surface-tint);
 }
 
 .mos-card--success {
-  border-color: rgba(22, 128, 60, 0.22);
+  border-color: color-mix(in srgb, var(--mos-success-green) 22%, transparent);
   background: var(--mos-success-green-soft);
 }
 
 .mos-card--warning {
-  border-color: rgba(180, 83, 9, 0.24);
+  border-color: color-mix(in srgb, var(--mos-warning-amber) 24%, transparent);
   background: var(--mos-warning-amber-soft);
 }
 
 .mos-card--danger {
-  border-color: rgba(185, 28, 28, 0.22);
+  border-color: color-mix(in srgb, var(--mos-error-red) 22%, transparent);
   background: var(--mos-error-red-soft);
 }
 
@@ -223,7 +225,7 @@ button.mos-card:disabled {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  gap: var(--mos-space-md);
+  gap: var(--mos-space-sm);
 }
 
 .mos-card__copy {
@@ -234,9 +236,14 @@ button.mos-card:disabled {
 
 .mos-card h3 {
   color: var(--mos-primary-navy-strong);
-  font-size: 17px;
-  line-height: 23px;
+  font-size: 15px;
+  line-height: 20px;
   font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.mos-card__detail {
+  overflow-wrap: anywhere;
 }
 
 .mos-card__meta,
@@ -250,8 +257,8 @@ button.mos-card:disabled {
 }
 
 .mos-icon-frame {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
@@ -277,8 +284,8 @@ button.mos-card:disabled {
 
 .mos-stat-card__value {
   color: var(--mos-primary-navy-strong);
-  font-size: 28px;
-  line-height: 34px;
+  font-size: 24px;
+  line-height: 30px;
   font-weight: 850;
   overflow-wrap: anywhere;
 }
@@ -400,25 +407,25 @@ button.mos-action-card {
 }
 
 .mos-badge--success {
-  border-color: rgba(22, 128, 60, 0.18);
+  border-color: color-mix(in srgb, var(--mos-success-green) 18%, transparent);
   color: var(--mos-success-green);
   background: var(--mos-success-green-soft);
 }
 
 .mos-badge--warning {
-  border-color: rgba(180, 83, 9, 0.22);
+  border-color: color-mix(in srgb, var(--mos-warning-amber) 22%, transparent);
   color: var(--mos-warning-amber);
   background: var(--mos-warning-amber-soft);
 }
 
 .mos-badge--danger {
-  border-color: rgba(185, 28, 28, 0.18);
+  border-color: color-mix(in srgb, var(--mos-error-red) 18%, transparent);
   color: var(--mos-error-red);
   background: var(--mos-error-red-soft);
 }
 
 .mos-button {
-  min-height: 44px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -462,7 +469,7 @@ button.mos-action-card {
 }
 
 .mos-button--primary {
-  color: #FFFFFF;
+  color: var(--theme-on-primary);
   background: var(--mos-primary-navy);
 }
 
@@ -482,13 +489,13 @@ button.mos-action-card {
 }
 
 .mos-button--sm {
-  min-height: 36px;
+  min-height: 34px;
   padding: 0 var(--mos-space-md);
   font-size: 13px;
 }
 
 .mos-button--lg {
-  min-height: 50px;
+  min-height: 46px;
   padding: 0 var(--mos-space-xl);
   font-size: 15px;
 }
@@ -501,6 +508,7 @@ button.mos-action-card {
   font-size: 13px;
   line-height: 18px;
   font-weight: 800;
+  perspective: 760px;
 }
 
 .mos-loader--inline {
@@ -520,11 +528,13 @@ button.mos-action-card {
   height: 44px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(37, 99, 235, 0.18);
-  border-radius: var(--mos-radius-lg);
-  background: var(--mos-surface-base);
-  box-shadow: var(--mos-shadow-soft);
-  animation: mosLoaderSpin 920ms cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform-style: preserve-3d;
+  animation: mosLoaderFlip 1280ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
 }
 
 .mos-loader--xs .mos-loader__mark {
@@ -548,19 +558,27 @@ button.mos-action-card {
   width: 72%;
   height: 72%;
   object-fit: contain;
+  filter: drop-shadow(var(--mos-loader-shadow));
 }
 
 .mos-loader__label:empty {
   display: none;
 }
 
-@keyframes mosLoaderSpin {
-  from {
-    transform: rotate(0deg);
+@keyframes mosLoaderFlip {
+  0% {
+    transform: rotateY(0deg) scale(0.96);
+    opacity: 0.9;
   }
 
-  to {
-    transform: rotate(360deg);
+  48% {
+    transform: rotateY(180deg) scale(1.05);
+    opacity: 1;
+  }
+
+  100% {
+    transform: rotateY(360deg) scale(0.96);
+    opacity: 0.9;
   }
 }
 
@@ -604,7 +622,7 @@ button.mos-action-card {
   display: grid;
   align-items: end;
   padding: var(--mos-space-md);
-  background: rgba(15, 23, 42, 0.38);
+  background: color-mix(in srgb, var(--theme-shadow) 38%, transparent);
 }
 
 .mos-sheet {
@@ -1009,14 +1027,14 @@ button.mos-action-card {
 .mos-report-library-grid,
 .mos-report-export-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: var(--mos-space-md);
 }
 
 .mos-report-insight-grid,
 .mos-report-library-grid,
 .mos-report-export-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
 .mos-report-health-strip {
@@ -1241,15 +1259,19 @@ button.mos-action-card {
 
 .mos-home-hero-card {
   align-content: space-between;
-  min-height: 236px;
-  border-color: rgba(16, 42, 67, 0.2);
+  min-height: 176px;
+  border-color: color-mix(in srgb, var(--mos-primary-navy) 20%, transparent);
   background:
-    linear-gradient(145deg, rgba(239, 246, 255, 0.72), rgba(255, 255, 255, 0.96) 52%),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--mos-surface-tint) 72%, transparent),
+      color-mix(in srgb, var(--mos-surface-raised) 96%, transparent) 52%
+    ),
     var(--mos-surface-raised);
 }
 
 .mos-home-protected-card {
-  min-height: 236px;
+  min-height: 176px;
 }
 
 .mos-home-hero-value {
@@ -1259,7 +1281,7 @@ button.mos-action-card {
 
 .mos-home-hero-value strong {
   color: var(--mos-primary-navy-strong);
-  font-size: 56px;
+  font-size: 48px;
   line-height: 0.98;
   font-weight: 900;
   letter-spacing: 0;
@@ -1288,7 +1310,7 @@ button.mos-action-card {
   padding: var(--mos-space-md);
   border: 1px solid var(--mos-border-subtle);
   border-radius: var(--mos-radius-lg);
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--mos-surface-raised) 72%, transparent);
 }
 
 .mos-home-hero-metrics small,

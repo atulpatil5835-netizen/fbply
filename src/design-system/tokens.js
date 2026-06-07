@@ -1,4 +1,19 @@
 export const moneyOSThemeClass = 'money-os'
+export const defaultMoneyOSTheme = 'navy'
+
+export const moneyOSThemeOptions = Object.freeze([
+  Object.freeze({ id: 'navy', label: 'Navy' }),
+  Object.freeze({ id: 'emerald', label: 'Emerald' }),
+  Object.freeze({ id: 'midnight', label: 'Midnight' }),
+  Object.freeze({ id: 'sunset', label: 'Sunset' }),
+  Object.freeze({ id: 'minimal', label: 'Minimal' }),
+])
+
+export const moneyOSThemeIds = Object.freeze(moneyOSThemeOptions.map((theme) => theme.id))
+
+export function normalizeMoneyOSTheme(theme) {
+  return moneyOSThemeIds.includes(theme) ? theme : defaultMoneyOSTheme
+}
 
 export const moneyOSTokens = Object.freeze({
   themeName: 'FBPLY Money OS',

@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  Bell,
   Car,
   ChartPie,
   CheckCircle2,
@@ -204,7 +205,6 @@ import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { AppModal, BrandMark, CurrencyInput, EmptyState, HeaderLogo } from './components/AppPrimitives.jsx'
 import CategoryPicker from './components/CategoryPicker.jsx'
 import FinanceDonut from './components/FinanceDonut.jsx'
-import ProfileHub from './components/ProfileHub.jsx'
 import { CommitmentsEditor, CurrencyPreference } from './components/ProfileSettingsControls.jsx'
 import { SavingsBucketsManager } from './components/SavingsBucketsManager.jsx'
 import {
@@ -214,6 +214,8 @@ import {
   PrimaryButton,
   SecondaryButton,
   SuccessState,
+  defaultMoneyOSTheme,
+  normalizeMoneyOSTheme,
 } from './design-system'
 import { focusInvalidField, slugify, titleCase } from './lib/uiHelpers'
 import { applySeoMetadata, getSeoMetaForPath, isPublicSeoRoute, normalizeSeoPath } from './lib/seoRoutes.js'
@@ -224,6 +226,7 @@ const DailyBookScreen = lazy(() => import('./screens/DailyBookScreen.jsx'))
 const GoalsScreen = lazy(() => import('./screens/GoalsScreen.jsx'))
 const LegalScreen = lazy(() => import('./screens/LegalScreen.jsx'))
 const NotificationCenter = lazy(() => import('./components/NotificationCenter.jsx'))
+const ProfileHub = lazy(() => import('./components/ProfileHub.jsx'))
 const PublicSeoScreen = lazy(() => import('./screens/PublicSeoScreen.jsx'))
 const ReportsScreen = lazy(() => import('./components/ReportsScreen.jsx'))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen.jsx'))
@@ -1408,6 +1411,9 @@ function App() {
     typeof window !== 'undefined' && typeof window.setTimeout === 'function' ? 'splash' : 'welcome',
   )
   const [activeTab, setActiveTab] = useState('home')
+  const [moneyTheme, setMoneyTheme] = useState(() =>
+    normalizeMoneyOSTheme(safeStorageGet('fbply-money-theme', defaultMoneyOSTheme)),
+  )
   const [profile, setProfile] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-profile', emptyProfile) : emptyProfile))
   const [expenses, setExpenses] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-expenses', []) : []))
   const [savingsBuckets, setSavingsBuckets] = useState(() =>
@@ -1556,6 +1562,12 @@ function App() {
     const platform = typeof window !== 'undefined' ? window.Capacitor?.getPlatform?.() : ''
     document.documentElement.dataset.platform = platform || 'web'
   }, [])
+
+  useEffect(() => {
+    const normalizedTheme = normalizeMoneyOSTheme(moneyTheme)
+    document.documentElement.dataset.moneyTheme = normalizedTheme
+    safeStorageSet('fbply-money-theme', normalizedTheme)
+  }, [moneyTheme])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -5237,7 +5249,7 @@ function App() {
 
   if (isPublicSeoPage) {
     return (
-      <div className="app-root" data-energy="full">
+      <div className="app-root" data-energy="full" data-money-theme={moneyTheme}>
         <Suspense fallback={<PublicSeoFallback path={normalizedCurrentPath} />}>
           <PublicSeoScreen currentPath={normalizedCurrentPath} />
         </Suspense>
@@ -5248,7 +5260,7 @@ function App() {
 
   if (legalPage) {
     return (
-      <div className="app-root" data-energy="full">
+      <div className="app-root" data-energy="full" data-money-theme={moneyTheme}>
         <Suspense fallback={<ScreenFallback eyebrow={legalPage.eyebrow} title={legalPage.title} />}>
           <LegalScreen
             page={legalPage}
@@ -5263,7 +5275,7 @@ function App() {
   }
 
   return (
-    <div className="app-root" data-energy={lowEnergyMode ? 'low' : 'full'} data-currency={activeCurrency}>
+    <div className="app-root" data-energy={lowEnergyMode ? 'low' : 'full'} data-currency={activeCurrency} data-money-theme={moneyTheme}>
       <OfflineBanner isOnline={isOnline} />
       <RewardedExportModal
         rewardState={rewardedExport}
@@ -5322,6 +5334,8 @@ function App() {
               key="app"
               activeTab={activeTab}
               setActiveTab={setActiveTab}
+              moneyTheme={moneyTheme}
+              setMoneyTheme={setMoneyTheme}
               profile={profile}
               setProfile={setProfile}
               authUser={authUser}
@@ -5548,19 +5562,12 @@ function SplashScreen({ onDone }) {
   return (
     <motion.main className="splash-screen" {...fadeUp}>
       <span className="splash-progress" aria-hidden="true" onAnimationEnd={onDone} />
-      <div className="brand-orbit" aria-hidden="true">
-        <span />
-        <span />
-      </div>
       <div className="splash-brand-card">
         <BrandMark size="hero" />
         <strong>FBPly</strong>
       </div>
-      <div className="coin-loader" role="status" aria-label="Loading FBPly">
-        <div className="coin" aria-hidden="true">
-          <span className="coin-emblem" />
-        </div>
-        <p>Spend Smarter. Feel Better.</p>
+      <div className="splash-loader">
+        <FLoader label="Spend smarter. Feel better." size="lg" />
         <button className="splash-skip-button" type="button" onClick={onDone}>
           Continue
         </button>
@@ -6209,6 +6216,8 @@ function MainApp(props) {
   const {
     activeTab,
     setActiveTab,
+    moneyTheme,
+    setMoneyTheme,
     profile,
     setProfile,
     authUser,
@@ -6330,6 +6339,8 @@ function MainApp(props) {
     removeSavingsBucket,
   } = props
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [hasOpenedNotifications, setHasOpenedNotifications] = useState(false)
   const [statementImportRequestId, setStatementImportRequestId] = useState(0)
   useEffect(() => {
     trackFeatureUsage(activeTab, {
@@ -6403,19 +6414,34 @@ function MainApp(props) {
       >
         <User size={18} />
       </button>
-      <Suspense fallback={null}>
-        <NotificationCenter
-          moneyReminders={moneyReminders}
-          savingsBuckets={savingsBuckets}
-          sharedGroups={sharedGroups}
-          sharedSummary={sharedSummary}
-          moneyBookSummary={moneyBookSummary}
-          reportHistory={reportHistory}
-          profile={profile}
-          navigateToTarget={navigateToTarget}
-          redownloadReport={redownloadReport}
-        />
-      </Suspense>
+      <button
+        className="top-notification-button"
+        type="button"
+        aria-label="Open notifications"
+        onClick={() => {
+          setHasOpenedNotifications(true)
+          setIsNotificationsOpen(true)
+        }}
+      >
+        <Bell size={18} />
+      </button>
+      {hasOpenedNotifications && (
+        <Suspense fallback={null}>
+          <NotificationCenter
+            open={isNotificationsOpen}
+            onClose={() => setIsNotificationsOpen(false)}
+            moneyReminders={moneyReminders}
+            savingsBuckets={savingsBuckets}
+            sharedGroups={sharedGroups}
+            sharedSummary={sharedSummary}
+            moneyBookSummary={moneyBookSummary}
+            reportHistory={reportHistory}
+            profile={profile}
+            navigateToTarget={navigateToTarget}
+            redownloadReport={redownloadReport}
+          />
+        </Suspense>
+      )}
       <QuickAddFab openAddSheet={openAddSheet} />
       <main className="screen-panel">
         {activeTab === 'home' && (
@@ -6654,6 +6680,8 @@ function MainApp(props) {
         <Suspense fallback={<FLoader fullPage label="Opening Profile Hub" />}>
           <SettingsScreen
             authUser={authUser}
+            moneyTheme={moneyTheme}
+            setMoneyTheme={setMoneyTheme}
             profile={profile}
             setProfile={setProfile}
             onClose={() => setIsSettingsOpen(false)}
@@ -8380,14 +8408,16 @@ function ProfileScreen({
         removeSavingsBucket={removeSavingsBucket}
       />
 
-      <ProfileHub
-        supportEmail={supportEmail}
-        supportPaymentUrl={supportPaymentUrl}
-        founderName={founderName}
-        founderLinkedInUrl={founderLinkedInUrl}
-        onNavigate={navigateToTarget}
-        onOpenStatementAnalysis={openStatementImport}
-      />
+      <Suspense fallback={<FLoader label="Opening Profile Hub" />}>
+        <ProfileHub
+          supportEmail={supportEmail}
+          supportPaymentUrl={supportPaymentUrl}
+          founderName={founderName}
+          founderLinkedInUrl={founderLinkedInUrl}
+          onNavigate={navigateToTarget}
+          onOpenStatementAnalysis={openStatementImport}
+        />
+      </Suspense>
 
       {isLegacyFooterExperience() && <HomeFooter />}
 
