@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { CheckCircle2, LogOut, X } from 'lucide-react'
 import { AppModal, BrandMark, CurrencyInput } from '../components/AppPrimitives.jsx'
 import FinanceDonut from '../components/FinanceDonut.jsx'
@@ -18,7 +18,6 @@ function ThemePreference({ moneyTheme, setMoneyTheme }) {
     <section className="settings-compact-group theme-preference-group" aria-labelledby="theme-preference-title">
       <div className="section-heading-row">
         <div>
-          <p className="eyebrow">Appearance</p>
           <h2 id="theme-preference-title">Theme</h2>
         </div>
       </div>
@@ -74,6 +73,7 @@ export default function SettingsScreen({
   founderName,
   founderLinkedInUrl,
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const balanceMessage = getProfileBalanceMessage(financialState)
   const navigateFromHub = (tab, targetId) => {
     onClose()
@@ -93,8 +93,7 @@ export default function SettingsScreen({
     >
       <div className="editor-sheet-header">
         <div>
-          <p className="eyebrow">Profile</p>
-          <h2 id="settings-title">Settings</h2>
+          <h2 id="settings-title">Profile</h2>
         </div>
         <button className="icon-button" type="button" aria-label="Close settings" onClick={onClose}>
           <X size={17} />
@@ -103,16 +102,7 @@ export default function SettingsScreen({
 
       <div className="editor-sheet-body settings-body">
         <section className="settings-compact-group">
-          <div className="profile-menu-account settings-account">
-            <BrandMark size="small" />
-            <div>
-              <span className="mini-label">Signed in as</span>
-              <strong>{authUser?.email || profile.email || 'Local profile'}</strong>
-              <p>{balanceMessage}</p>
-            </div>
-          </div>
-
-          <div className="settings-form-grid">
+          <div className="settings-form-grid settings-form-grid--primary">
             <label>
               <span className="input-label">Name</span>
               <input
@@ -130,84 +120,110 @@ export default function SettingsScreen({
               value={profile.income}
               onChange={(value) => setProfile((current) => ({ ...current, income: normalizeMoney(value) }))}
             />
-            <CurrencyPreference profile={profile} setProfile={setProfile} id="settings-currency" />
-            <label>
-              <span className="input-label">Salary day</span>
-              <input
-                className="plain-input"
-                type="number"
-                min="1"
-                max="31"
-                inputMode="numeric"
-                value={profile.salaryDay || 1}
-                onChange={(event) => setProfile((current) => ({
-                  ...current,
-                  salaryDay: Math.min(Math.max(Number(event.target.value || 1), 1), 31),
-                }))}
-              />
-            </label>
           </div>
         </section>
 
         <ThemePreference moneyTheme={moneyTheme} setMoneyTheme={setMoneyTheme} />
 
-        <section className="settings-compact-group">
-          <div className="profile-menu-section">
-            <span className="input-label">Planning style</span>
-            <div className="preference-grid compact-preference-grid">
-              {['safe', 'balanced', 'flexible'].map((preference) => (
-                <button
-                  className={`preference-card ${profile.savingsPreference === preference ? 'active' : ''}`}
-                  key={preference}
-                  type="button"
-                  onClick={() => setProfile((current) => ({ ...current, savingsPreference: preference }))}
-                >
-                  <CheckCircle2 size={16} />
-                  <span>{titleCase(preference)}</span>
-                </button>
-              ))}
+        <details
+          className="settings-secondary-details"
+          open={detailsOpen}
+          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+        >
+          <summary>
+            <span>Advanced Settings</span>
+          </summary>
+          {detailsOpen && (
+            <div className="settings-secondary-stack">
+              <section className="settings-compact-group">
+                <div className="profile-menu-account settings-account">
+                  <BrandMark size="small" />
+                  <div>
+                    <span className="mini-label">Signed in</span>
+                    <strong>{authUser?.email || profile.email || 'Local profile'}</strong>
+                    <p>{balanceMessage}</p>
+                  </div>
+                </div>
+
+                <div className="settings-form-grid">
+                  <CurrencyPreference profile={profile} setProfile={setProfile} id="settings-currency" />
+                  <label>
+                    <span className="input-label">Salary day</span>
+                    <input
+                      className="plain-input"
+                      type="number"
+                      min="1"
+                      max="31"
+                      inputMode="numeric"
+                      value={profile.salaryDay || 1}
+                      onChange={(event) => setProfile((current) => ({
+                        ...current,
+                        salaryDay: Math.min(Math.max(Number(event.target.value || 1), 1), 31),
+                      }))}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="settings-compact-group">
+                <div className="profile-menu-section">
+                  <span className="input-label">Planning style</span>
+                  <div className="preference-grid compact-preference-grid">
+                    {['safe', 'balanced', 'flexible'].map((preference) => (
+                      <button
+                        className={`preference-card ${profile.savingsPreference === preference ? 'active' : ''}`}
+                        key={preference}
+                        type="button"
+                        onClick={() => setProfile((current) => ({ ...current, savingsPreference: preference }))}
+                      >
+                        <CheckCircle2 size={16} />
+                        <span>{titleCase(preference)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <div className="settings-donut-grid">
+                <FinanceDonut chart={fixedDistribution} />
+                <FinanceDonut chart={flexibleDistribution} />
+              </div>
+
+              <section className="settings-commitments settings-compact-group">
+                <div className="section-heading-row">
+                  <div>
+                    <h2>Monthly bills</h2>
+                  </div>
+                </div>
+                <CommitmentsEditor
+                  commitments={commitments}
+                  updateCommitment={updateCommitment}
+                  addCommitment={addCommitment}
+                  removeCommitment={removeCommitment}
+                />
+              </section>
+
+              <RecurringScheduleManager
+                schedules={recurringSchedules}
+                addSchedule={addRecurringSchedule}
+                updateSchedule={updateRecurringSchedule}
+                removeSchedule={removeRecurringSchedule}
+                toggleSchedule={toggleRecurringSchedule}
+              />
+
+              <Suspense fallback={<FLoader label="Opening Profile Hub" />}>
+                <ProfileHub
+                  supportEmail={supportEmail}
+                  supportPaymentUrl={supportPaymentUrl}
+                  founderName={founderName}
+                  founderLinkedInUrl={founderLinkedInUrl}
+                  onNavigate={navigateFromHub}
+                  onOpenStatementAnalysis={openStatementImportFromHub}
+                />
+              </Suspense>
             </div>
-          </div>
-        </section>
-
-        <div className="settings-donut-grid">
-          <FinanceDonut chart={fixedDistribution} />
-          <FinanceDonut chart={flexibleDistribution} />
-        </div>
-
-        <section className="settings-commitments settings-compact-group">
-          <div className="section-heading-row">
-            <div>
-              <p className="eyebrow">Monthly bills</p>
-              <h2>Your regular payments</h2>
-            </div>
-          </div>
-          <CommitmentsEditor
-            commitments={commitments}
-            updateCommitment={updateCommitment}
-            addCommitment={addCommitment}
-            removeCommitment={removeCommitment}
-          />
-        </section>
-
-        <RecurringScheduleManager
-          schedules={recurringSchedules}
-          addSchedule={addRecurringSchedule}
-          updateSchedule={updateRecurringSchedule}
-          removeSchedule={removeRecurringSchedule}
-          toggleSchedule={toggleRecurringSchedule}
-        />
-
-        <Suspense fallback={<FLoader label="Opening Profile Hub" />}>
-          <ProfileHub
-            supportEmail={supportEmail}
-            supportPaymentUrl={supportPaymentUrl}
-            founderName={founderName}
-            founderLinkedInUrl={founderLinkedInUrl}
-            onNavigate={navigateFromHub}
-            onOpenStatementAnalysis={openStatementImportFromHub}
-          />
-        </Suspense>
+          )}
+        </details>
       </div>
 
       <div className="editor-sheet-footer profile-menu-footer">

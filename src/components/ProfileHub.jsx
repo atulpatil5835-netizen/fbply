@@ -214,15 +214,11 @@ export default function ProfileHub({
   return (
     <section className={`money-os mos-profile-hub ${className}`} aria-label="Profile Hub">
       <SectionHeader
-        eyebrow="Money OS"
-        title="Profile Hub"
-        detail="Your account, money tools, support, and legal links in one place."
+        title="More settings"
       />
 
       <ProfileHubSection
-        eyebrow="Your Money"
         title="Reports, savings, and statements"
-        detail="Open the existing money views from one hub."
       >
         <ActionCard
           title="Reports"
@@ -258,9 +254,7 @@ export default function ProfileHub({
       </ProfileHubSection>
 
       <ProfileHubSection
-        eyebrow="Tools"
         title="Planning and splitting"
-        detail="Open the existing planner and people-money tools."
       >
         <ActionCard
           title="Budget Planner"
@@ -281,9 +275,7 @@ export default function ProfileHub({
       </ProfileHubSection>
 
       <ProfileHubSection
-        eyebrow="Support"
         title="Help, feedback, and founder notes"
-        detail="Keep support actions close without duplicating footers."
       >
         <ProfileHubFeedback supportEmail={supportEmail} />
         <ActionCard
@@ -316,9 +308,7 @@ export default function ProfileHub({
       </ProfileHubSection>
 
       <ProfileHubSection
-        eyebrow="Legal"
         title="Policies and terms"
-        detail="All legal routes remain available."
       >
         <ActionCard
           title="Privacy Policy"

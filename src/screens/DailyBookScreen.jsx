@@ -555,7 +555,7 @@ export default function DailyBookScreen({ expenses = [], openAddSheet }) {
           <div>
             <span>{activeRange.label}</span>
             <strong>{rupees(rangeTotal)}</strong>
-            <p>{filteredExpenses.length} expense{filteredExpenses.length === 1 ? '' : 's'} from saved records</p>
+            <p>{filteredExpenses.length} expense{filteredExpenses.length === 1 ? '' : 's'}</p>
           </div>
           <span className="daily-book-date-pill">
             {formatDateLabel(activeRange.start, todayKey)}
@@ -641,9 +641,7 @@ export default function DailyBookScreen({ expenses = [], openAddSheet }) {
   return (
     <MoneyOSProvider as="section" className="screen-content daily-book-screen money-os-daily-book" id="daily-book-section">
       <SectionHeader
-        eyebrow="Daily Book"
-        title="Daily expense book"
-        detail="A clearer view of today's spend, this month, and recent expense activity."
+        title="Daily"
         className="mos-daily-book-header"
         actions={(
           <button className="primary-button small-button daily-book-add-button" type="button" onClick={openExpenseFromDailyBook}>
@@ -656,31 +654,34 @@ export default function DailyBookScreen({ expenses = [], openAddSheet }) {
       <section className="mos-daily-book-priority-grid" aria-label="Daily Book priority summary">
         <MoneyCard
           title="Today"
-          detail={todayInsight.detail}
           icon={Receipt}
           tone="danger"
-          actions={<StatusBadge tone="danger">{formatDateLabel(todayKey, todayKey)}</StatusBadge>}
           className="mos-daily-book-today-card"
         >
           <div className="mos-daily-book-hero-value">
             <strong>{todayInsight.value}</strong>
-            <span>Today's spending from saved expense records.</span>
           </div>
         </MoneyCard>
 
         <StatCard
           label="This Month"
           value={monthInsight.value}
-          detail={monthInsight.detail}
           icon={CalendarDays}
           tone="tint"
           className="mos-daily-book-month-card"
         />
       </section>
 
+      <details className="mos-daily-book-secondary-details">
+        <summary>
+          <span>
+            <strong>History</strong>
+          </span>
+          <StatusBadge>{shortRupees(rangeTotal)}</StatusBadge>
+        </summary>
+        <div className="mos-daily-book-secondary-stack">
       <section className="mos-daily-book-section" aria-label="Daily Book filters">
         <SectionHeader
-          eyebrow="Filter"
           title={activeRange.label}
           detail={rangeDateLabel}
           actions={<StatusBadge>{shortRupees(rangeTotal)}</StatusBadge>}
@@ -741,8 +742,7 @@ export default function DailyBookScreen({ expenses = [], openAddSheet }) {
       <details className="mos-daily-book-secondary-details">
         <summary>
           <span>
-            <span className="mos-eyebrow">More Daily Book Context</span>
-            <strong>Signals and extended history</strong>
+            <strong>Insights</strong>
           </span>
           <StatusBadge>Open</StatusBadge>
         </summary>
@@ -817,6 +817,8 @@ export default function DailyBookScreen({ expenses = [], openAddSheet }) {
               </div>
             )}
           </section>
+        </div>
+      </details>
         </div>
       </details>
     </MoneyOSProvider>

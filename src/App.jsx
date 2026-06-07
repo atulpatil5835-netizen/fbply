@@ -211,7 +211,6 @@ import {
   ActionCard,
   BottomSheet,
   FLoader,
-  PrimaryButton,
   SecondaryButton,
   SuccessState,
   defaultMoneyOSTheme,
@@ -318,7 +317,7 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
         type: 'trip',
         title: 'Add a payment to this trip',
         message: 'A trip exists, but there is no shared payment to include in the report yet.',
-        detail: 'The Activity trip section will open. Add the amount, who paid, and a short note to the existing trip.',
+        detail: 'Open the trip section. Add the amount, who paid, and a short note.',
         actionLabel: 'Add payment',
         ...tripTarget,
       }
@@ -386,7 +385,7 @@ const legalPages = {
       {
         title: 'Statement Review',
         body: [
-          'Uploaded statements are processed for review and reporting. Raw files and PDF passwords are not saved permanently by default.',
+          'Uploaded statements are processed for review and reporting. Files and PDF passwords are not saved permanently.',
           'Statement totals are based only on readable rows. Users should review detected dates, categories, and money-in or money-out direction before using them.',
         ],
       },
@@ -6766,7 +6765,7 @@ function QuickAddFab({ openAddSheet }) {
 function ReportsFallback() {
   return (
     <section className="screen-content reports-screen">
-      <FLoader fullPage label="Preparing Money Intelligence Center" />
+      <FLoader fullPage label="Preparing reports" />
     </section>
   )
 }
@@ -6961,7 +6960,7 @@ function QuickAddSheet({
   openStatementImport,
 }) {
   const title = {
-    menu: 'Add money move',
+    menu: 'Add',
     expense: 'Add expense',
     income: 'Add income',
     transfer: 'Move to goal',
@@ -7064,22 +7063,14 @@ function QuickAddSheet({
     const isMenu = mode === 'menu'
     const sheetTitle = successState ? successState.title : title
     const sheetDescription = successState
-      ? 'Saved through the existing FBPLY workflow.'
+      ? 'Saved.'
       : isMenu
-        ? 'Start any money action from one place.'
-        : 'Use the existing form. Your current logic stays unchanged.'
+        ? ''
+        : ''
     const footer = successState
       ? null
       : isMenu
-        ? (
-            <div className="mos-add-hub-footer-actions">
-              <SecondaryButton onClick={onClose}>Close</SecondaryButton>
-              <PrimaryButton icon={Receipt} onClick={() => {
-                setSuccessState(null)
-                setMode('expense')
-              }}>Add expense</PrimaryButton>
-            </div>
-          )
+        ? null
         : (
             <SecondaryButton onClick={() => {
               setSuccessState(null)
@@ -7107,56 +7098,63 @@ function QuickAddSheet({
         )}
 
         {!successState && mode === 'menu' && (
-          <div className="mos-add-hub-grid" aria-label="Money action options">
-            <ActionCard
-              title="Expense"
-              detail="Food, petrol, bill, shopping"
-              actionLabel="Add"
-              icon={Receipt}
-              tone="danger"
-              onClick={() => setMode('expense')}
-            />
-            <ActionCard
-              title="Income"
-              detail="Update monthly income"
-              actionLabel="Add"
-              icon={Wallet}
-              tone="success"
-              onClick={() => setMode('income')}
-            />
-            <ActionCard
-              title="Borrow / Lend"
-              detail="Track simple udhar"
-              actionLabel="Open"
-              icon={CreditCard}
-              tone="warning"
-              onClick={() => setMode('borrow')}
-            />
-            <ActionCard
-              title="Shared Expense"
-              detail="Create a trip, group, or shared bill"
-              actionLabel="Open"
-              icon={Plane}
-              tone="tint"
-              onClick={openSharedExpense}
-            />
-            <ActionCard
-              title="Savings Goal"
-              detail="Create a goal using the existing editor"
-              actionLabel="Create"
-              icon={PiggyBank}
-              tone="success"
-              onClick={openSavingsGoalFromHub}
-            />
-            <ActionCard
-              title="Statement Import"
-              detail="Open the existing statement review flow"
-              actionLabel="Import"
-              icon={Upload}
-              tone="neutral"
-              onClick={openStatementImportFromHub}
-            />
-          </div>
+          <>
+            <div className="mos-add-hub-grid mos-add-hub-grid--primary" aria-label="Money action options">
+              <ActionCard
+                title="Expense"
+                detail="Food, petrol, bill"
+                actionLabel="Add"
+                icon={Receipt}
+                tone="danger"
+                onClick={() => setMode('expense')}
+              />
+              <ActionCard
+                title="Income"
+                detail="Monthly income"
+                actionLabel="Add"
+                icon={Wallet}
+                tone="success"
+                onClick={() => setMode('income')}
+              />
+              <ActionCard
+                title="Shared"
+                detail="Trip or group bill"
+                actionLabel="Split"
+                icon={Plane}
+                tone="tint"
+                onClick={openSharedExpense}
+              />
+            </div>
+            <details className="mos-add-hub-more">
+              <summary>Other Actions</summary>
+              <div className="mos-add-hub-grid">
+                <ActionCard
+                  title="Borrow / Lend"
+                  detail="Money given or taken"
+                  actionLabel="Add"
+                  icon={CreditCard}
+                  tone="warning"
+                  onClick={() => setMode('borrow')}
+                />
+                <ActionCard
+                  title="Savings Goal"
+                  detail="Savings target"
+                  actionLabel="Create"
+                  icon={PiggyBank}
+                  tone="success"
+                  onClick={openSavingsGoalFromHub}
+                />
+                <ActionCard
+                  title="Analyze Statement"
+                  detail="Upload PDF or CSV"
+                  actionLabel="Upload"
+                  icon={Upload}
+                  tone="neutral"
+                  onClick={openStatementImportFromHub}
+                />
+              </div>
+            </details>
+          </>
         )}
 
         {!successState && mode === 'expense' && (
@@ -7294,7 +7292,7 @@ function QuickAddSheet({
               <span className="soft-icon"><CreditCard size={18} /></span>
               <span>
                 <strong>Borrow / lend</strong>
-                <small>Track simple udhar</small>
+                <small>Money given or taken</small>
               </span>
             </button>
           </div>

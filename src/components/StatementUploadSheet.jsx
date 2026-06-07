@@ -469,8 +469,7 @@ export default function StatementUploadSheet({
       >
         <div className="statement-sheet-header">
           <div>
-            <p className="eyebrow">Analyze Bank Statement</p>
-            <h2>Review statement activity</h2>
+            <h2>Analyze statement</h2>
           </div>
           <button className="icon-button" type="button" aria-label="Close statement analysis" onClick={onClose}>
             <X size={17} />
@@ -479,36 +478,35 @@ export default function StatementUploadSheet({
 
         <div className="privacy-note-card">
           <ShieldCheck size={17} />
-          <p>FBPly reads the file for review only. Raw files and PDF passwords are not saved by default.</p>
+          <p>Private review. Passwords are not stored.</p>
         </div>
-
-        <label className="statement-window-select">
-          <span className="input-label">Statement analysis period</span>
-          <select className="month-select" value={analysisWindow} onChange={(event) => setAnalysisWindow(event.target.value)}>
-            <option value="1m">1 Month</option>
-            <option value="3m">3 Month</option>
-            <option value="6m">6 Month</option>
-            <option value="12m">12 Month</option>
-          </select>
-        </label>
 
         <div className="statement-option-grid">
           <button type="button" onClick={() => openPicker({ fileAccept: '.pdf,application/pdf', multiple: false })}>
             <FileText size={18} />
-            <span>Upload PDF</span>
+            <span>PDF</span>
           </button>
           <button type="button" onClick={() => openPicker({ fileAccept: '.csv,text/csv', multiple: false })}>
             <FileSpreadsheet size={18} />
-            <span>Upload CSV</span>
+            <span>CSV</span>
           </button>
           <button type="button" onClick={() => openPicker({ fileAccept: '.pdf,.csv,application/pdf,text/csv', multiple: true })}>
             <Files size={18} />
-            <span>Multiple</span>
+            <span>Files</span>
           </button>
         </div>
 
         <details className="statement-advanced-options">
-          <summary>Analysis options</summary>
+          <summary>Import Options</summary>
+          <label className="statement-window-select">
+            <span className="input-label">Report period</span>
+            <select className="month-select" value={analysisWindow} onChange={(event) => setAnalysisWindow(event.target.value)}>
+              <option value="1m">1 Month</option>
+              <option value="3m">3 Month</option>
+              <option value="6m">6 Month</option>
+              <option value="12m">12 Month</option>
+            </select>
+          </label>
           <div className="statement-mode-row" aria-label="Import mode">
             {modes.map((item) => (
               <button

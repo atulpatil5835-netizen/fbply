@@ -270,7 +270,7 @@ function moneyHealthFromFinancialState(financialState = {}) {
     return {
       label: 'Attention',
       tone: 'warning',
-      detail: financialState.comfort || 'This report needs a closer look.',
+      detail: 'Fixed costs need attention this month.',
     }
   }
 
@@ -278,14 +278,14 @@ function moneyHealthFromFinancialState(financialState = {}) {
     return {
       label: 'Moderate',
       tone: 'warning',
-      detail: financialState.comfort || 'The month is usable, but should stay measured.',
+      detail: 'Expenses fit, but spending should stay measured.',
     }
   }
 
   return {
     label: 'Healthy',
     tone: 'success',
-    detail: financialState.comfort || 'The month looks readable from saved data.',
+    detail: 'Income currently covers expenses comfortably.',
   }
 }
 
@@ -541,33 +541,7 @@ export default function ReportsScreen({
     return (
       <MoneyOSProvider as="section" className="screen-content reports-screen advanced-reports-screen money-os-reports">
         <SectionHeader
-          eyebrow="Money Intelligence"
-          title="Money Intelligence Center"
-          detail="A plain-language report view built from your existing monthly data, exports, and reviewed statements."
-          actions={(
-            <>
-              <button
-                className="report-import-button mos-report-legacy-button"
-                type="button"
-                onClick={() => openStatementAnalysis('header')}
-              >
-                <Upload size={16} />
-                <span>Analyze</span>
-              </button>
-              <select
-                className="month-select compact-month-select mos-report-month-select"
-                value={selectedMonthKey}
-                aria-label="Month selector"
-                onChange={(event) => setSelectedMonthKey(event.target.value)}
-              >
-                {monthOptions.map((month) => (
-                  <option key={month.key} value={month.key}>
-                    {month.label}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
+          title="Reports"
         />
 
         {isStatementImportOpen && (
@@ -582,11 +556,48 @@ export default function ReportsScreen({
           </Suspense>
         )}
 
+        <section className="mos-report-section mos-report-v4-top" aria-label="Report priorities">
+          <div className="mos-report-v4-grid">
+            <InsightCard
+              title={moneyHealth.label}
+              detail={moneyHealth.detail}
+              icon={HeartHandshake}
+              tone={moneyHealth.tone}
+            />
+            <ActionCard
+              title="Analyze Statement"
+              detail="Upload PDF or CSV"
+              actionLabel="Upload"
+              icon={Upload}
+              tone="warning"
+              onClick={() => handleStatementDiscovery('priority_card')}
+            />
+          </div>
+        </section>
+
+        <details className="money-os mos-report-secondary-details">
+          <summary>
+            <span>
+              <strong>Reports and exports</strong>
+            </span>
+            <StatusBadge>Library</StatusBadge>
+          </summary>
+          <div className="mos-report-secondary-stack">
+            <select
+              className="month-select compact-month-select mos-report-month-select"
+              value={selectedMonthKey}
+              aria-label="Month selector"
+              onChange={(event) => setSelectedMonthKey(event.target.value)}
+            >
+              {monthOptions.map((month) => (
+                <option key={month.key} value={month.key}>
+                  {month.label}
+                </option>
+              ))}
+            </select>
         <section className="mos-report-section" aria-label="Money Snapshot">
           <SectionHeader
-            eyebrow="Priority 1"
             title="Money Snapshot"
-            detail="The same monthly numbers, surfaced before document exports."
           />
           <div className="mos-report-snapshot-grid">
             {snapshotStats.map((stat) => (
@@ -604,9 +615,7 @@ export default function ReportsScreen({
 
         <section className="mos-report-section" aria-label="Money Health">
           <SectionHeader
-            eyebrow="Priority 2"
             title="Money Health"
-            detail="A concise state from the existing monthly pressure reading."
             actions={<StatusBadge tone={moneyHealth.tone}>{moneyHealth.label}</StatusBadge>}
           />
           <InsightCard
@@ -619,16 +628,14 @@ export default function ReportsScreen({
             <div className="mos-report-health-strip">
               <span>{financialState.pressure || 'Current pressure'}</span>
               <strong>{financialState.comfort || 'Money state'}</strong>
-              <p>{financialState.usagePercent || 0}% of income is already used from saved data.</p>
+              <p>{financialState.usagePercent || 0}% of income is used.</p>
             </div>
           </InsightCard>
         </section>
 
         <section className="mos-report-section" aria-label="Key Insights">
           <SectionHeader
-            eyebrow="Priority 3"
             title="Key Insights"
-            detail="Top existing report notes, kept short and actionable."
             actions={<StatusBadge>{keyInsights.length || 0} insight{keyInsights.length === 1 ? '' : 's'}</StatusBadge>}
           />
           {keyInsights.length > 0 ? (
@@ -654,10 +661,7 @@ export default function ReportsScreen({
 
         <section className="mos-report-section" aria-label="Report Library">
           <SectionHeader
-            eyebrow="Priority 4"
             title="Report Library"
-            detail="Monthly, statement, and trip report flows remain separate and unchanged."
-            actions={<StatusBadge>{recentReportHistory.length} saved</StatusBadge>}
           />
           <div className="mos-report-library-grid">
             <ActionCard
@@ -669,7 +673,7 @@ export default function ReportsScreen({
               disabled={!canExport}
               onClick={() => handleMonthlyPdfExport('report_library')}
             >
-              <StatusBadge>{monthlyReportCount} saved</StatusBadge>
+              {monthlyReportCount > 0 && <StatusBadge>{monthlyReportCount}</StatusBadge>}
             </ActionCard>
             <ActionCard
               title="Statement Reports"
@@ -679,27 +683,25 @@ export default function ReportsScreen({
               tone="warning"
               onClick={() => handleStatementDiscovery('report_library')}
             >
-              <StatusBadge>{statementReportCount} saved</StatusBadge>
+              {statementReportCount > 0 && <StatusBadge>{statementReportCount}</StatusBadge>}
             </ActionCard>
             <ActionCard
               title="Trip Reports"
-              detail="Export the current shared trip report from existing groups."
+              detail="Export the current shared trip report."
               actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Generate'}
               icon={ShieldCheck}
               tone="success"
               disabled={!canExport}
               onClick={() => handleTripPdfExport('report_library')}
             >
-              <StatusBadge>{tripReportCount} saved</StatusBadge>
+              {tripReportCount > 0 && <StatusBadge>{tripReportCount}</StatusBadge>}
             </ActionCard>
           </div>
         </section>
 
         <section className="mos-report-section" aria-label="Report History">
           <SectionHeader
-            eyebrow="History"
-            title="Generated reports"
-            detail="Saved report records remain available for download."
+            title="History"
           />
           {recentReportHistory.length > 0 ? (
             <div className="mos-report-history-list">
@@ -742,8 +744,7 @@ export default function ReportsScreen({
             </div>
           ) : (
             <EmptyState
-              title="Generate your first financial report"
-              detail="Once created, saved reports appear here for quick re-download."
+              title="No reports yet"
               icon={FileText}
               action={{
                 label: isPreparingReport('monthly') ? 'Preparing...' : 'Create monthly report',
@@ -762,9 +763,7 @@ export default function ReportsScreen({
 
         <section className="mos-report-section" id="reports-export-section" aria-label="Exports">
           <SectionHeader
-            eyebrow="Priority 5"
             title="Exports"
-            detail="Share-ready exports remain below the intelligence summary."
             actions={(
               <label className="report-template-select mos-report-template-select">
                 <span>Template</span>
@@ -798,7 +797,7 @@ export default function ReportsScreen({
             />
             <ActionCard
               title="Trip PDF"
-              detail="Shared groups and trip totals using the existing export flow."
+              detail="Shared groups and trip totals."
               actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Export trip'}
               icon={FileText}
               tone="success"
@@ -807,7 +806,7 @@ export default function ReportsScreen({
             />
             <ActionCard
               title="Settlement PDF"
-              detail="Settlement balances using the existing export flow."
+              detail="Settlement balances."
               actionLabel={isPreparingReport('settlement') ? 'Preparing' : 'Export settlement'}
               icon={FileText}
               tone="warning"
@@ -824,6 +823,8 @@ export default function ReportsScreen({
             />
           </div>
         </section>
+          </div>
+        </details>
 
         {reportExportPrompt && (
           <MoneyCard
@@ -981,7 +982,7 @@ export default function ReportsScreen({
           <div className="report-comfort-strip">
             <span>{financialState.pressure}</span>
             <strong>{financialState.comfort}</strong>
-            <p>{financialState.usagePercent}% of income is already used from saved data.</p>
+            <p>{financialState.usagePercent}% of income is used.</p>
           </div>
         </article>
           </div>
@@ -1423,7 +1424,7 @@ export default function ReportsScreen({
         <div className="report-comfort-strip">
           <span>{financialState.pressure}</span>
           <strong>{financialState.comfort}</strong>
-          <p>{financialState.usagePercent}% of income is already used from saved data.</p>
+          <p>{financialState.usagePercent}% of income is used.</p>
         </div>
       </article>
         </div>

@@ -3490,8 +3490,8 @@ img {
 .bucket-card,
 .bucket-editor {
   display: grid;
-  gap: 10px;
-  padding: 13px;
+  gap: 8px;
+  padding: 10px;
 }
 
 .bucket-card.compact {
@@ -3503,7 +3503,67 @@ img {
 }
 
 .bucket-card strong {
-  font-size: 20px;
+  font-size: 16px;
+}
+
+.bucket-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.bucket-card-metrics span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft-bg);
+}
+
+.bucket-card-metrics small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.bucket-editor-details {
+  display: grid;
+  gap: 8px;
+}
+
+.bucket-editor-details:not([open]) > :not(summary),
+.planner-details-panel:not([open]) > :not(summary),
+.settings-secondary-details:not([open]) > :not(summary),
+.statement-advanced-options:not([open]) > :not(summary) {
+  display: none !important;
+}
+
+.bucket-editor-details summary {
+  width: max-content;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--button-bg);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.bucket-editor-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.bucket-editor-fields {
+  display: grid;
+  gap: 10px;
 }
 
 .bucket-progress,
@@ -5735,6 +5795,10 @@ img {
   gap: 9px;
 }
 
+.settings-form-grid--primary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .settings-account p {
   margin: 4px 0 0;
   color: var(--muted);
@@ -5833,6 +5897,36 @@ img {
 .settings-commitments h2 {
   margin: 0;
   font-size: 17px;
+}
+
+.settings-secondary-details {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-secondary-details > summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text);
+  background: var(--button-bg);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-secondary-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-secondary-stack {
+  display: grid;
+  gap: 10px;
 }
 
 .money-book-modal {
@@ -6442,6 +6536,23 @@ img {
 
 .goals-screen {
   gap: 10px;
+}
+
+.goals-screen .screen-heading {
+  margin-bottom: 0;
+}
+
+.savings-planner-details {
+  padding: 0;
+}
+
+.savings-planner-details > summary {
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.savings-planner-details > .buy-safely-section {
+  padding: 0 12px 12px;
 }
 
 .buy-safely-section {
@@ -7688,9 +7799,9 @@ img {
   width: min(100%, 492px);
   max-height: min(80svh, 620px);
   display: grid;
-  gap: 9px;
+  gap: 8px;
   margin: 0;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--surface-bg);
@@ -7714,8 +7825,8 @@ img {
 .password-sheet,
 .statement-preview-list {
   display: grid;
-  gap: 8px;
-  padding: 8px 9px;
+  gap: 7px;
+  padding: 8px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--soft-bg);
@@ -7789,7 +7900,7 @@ img {
 }
 
 .statement-option-grid button {
-  min-height: 56px;
+  min-height: 48px;
   display: grid;
   place-items: center;
   gap: 5px;
@@ -7827,6 +7938,7 @@ img {
   display: none;
 }
 
+.statement-advanced-options .statement-window-select,
 .statement-advanced-options .statement-mode-row {
   margin-top: 8px;
 }
@@ -9466,7 +9578,7 @@ img {
 .editor-sheet,
 .statement-upload-sheet {
   gap: 8px;
-  padding: 14px;
+  padding: 10px;
   border: 1px solid var(--premium-app-border);
   border-radius: 18px;
   background: var(--premium-app-surface-strong);

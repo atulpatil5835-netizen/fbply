@@ -49,18 +49,27 @@ export default function GoalsScreen({
     <section className="screen-content goals-screen">
       <div className="screen-heading goals-heading">
         <div>
-          <p className="eyebrow">Savings Goals</p>
-          <h1>Plan the next money move.</h1>
-          <p className="section-note">Start with the purchase. Savings goals stay close when you need them.</p>
+          <h1>Savings</h1>
         </div>
       </div>
+
+      <SavingsBucketsManager
+        buckets={savingsBuckets}
+        addSavingsBucket={addSavingsBucket}
+        updateSavingsBucket={updateSavingsBucket}
+        removeSavingsBucket={removeSavingsBucket}
+      />
+
+      <details className="planner-details-panel savings-planner-details">
+        <summary>
+          <span>Plan a purchase</span>
+          <ChevronRight size={16} />
+        </summary>
 
       <section className="buy-safely-section">
         <div className="planner-section-title">
           <div>
-            <p className="eyebrow">Buy safely</p>
-            <h2>Can I afford this safely?</h2>
-            <p>Answer a few quick inputs. FBPly keeps the deeper math in the background.</p>
+            <h2>Can I afford it?</h2>
           </div>
         </div>
 
@@ -186,13 +195,7 @@ export default function GoalsScreen({
           financialState={financialState}
         />
       </section>
-
-      <SavingsBucketsManager
-        buckets={savingsBuckets}
-        addSavingsBucket={addSavingsBucket}
-        updateSavingsBucket={updateSavingsBucket}
-        removeSavingsBucket={removeSavingsBucket}
-      />
+      </details>
     </section>
   )
 }
@@ -211,7 +214,6 @@ function PlannerRealityCard({ financialState }) {
     <article className="planner-reality-card">
       <div className="planner-reality-heading">
         <div>
-          <span className="mini-label">Money status</span>
           <h2>Your monthly room</h2>
         </div>
         <span className={`simulation-pill ${financialState.pressureTone === 'slight-pressure' ? 'warm' : financialState.pressureTone}`}>

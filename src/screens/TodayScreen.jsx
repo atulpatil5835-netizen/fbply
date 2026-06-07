@@ -256,6 +256,81 @@ function shortDueLabel(value) {
   return `${days} days`
 }
 
+function decisionName(value, fallback = 'payment') {
+  const clean = String(value || fallback)
+    .replace(/\sdue$/i, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+
+  if (!clean) {
+    return fallback
+  }
+
+  return clean
+    .split(' ')
+    .map((part) => {
+      if (/^(emi|bnpl|sip|pdf|csv)$/i.test(part)) {
+        return part.toUpperCase()
+      }
+
+      if (/^[A-Z]{2,}$/.test(part)) {
+        return part
+      }
+
+      return `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`
+    })
+    .join(' ')
+}
+
+function decisionDueText(value = 'Soon') {
+  if (value === 'Today') {
+    return 'today'
+  }
+
+  if (value === 'Tomorrow') {
+    return 'tomorrow'
+  }
+
+  if (value === 'Overdue') {
+    return 'overdue'
+  }
+
+  if (/^\d+ days$/.test(String(value))) {
+    return `in ${value}`
+  }
+
+  return String(value || 'soon').toLowerCase()
+}
+
+function moneyDecisionTitle(item = {}) {
+  const name = decisionName(item.title || item.type)
+
+  if (/salary/i.test(name)) {
+    return `Check ${name.replace(/\sIncoming$/i, '')}`
+  }
+
+  if (item.tone === 'incoming') {
+    return `Collect ${name}`
+  }
+
+  return `Pay ${name}`
+}
+
+function moneyDecisionDetail(item = {}) {
+  const dueText = decisionDueText(item.dueLabel)
+  const amountLabel = item.amountLabel || item.detail
+
+  if (!amountLabel) {
+    return `Due ${dueText}`
+  }
+
+  if (item.tone === 'incoming') {
+    return `${amountLabel} expected ${dueText}`
+  }
+
+  return `${amountLabel} due ${dueText}`
+}
+
 function reportGeneratedLabel(value) {
   const date = new Date(value)
 
@@ -912,17 +987,23 @@ export default function TodayScreen({
         key: `important-${item.key}`,
         title: item.label,
         detail: item.value,
+        amountLabel: item.value,
+        dueLabel: 'Today',
         tone: item.tone,
         icon: item.icon,
         meta: 'Today',
+        type: item.key,
       })),
       ...futureSnapshot.events.map((event) => ({
         key: `event-${event.id}`,
         title: event.title,
         detail: event.amount > 0 ? rupees(event.amount) : event.type,
+        amountLabel: event.amount > 0 ? rupees(event.amount) : '',
+        dueLabel: shortDueLabel(event.dueDate),
         tone: eventTone(event),
         icon: calendarEventIcon(event),
-        meta: `${shortDueLabel(event.dueDate)} - ${event.type}`,
+        meta: shortDueLabel(event.dueDate),
+        type: event.type,
       })),
     ].slice(0, 6),
     [futureSnapshot.events, importantItems],
@@ -990,6 +1071,40 @@ export default function TodayScreen({
     })
     redownloadReport?.(latestReport)
   }
+  const nextBestAction = upcomingCommitments[0]
+    ? {
+        title: moneyDecisionTitle(upcomingCommitments[0]),
+        detail: moneyDecisionDetail(upcomingCommitments[0]),
+        icon: upcomingCommitments[0].icon,
+        tone: moneyOSCardTone(upcomingCommitments[0].tone),
+        badge: '',
+      }
+    : nextActivationItem
+      ? {
+          title: nextActivationItem.cta,
+          detail: 'Finish setup',
+          icon: nextActivationItem.icon,
+          tone: 'tint',
+          badge: 'Start',
+          onClick: () => handleActivationClick(nextActivationItem, 'next_action'),
+        }
+      : activeGoals[0]
+        ? {
+            title: activeGoals[0].title,
+            detail: activeGoals[0].detail || 'Keep this goal moving',
+            icon: Target,
+            tone: 'success',
+            badge: 'Goal',
+            onClick: () => navigateFromHome(setActiveTab, 'planner', 'next_action_goal', { target: activeGoals[0].key }),
+          }
+        : {
+            title: 'Add today expense',
+            detail: 'Keep the month current',
+            icon: Receipt,
+            tone: 'tint',
+            badge: 'Add',
+            onClick: () => openAddSheet?.('expense'),
+          }
 
   useEffect(() => {
     if (!showActivationGuide) {
@@ -1373,58 +1488,52 @@ export default function TodayScreen({
 
   return (
     <MoneyOSProvider as="section" className={`screen-content today-screen today-${status.tone} money-os-home`}>
-      <SectionHeader
-        eyebrow={smartHeader.eyebrow}
-        title="Money OS Home"
-        detail={smartHeader.detail}
-        actions={(
-          <StatusBadge tone={moneyOSTone(financialState.pressureTone)}>{statusLabel}</StatusBadge>
-        )}
-        className="mos-home-header"
-      />
-
-      <section className="mos-home-priority-grid" aria-label="Primary money status">
-        <MoneyCard
-          title="Available This Month"
-          detail={status.detail}
+      <section className="mos-home-priority-grid mos-home-v4-grid" aria-label="Primary money status">
+        <StatCard
+          label="Available"
+          value={rupees(safeToSpend.comfortablyUsable)}
+          detail={status.title}
           icon={Wallet}
           tone={moneyOSCardTone(status.tone)}
           elevated
           className="mos-home-hero-card"
-        >
-          <div className="mos-home-hero-value">
-            <strong>{rupees(safeToSpend.comfortablyUsable)}</strong>
-            <span>{status.title}</span>
-          </div>
-          <div className="mos-home-hero-metrics" aria-label="Money status summary">
-            <span>
-              <small>Used</small>
-              <b>{financialState.usagePercent || 0}%</b>
-            </span>
-            <span>
-              <small>Tracked days</small>
-              <b>{trackedDays > 0 ? trackedDays : 0}</b>
-            </span>
-          </div>
-        </MoneyCard>
+        />
 
         <StatCard
-          label="Protected Savings"
+          label="Protected"
           value={rupees(safeToSpend.protectedAmount)}
-          detail="Kept aside before flexible spends."
-          trend={`${financialState.usagePercent || 0}% used`}
           icon={PiggyBank}
           tone="success"
           className="mos-home-protected-card"
         />
+
+        <MoneyCard
+          as={nextBestAction.onClick ? 'button' : 'section'}
+          type={nextBestAction.onClick ? 'button' : undefined}
+          eyebrow="Next Action"
+          title={nextBestAction.title}
+          detail={nextBestAction.detail}
+          meta={nextBestAction.badge}
+          icon={nextBestAction.icon}
+          tone={nextBestAction.tone}
+          className="mos-home-next-action-card"
+          interactive={Boolean(nextBestAction.onClick)}
+          onClick={nextBestAction.onClick}
+        />
       </section>
 
+      <details className="mos-home-secondary-details mos-home-v4-more">
+        <summary>
+          <span>
+            <strong>Monthly Context</strong>
+          </span>
+          <StatusBadge>Review</StatusBadge>
+        </summary>
+        <div className="mos-home-secondary-stack">
       {showActivationGuide && (
         <section className="mos-home-section" aria-label="Getting Started">
           <SectionHeader
-            eyebrow="Getting Started"
             title={`${completedActivationCount}/${totalActivationCount} complete`}
-            detail="Finish the basics so Home can stay useful."
             actions={<StatusBadge tone="success">{activationProgress}%</StatusBadge>}
           />
           <div className="mos-home-progress-bar" aria-label={`${activationProgress}% complete`}>
@@ -1636,10 +1745,9 @@ export default function TodayScreen({
       <details className="mos-home-secondary-details">
         <summary>
           <span>
-            <span className="mos-eyebrow">More Context</span>
-            <strong>Pulse, story, reports, and replay</strong>
+            <strong>Money context</strong>
           </span>
-          <StatusBadge>Open</StatusBadge>
+          <StatusBadge>Review</StatusBadge>
         </summary>
         <div className="mos-home-secondary-stack">
           <InsightCard
@@ -1770,11 +1878,9 @@ export default function TodayScreen({
           </details>
         </div>
       </details>
+        </div>
+      </details>
 
-      <div className="mos-home-footer-strip">
-        <StatusBadge>{trackedDays > 0 ? `${trackedDays} tracked day${trackedDays === 1 ? '' : 's'}` : 'Ready for today'}</StatusBadge>
-        <StatusBadge tone="success">{rupees(safeToSpend.protectedAmount)} protected</StatusBadge>
-      </div>
     </MoneyOSProvider>
   )
 }
