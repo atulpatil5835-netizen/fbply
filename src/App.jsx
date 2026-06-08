@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, use
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bell,
+  Calculator,
   Car,
   ChartPie,
   CheckCircle2,
@@ -34,6 +35,7 @@ import {
   User,
   Utensils,
   Wallet,
+  Wrench,
   X,
 } from 'lucide-react'
 import {
@@ -211,7 +213,12 @@ import {
   ActionCard,
   BottomSheet,
   FLoader,
+  MoneyCard,
+  MoneyOSProvider,
+  SectionHeader,
   SecondaryButton,
+  StatCard,
+  StatusBadge,
   SuccessState,
   defaultMoneyOSTheme,
   normalizeMoneyOSTheme,
@@ -247,6 +254,18 @@ function isLegacyFooterExperience() {
     window.__FBPLY_LEGACY_FOOTER__ ||
     window.__FBPLY_LEGACY_PROFILE_HUB__,
   )
+}
+
+function isLegacyNavigation() {
+  return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_NAVIGATION__)
+}
+
+function isLegacyDailyHero() {
+  return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_DAILY_HERO__)
+}
+
+function isLegacyInsights() {
+  return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_INSIGHTS__)
 }
 
 const expenseCategories = [
@@ -351,12 +370,52 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
   return null
 }
 
-const navItems = [
+const legacyNavItems = [
   { key: 'home', label: 'Today', icon: House },
   { key: 'history', label: 'Daily', ariaLabel: 'Daily Book', icon: Receipt },
   { key: 'planner', label: 'Savings', icon: Target },
   { key: 'reports', label: 'Reports', icon: ChartPie },
 ]
+
+const companionNavItems = [
+  { key: 'home', label: 'Daily', ariaLabel: 'Daily - Record Money', icon: Receipt },
+  { key: 'reports', label: 'Insights', ariaLabel: 'Insights - Understand Money', icon: ChartPie },
+  { key: 'history', label: 'Tools', ariaLabel: 'Tools - Solve Money Problems', icon: Wrench },
+  { key: 'profile', label: 'Profile', ariaLabel: 'Profile - Settings and Backup', icon: User },
+]
+
+const LEGACY_TAB_VIEW_EVENTS = {
+  home: 'home_viewed',
+  history: 'people_viewed',
+  planner: 'savings_viewed',
+  reports: 'reports_viewed',
+  profile: 'profile_viewed',
+}
+
+const COMPANION_TAB_VIEW_EVENTS = {
+  home: 'daily_viewed',
+  reports: 'insights_viewed',
+  history: 'tools_viewed',
+  profile: 'profile_viewed',
+}
+
+const COMPANION_COMPAT_VIEW_EVENTS = {
+  home: 'home_viewed',
+  reports: 'reports_viewed',
+  history: 'people_viewed',
+}
+
+function resolveNavigationTab(tab, useLegacyNavigation = isLegacyNavigation()) {
+  if (useLegacyNavigation) {
+    return tab
+  }
+
+  if (tab === 'planner') {
+    return 'history'
+  }
+
+  return tab
+}
 
 const fixedExpenseSuggestions = ['Rent', 'Electricity', 'Internet', 'Petrol', 'Shopping', 'Food', 'Subscription']
 
@@ -1400,6 +1459,13 @@ function buildEmergencyCushion(buckets, state) {
   }
 }
 
+const ADD_HUB_SELECTION_EVENTS = {
+  expense: 'add_expense_selected',
+  income: 'add_income_selected',
+  borrow: 'add_people_selected',
+  transfer: 'add_other_actions_selected',
+}
+
 function App() {
   const [currentPath, setCurrentPath] = useState(() =>
     typeof window === 'undefined' ? '/' : window.location.pathname || '/',
@@ -1479,6 +1545,7 @@ function App() {
   const reportHistoryRef = useRef(reportHistory)
   const voiceMemoryRef = useRef(voiceMemory)
   const hasCompletedSetupRef = useRef(hasCompletedSetup)
+  const hasTrackedAppOpenedRef = useRef(false)
   const skipNextProfileCloudSaveRef = useRef(false)
   const skipNextExpenseCloudSaveRef = useRef(false)
   const skipNextSavingsCloudSaveRef = useRef(false)
@@ -1519,6 +1586,15 @@ function App() {
   const normalizedCurrentPath = normalizeSeoPath(currentPath)
   const isPublicSeoPage = isPublicSeoRoute(normalizedCurrentPath)
   setActiveCurrency(activeCurrency)
+
+  useEffect(() => {
+    if (isPublicSeoPage || hasTrackedAppOpenedRef.current) {
+      return
+    }
+
+    hasTrackedAppOpenedRef.current = true
+    trackEvent('app_opened')
+  }, [isPublicSeoPage])
 
   useEffect(() => {
     const handlePopState = () => setCurrentPath(window.location.pathname || '/')
@@ -3959,6 +4035,7 @@ function App() {
 
   const handleSignOut = useCallback(async () => {
     clearAuthNotice()
+    trackEvent('sign_out_clicked')
 
     if (isSupabaseReady) {
       await supabase.auth.signOut().catch(() => null)
@@ -4517,6 +4594,18 @@ function App() {
   }, [])
 
   const markSharedSettlementReceived = useCallback((groupId, settlementId) => {
+    const hasSettlement = sharedGroups.some((group) => {
+      if (group.id !== groupId) {
+        return false
+      }
+
+      return reconcileSharedGroup(group, profile).settlements.some((item) => item.id === settlementId)
+    })
+
+    if (hasSettlement) {
+      trackEvent('settlement_completed')
+    }
+
     setSharedGroups((current) =>
       current.map((group) => {
         if (group.id !== groupId) {
@@ -4549,7 +4638,7 @@ function App() {
         }
       }),
     )
-  }, [profile])
+  }, [profile, sharedGroups])
 
   const saveMoneyBookEntry = useCallback((entry) => {
     const saved = createMoneyBookEntry(entry)
@@ -4572,10 +4661,19 @@ function App() {
       entry_kind: saved.kind,
       is_edit: Boolean(entry?.id),
     })
+    if (!entry?.id) {
+      trackEvent(saved.kind === 'taken' ? 'borrow_created' : 'lend_created')
+    }
     return true
   }, [])
 
   const toggleMoneyBookSettlement = useCallback((id) => {
+    const entry = moneyBookEntries.find((item) => item.id === id)
+
+    if (entry && entry.status !== 'settled') {
+      trackEvent('settlement_completed')
+    }
+
     setMoneyBookEntries((current) =>
       current.map((entry) => {
         if (entry.id !== id) {
@@ -4592,7 +4690,7 @@ function App() {
         }
       }),
     )
-  }, [])
+  }, [moneyBookEntries])
 
   const deleteMoneyBookEntry = useCallback((id) => {
     setMoneyBookEntries((current) => current.filter((entry) => entry.id !== id))
@@ -4666,12 +4764,20 @@ function App() {
   }, [savingsBuckets.length])
 
   const openAddSheet = useCallback((mode = 'menu') => {
+    if (!addSheetMode) {
+      trackEvent('add_hub_opened')
+    }
+
+    if (ADD_HUB_SELECTION_EVENTS[mode]) {
+      trackEvent(ADD_HUB_SELECTION_EVENTS[mode])
+    }
+
     setAddSheetMode(mode)
     trackFeatureUsage('quick_add_opened', {
       surface: 'app_chrome',
       mode,
     })
-  }, [])
+  }, [addSheetMode])
 
   const closeAddSheet = useCallback(() => {
     setAddSheetMode(null)
@@ -4681,6 +4787,7 @@ function App() {
     setSavingsBuckets((current) =>
       current.map((bucket) => (bucket.id === id ? { ...bucket, ...patch } : bucket)),
     )
+    trackEvent('goal_updated')
   }, [])
 
   const removeSavingsBucket = useCallback((id) => {
@@ -6211,6 +6318,627 @@ function LoggedInLegalFooter() {
   )
 }
 
+function normalizeDailyHeroAmount(value) {
+  const amount = normalizeMoney(value)
+
+  return amount > 0 ? String(amount) : ''
+}
+
+function dailyHeroActivityIcon(transaction = {}) {
+  if (transaction.tone === 'incoming' || transaction.impactType === 'income') {
+    return Wallet
+  }
+
+  return Receipt
+}
+
+function dailyHeroActivityTone(transaction = {}) {
+  if (transaction.tone === 'incoming' || transaction.impactType === 'income') {
+    return 'success'
+  }
+
+  if (transaction.tone === 'outgoing') {
+    return 'danger'
+  }
+
+  return 'neutral'
+}
+
+function dailyHeroSignedAmount(transaction = {}) {
+  const prefix = transaction.tone === 'incoming' ? '+' : transaction.tone === 'outgoing' ? '-' : ''
+
+  return `${prefix}${rupees(transaction.amount || 0)}`
+}
+
+function formatDailyHeroTime(value) {
+  const parsed = new Date(value || '')
+
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Recent'
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  const dateKey = parsed.toISOString().slice(0, 10)
+
+  if (dateKey === today) {
+    return parsed.toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+
+  return parsed.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+function buildDailyHeroActivity(transactions = []) {
+  return transactions
+    .filter((transaction) => transaction && normalizeMoney(transaction.amount) > 0)
+    .filter((transaction) => transaction.sourceModule !== 'Planner')
+    .filter((transaction) => transaction.sourceModule !== 'Goals')
+    .filter((transaction) => transaction.source !== 'commitment')
+    .slice(0, 5)
+    .map((transaction) => ({
+      ...transaction,
+      icon: dailyHeroActivityIcon(transaction),
+      heroTone: dailyHeroActivityTone(transaction),
+      amountLabel: dailyHeroSignedAmount(transaction),
+      timeLabel: formatDailyHeroTime(transaction.dateTime || transaction.date),
+    }))
+}
+
+function buildDailyHeroNextAction(recommendation) {
+  if (!recommendation) {
+    return {
+      title: 'Add today expense',
+      detail: 'Record the next money move.',
+      badge: 'Add',
+      tone: 'tint',
+      icon: Receipt,
+      target: 'expense',
+    }
+  }
+
+  return {
+    title: recommendation.insight?.title || recommendation.category || recommendation.goalName || 'Next action',
+    detail:
+      recommendation.waitSuggestion ||
+      recommendation.insight?.detail ||
+      recommendation.categorySummary ||
+      'Review the current recommendation.',
+    badge: recommendation.ownershipTone || recommendation.timelineLabel || 'Now',
+    tone: recommendation.ownershipTone === 'danger' ? 'warning' : recommendation.ownershipTone || 'tint',
+    icon: Target,
+  }
+}
+
+function DailyCompanionEntry({
+  safeToSpend = {},
+  openAddSheet,
+  openQuickEntry,
+  todayTransactions = [],
+  recommendation,
+  legacyDailyHero = false,
+}) {
+  const [heroAmount, setHeroAmount] = useState('')
+  const recentActivity = useMemo(() => buildDailyHeroActivity(todayTransactions), [todayTransactions])
+  const nextAction = buildDailyHeroNextAction(recommendation)
+  const NextActionIcon = nextAction.icon
+  const hasAmount = normalizeMoney(heroAmount) > 0
+  const handleEntry = (mode) => {
+    if (openQuickEntry) {
+      openQuickEntry(mode, heroAmount)
+      return
+    }
+
+    openAddSheet?.(mode)
+  }
+
+  if (legacyDailyHero) {
+    return (
+      <MoneyOSProvider as="section" className="screen-content v7-daily-entry money-os-daily-companion">
+        <SectionHeader
+          title="Daily"
+          detail="Record money"
+          actions={<StatusBadge tone="success">{rupees(safeToSpend.comfortablyUsable || 0)} available</StatusBadge>}
+        />
+        <div className="v7-companion-grid v7-daily-entry-grid">
+          <ActionCard
+            title="Expense"
+            detail="Quick expense entry"
+            actionLabel="Add"
+            icon={Receipt}
+            tone="danger"
+            onClick={() => openAddSheet?.('expense')}
+          />
+          <ActionCard
+            title="Income"
+            detail="Monthly or extra income"
+            actionLabel="Add"
+            icon={Wallet}
+            tone="success"
+            onClick={() => openAddSheet?.('income')}
+          />
+          <StatCard
+            label="Available"
+            value={rupees(safeToSpend.comfortablyUsable || 0)}
+            detail={`${rupees(safeToSpend.protectedAmount || 0)} protected`}
+            icon={Wallet}
+            tone="tint"
+            className="v7-daily-available-card"
+          />
+        </div>
+      </MoneyOSProvider>
+    )
+  }
+
+  return (
+    <MoneyOSProvider as="section" className="screen-content v7-daily-entry v72-daily-hero money-os-daily-companion">
+      <section className="v72-quick-entry" aria-label="Quick Money Entry">
+        <div className="v72-quick-entry-copy">
+          <p className="eyebrow">Quick Money Entry</p>
+          <h2>Daily</h2>
+        </div>
+        <label className="v72-amount-entry">
+          <span className="sr-only">Amount</span>
+          <span aria-hidden="true">{getCurrencySymbol()}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            aria-label="Amount"
+            value={heroAmount}
+            placeholder="0"
+            onChange={(event) => setHeroAmount(event.target.value)}
+          />
+        </label>
+        <div className="v72-entry-actions" aria-label="Record money activity">
+          <button className="v72-entry-action v72-entry-action--expense" type="button" onClick={() => handleEntry('expense')}>
+            <Receipt size={19} />
+            <span>Expense</span>
+          </button>
+          <button className="v72-entry-action v72-entry-action--income" type="button" onClick={() => handleEntry('income')}>
+            <Wallet size={19} />
+            <span>Income</span>
+          </button>
+        </div>
+        <p className="v72-entry-hint">{hasAmount ? 'Amount ready. Choose expense or income.' : 'Enter amount, then choose expense or income.'}</p>
+      </section>
+
+      <div className="v72-daily-viewport-grid">
+        <section className="v72-daily-panel v72-recent-activity" aria-label="Recent Activity">
+          <div className="v72-panel-header">
+            <span>Recent Activity</span>
+            <StatusBadge>{recentActivity.length}</StatusBadge>
+          </div>
+          {recentActivity.length === 0 ? (
+            <p className="v72-empty-copy">No money activity yet.</p>
+          ) : (
+            <div className="v72-activity-list">
+              {recentActivity.map((item) => {
+                const ActivityIcon = item.icon
+
+                return (
+                  <article className="v72-activity-row" key={item.id}>
+                    <span className={`v72-activity-icon v72-activity-icon--${item.heroTone}`}>
+                      <ActivityIcon size={15} />
+                    </span>
+                    <span className="v72-activity-copy">
+                      <strong>{item.title || item.category || 'Money activity'}</strong>
+                      <small>{item.category || item.sourceModule || 'Daily'} - {item.timeLabel}</small>
+                    </span>
+                    <em className={`v72-activity-amount v72-activity-amount--${item.heroTone}`}>
+                      {item.amountLabel}
+                    </em>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="v72-daily-side-stack" aria-label="Daily summary">
+          <StatCard
+            label="Available"
+            value={rupees(safeToSpend.comfortablyUsable || 0)}
+            detail={`${rupees(safeToSpend.protectedAmount || 0)} protected`}
+            icon={Wallet}
+            tone="tint"
+            className="v72-available-card"
+          />
+          <MoneyCard
+            as={nextAction.target === 'expense' ? 'button' : 'section'}
+            type={nextAction.target === 'expense' ? 'button' : undefined}
+            eyebrow="Next Action"
+            title={nextAction.title}
+            detail={nextAction.detail}
+            meta={nextAction.badge}
+            icon={NextActionIcon}
+            tone={nextAction.tone}
+            className="v72-next-action-card"
+            interactive={nextAction.target === 'expense'}
+            onClick={nextAction.target === 'expense' ? () => handleEntry('expense') : undefined}
+          />
+        </section>
+      </div>
+    </MoneyOSProvider>
+  )
+}
+
+function buildInsightsHealthStatus(financialState = {}, financialHealth = {}) {
+  if (normalizeMoney(financialState.income) <= 0) {
+    return {
+      label: 'Attention Needed',
+      detail: 'Add income to understand this month clearly.',
+      tone: 'warning',
+      badge: financialHealth.status === 'ready' ? financialHealth.label : 'Learning',
+    }
+  }
+
+  if (financialState.pressureTone === 'slight-pressure') {
+    return {
+      label: 'Attention Needed',
+      detail: 'Fixed costs need attention before new spending.',
+      tone: 'warning',
+      badge: financialState.pressure || 'Needs Space',
+    }
+  }
+
+  if (financialState.pressureTone === 'warm' || financialState.pressureTone === 'balanced') {
+    return {
+      label: 'Moderate',
+      detail: 'Money is workable; keep spending measured.',
+      tone: 'tint',
+      badge: financialState.pressure || 'Moderate',
+    }
+  }
+
+  return {
+    label: 'Healthy',
+    detail: 'Income covers this month with room available.',
+    tone: 'success',
+    badge: financialHealth.status === 'ready' ? financialHealth.label : financialState.pressure || 'Healthy',
+  }
+}
+
+function buildInsightsFlow(financialState = {}, safeToSpend = {}, transactionSummary = {}) {
+  return [
+    {
+      key: 'income',
+      label: 'Income',
+      value: rupees(financialState.income || transactionSummary.incoming || 0),
+      icon: Wallet,
+      tone: 'success',
+    },
+    {
+      key: 'spent',
+      label: 'Spent',
+      value: rupees(transactionSummary.outgoing || financialState.committed || 0),
+      icon: Receipt,
+      tone: 'danger',
+    },
+    {
+      key: 'saved',
+      label: 'Saved',
+      value: rupees(transactionSummary.transfers || 0),
+      icon: PiggyBank,
+      tone: 'success',
+    },
+    {
+      key: 'available',
+      label: 'Available',
+      value: rupees(safeToSpend.comfortablyUsable ?? financialState.safeToSpend ?? 0),
+      icon: CreditCard,
+      tone: 'tint',
+    },
+  ]
+}
+
+function buildMonthlyStorySteps(financialState = {}, safeToSpend = {}, transactionSummary = {}) {
+  return [
+    {
+      label: 'Income received',
+      value: rupees(financialState.income || transactionSummary.incoming || 0),
+    },
+    {
+      label: 'Bills and spending paid',
+      value: rupees(transactionSummary.outgoing || financialState.committed || 0),
+    },
+    {
+      label: 'Savings protected',
+      value: rupees(transactionSummary.transfers || safeToSpend.protectedAmount || financialState.reserveTarget || 0),
+    },
+    {
+      label: 'Available now',
+      value: rupees(safeToSpend.comfortablyUsable ?? financialState.safeToSpend ?? 0),
+    },
+  ]
+}
+
+function InsightsCompanionOverview({
+  financialHealth = {},
+  financialState = {},
+  safeToSpend = {},
+  transactionSummary = {},
+  reportHistory = [],
+  onViewReports,
+  onGenerateReport,
+  isGeneratingReport = false,
+  legacyInsights = false,
+}) {
+  const health = buildInsightsHealthStatus(financialState, financialHealth)
+  const healthLabel = financialHealth.status === 'ready' ? financialHealth.label : 'Learning'
+  const flowItems = buildInsightsFlow(financialState, safeToSpend, transactionSummary)
+  const storySteps = buildMonthlyStorySteps(financialState, safeToSpend, transactionSummary)
+
+  if (legacyInsights) {
+    return (
+      <MoneyOSProvider as="section" className="screen-content v7-insights-overview money-os-insights">
+        <SectionHeader
+          title="Insights"
+          detail="Understand money"
+          actions={<StatusBadge>{healthLabel}</StatusBadge>}
+        />
+        <div className="v7-companion-grid v7-insights-grid">
+          <MoneyCard
+            title="Money Score"
+            detail="Placeholder"
+            icon={Sparkles}
+            tone="tint"
+            actions={<StatusBadge>Future</StatusBadge>}
+          />
+          <MoneyCard
+            title="Financial Health"
+            detail="Moved into Insights"
+            icon={ShieldCheck}
+            tone="success"
+            actions={<StatusBadge>{healthLabel}</StatusBadge>}
+          />
+          <MoneyCard
+            title="Money Flow"
+            detail="Placeholder"
+            icon={Wallet}
+            tone="warning"
+            actions={<StatusBadge>Future</StatusBadge>}
+          />
+          <MoneyCard
+            title="Monthly Story"
+            detail="Placeholder"
+            icon={ChartPie}
+            tone="neutral"
+            actions={<StatusBadge>Future</StatusBadge>}
+          />
+        </div>
+      </MoneyOSProvider>
+    )
+  }
+
+  return (
+    <MoneyOSProvider as="section" className="screen-content v7-insights-overview v73-insights-hub money-os-insights">
+      <SectionHeader
+        title="Insights"
+        detail="Understand money"
+        actions={<StatusBadge tone={health.tone}>{health.label}</StatusBadge>}
+      />
+
+      <section className="v73-insights-health" aria-label="Money Health">
+        <span className={`v73-health-orb v73-health-orb--${health.tone}`}>
+          <ShieldCheck size={20} />
+        </span>
+        <div>
+          <p>Money Health</p>
+          <h2>{health.label}</h2>
+          <span>{health.detail}</span>
+        </div>
+        <StatusBadge tone={health.tone}>{health.badge}</StatusBadge>
+      </section>
+
+      <section className="v73-insights-section" aria-label="Money Flow">
+        <div className="v73-insights-section-header">
+          <span>Money Flow</span>
+          <StatusBadge>Current month</StatusBadge>
+        </div>
+        <div className="v73-flow-track">
+          {flowItems.map((item) => {
+            const FlowIcon = item.icon
+
+            return (
+              <article className={`v73-flow-node v73-flow-node--${item.tone}`} key={item.key}>
+                <span>
+                  <FlowIcon size={15} />
+                </span>
+                <small>{item.label}</small>
+                <strong>{item.value}</strong>
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="v73-insights-grid">
+        <section className="v73-insights-section" aria-label="Monthly Story">
+          <div className="v73-insights-section-header">
+            <span>Monthly Story</span>
+            <StatusBadge>4 steps</StatusBadge>
+          </div>
+          <ol className="v73-story-list">
+            {storySteps.map((step, index) => (
+              <li key={step.label}>
+                <span>{index + 1}</span>
+                <p>{step.label}</p>
+                <strong>{step.value}</strong>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="v73-insights-section v73-report-access" aria-label="Report Access">
+          <div className="v73-insights-section-header">
+            <span>Report Access</span>
+            <StatusBadge>{reportHistory.length} saved</StatusBadge>
+          </div>
+          <div className="v73-report-actions">
+            <button className="ghost-button" type="button" onClick={onViewReports}>
+              <ChartPie size={16} />
+              View Reports
+            </button>
+            <button className="primary-button" type="button" onClick={onGenerateReport} disabled={isGeneratingReport}>
+              <Download size={16} />
+              {isGeneratingReport ? 'Preparing' : 'Generate Report'}
+            </button>
+          </div>
+        </section>
+      </div>
+    </MoneyOSProvider>
+  )
+}
+
+function ToolsCompanionHub({ navigateToTarget, openStatementImport }) {
+  return (
+    <MoneyOSProvider as="section" className="screen-content v7-tools-hub money-os-tools">
+      <SectionHeader
+        title="Tools"
+        detail="Solve money problems"
+        actions={<StatusBadge>Utilities</StatusBadge>}
+      />
+
+      <section className="v7-tool-group" aria-label="People money tools">
+        <SectionHeader title="People Money" />
+        <div className="v7-companion-grid">
+          <ActionCard
+            title="Trip Split"
+            detail="Shared trips and settlements"
+            actionLabel="Open"
+            icon={Plane}
+            tone="tint"
+            onClick={() => navigateToTarget?.('history', 'shared-expenses-section')}
+          />
+          <ActionCard
+            title="Shared Expenses"
+            detail="Groups, payments, and settlement status"
+            actionLabel="Open"
+            icon={Receipt}
+            tone="success"
+            onClick={() => navigateToTarget?.('history', 'shared-expenses-section')}
+          />
+          <ActionCard
+            title="Borrow / Lend"
+            detail="Money Book"
+            actionLabel="Open"
+            icon={CreditCard}
+            tone="warning"
+            onClick={() => navigateToTarget?.('history', 'money-book-section')}
+          />
+        </div>
+      </section>
+
+      <section className="v7-tool-group" aria-label="Planning tools">
+        <SectionHeader title="Plan & Save" />
+        <div className="v7-companion-grid">
+          <ActionCard
+            title="Savings"
+            detail="Goals and purchase planning"
+            actionLabel="Open"
+            icon={Target}
+            tone="success"
+            onClick={() => navigateToTarget?.('planner', 'savings-goals-section')}
+          />
+          <ActionCard
+            title="Calculator"
+            detail="Placeholder"
+            actionLabel="Planned"
+            icon={Calculator}
+            tone="neutral"
+            disabled
+          />
+        </div>
+      </section>
+
+      <section className="v7-tool-group" aria-label="Review tools">
+        <SectionHeader title="Review & Export" />
+        <div className="v7-companion-grid">
+          <ActionCard
+            title="Statement Analysis"
+            detail="Review PDF or CSV rows"
+            actionLabel="Open"
+            icon={Upload}
+            tone="warning"
+            onClick={openStatementImport}
+          />
+          <ActionCard
+            title="Reports"
+            detail="Monthly, trip, settlement, and statement outputs"
+            actionLabel="Open"
+            icon={ChartPie}
+            tone="tint"
+            onClick={() => navigateToTarget?.('reports', 'reports-export-section')}
+          />
+        </div>
+      </section>
+    </MoneyOSProvider>
+  )
+}
+
+function ProfileCompanionHome({ authUser, moneyTheme, openSettings }) {
+  const accountLabel = authUser?.email || 'Local profile'
+  const themeLabel = titleCase(String(moneyTheme || defaultMoneyOSTheme).replace(/-/g, ' '))
+
+  return (
+    <MoneyOSProvider as="section" className="screen-content v7-profile-home money-os-profile">
+      <SectionHeader
+        title="Profile"
+        detail="Settings and backup"
+        actions={<StatusBadge>{accountLabel}</StatusBadge>}
+      />
+      <div className="v7-companion-grid">
+        <ActionCard
+          title="Settings"
+          detail="Profile, income, bills, and preferences"
+          actionLabel="Open"
+          icon={User}
+          tone="tint"
+          onClick={openSettings}
+        />
+        <ActionCard
+          title="Theme"
+          detail={themeLabel}
+          actionLabel="Change"
+          icon={Sparkles}
+          tone="success"
+          onClick={openSettings}
+        />
+        <MoneyCard
+          title="Cloud Backup"
+          detail="Future backup option"
+          icon={ShieldCheck}
+          tone="warning"
+          actions={<StatusBadge>Future</StatusBadge>}
+        />
+        <ActionCard
+          title="Support"
+          detail="Support and feedback"
+          actionLabel="Open"
+          icon={Coffee}
+          tone="neutral"
+          href={supportPaymentUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+        />
+        <ActionCard
+          title="Legal"
+          detail="Privacy, terms, disclaimer, and contact"
+          actionLabel="Open"
+          icon={LockKeyhole}
+          tone="neutral"
+          href="/privacy"
+        />
+      </div>
+    </MoneyOSProvider>
+  )
+}
+
 function MainApp(props) {
   const {
     activeTab,
@@ -6341,12 +7069,53 @@ function MainApp(props) {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [hasOpenedNotifications, setHasOpenedNotifications] = useState(false)
   const [statementImportRequestId, setStatementImportRequestId] = useState(0)
+  const [quickIncomeInitialAmount, setQuickIncomeInitialAmount] = useState('')
+  const [isInsightsReportsOpen, setIsInsightsReportsOpen] = useState(false)
+  const useLegacyNavigation = isLegacyNavigation()
+  const useLegacyDailyHero = isLegacyDailyHero()
+  const useLegacyInsights = isLegacyInsights()
+  const activeNavigationTab = resolveNavigationTab(activeTab, useLegacyNavigation)
+  const navigationItems = useLegacyNavigation ? legacyNavItems : companionNavItems
+  const setCompanionActiveTab = useCallback((tab) => {
+    setActiveTab(resolveNavigationTab(tab, useLegacyNavigation))
+  }, [setActiveTab, useLegacyNavigation])
+  const openDailyHeroEntry = useCallback((mode, amount) => {
+    const initialAmount = normalizeDailyHeroAmount(amount)
+
+    if (mode === 'expense') {
+      setExpenseAmount(initialAmount)
+      trackEvent('quick_expense_entry_opened', {
+        screen: 'daily',
+        has_amount: Boolean(initialAmount),
+      })
+    }
+
+    if (mode === 'income') {
+      setQuickIncomeInitialAmount(initialAmount)
+    }
+
+    openAddSheet(mode)
+  }, [openAddSheet, setExpenseAmount])
+  const closeQuickAddSheet = useCallback(() => {
+    setQuickIncomeInitialAmount('')
+    closeAddSheet()
+  }, [closeAddSheet])
+
   useEffect(() => {
-    trackFeatureUsage(activeTab, {
-      surface: 'app_shell',
-      interaction: 'tab_viewed',
-    })
-  }, [activeTab])
+    const viewEvent = (useLegacyNavigation ? LEGACY_TAB_VIEW_EVENTS : COMPANION_TAB_VIEW_EVENTS)[activeNavigationTab]
+
+    if (viewEvent) {
+      trackEvent(viewEvent)
+    }
+
+    if (!useLegacyNavigation) {
+      const compatibilityEvent = COMPANION_COMPAT_VIEW_EVENTS[activeNavigationTab]
+
+      if (compatibilityEvent && compatibilityEvent !== viewEvent) {
+        trackEvent(compatibilityEvent)
+      }
+    }
+  }, [activeNavigationTab, useLegacyNavigation])
 
   const scrollToTargetId = useCallback((targetId) => {
     if (!targetId || typeof window === 'undefined' || typeof document === 'undefined') {
@@ -6374,13 +7143,13 @@ function MainApp(props) {
     window.setTimeout(tryScroll, 60)
   }, [])
   const navigateToTarget = useCallback((tab, targetId) => {
-    setActiveTab(tab)
+    setCompanionActiveTab(tab)
     scrollToTargetId(targetId)
-  }, [scrollToTargetId, setActiveTab])
+  }, [scrollToTargetId, setCompanionActiveTab])
   const openStatementImportFromAddHub = useCallback(() => {
-    setActiveTab('reports')
+    setCompanionActiveTab('reports')
     setStatementImportRequestId((current) => current + 1)
-  }, [setActiveTab])
+  }, [setCompanionActiveTab])
   const handleReportPromptAction = useCallback((prompt) => {
     if (!prompt?.tab || !prompt?.targetId) {
       return
@@ -6393,6 +7162,100 @@ function MainApp(props) {
     })
     navigateToTarget(prompt.tab, prompt.targetId)
   }, [clearReportExportPrompt, navigateToTarget])
+  const openInsightsReports = useCallback(() => {
+    setIsInsightsReportsOpen(true)
+
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      window.setTimeout(() => {
+        document.getElementById('v73-insights-reports')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 0)
+    }
+  }, [])
+  const generateInsightsReport = useCallback(() => {
+    setIsInsightsReportsOpen(true)
+    requestReportExport?.('monthly')
+  }, [requestReportExport])
+
+  const todayScreenNode = (
+    <Suspense fallback={<HomeScreenFallback />}>
+      <TodayScreen
+        profile={profile}
+        financialState={financialState}
+        insights={insights}
+        smartHomeInsights={smartHomeInsights}
+        smartReminders={smartReminders}
+        financialHealth={financialHealth}
+        safeToSpend={safeToSpend}
+        calmSummaries={calmSummaries}
+        whatChangedInsights={whatChangedInsights}
+        emergencyCushion={emergencyCushion}
+        savingsBuckets={savingsBuckets}
+        recurringSchedules={recurringSchedules}
+        moneyReminders={moneyReminders}
+        upcomingMoney={upcomingMoney}
+        financialCalendarEvents={financialCalendarEvents}
+        reportHistory={reportHistory}
+        redownloadReport={redownloadReport}
+        sharedGroups={sharedGroups}
+        sharedSummary={sharedSummary}
+        moneyBookSummary={moneyBookSummary}
+        todayTransactions={todayTransactions}
+        expenses={expenses}
+        selectedPlan={selectedPlan}
+        plannerInput={plannerInput}
+        plannerTargetAmount={plannerTargetAmount}
+        plannerCurrentSavings={plannerCurrentSavings}
+        plannerTimeline={plannerTimeline}
+        recommendation={recommendation}
+        lowEnergyMode={lowEnergyMode}
+        setActiveTab={setCompanionActiveTab}
+        openAddSheet={openAddSheet}
+        downloadPdf={downloadPdf}
+        isExportingPdf={isExportingPdf}
+        pdfError={pdfError}
+        navigateToTarget={navigateToTarget}
+      />
+    </Suspense>
+  )
+  const dailyBookScreenNode = (
+    <Suspense fallback={<DailyBookScreenFallback />}>
+      <DailyBookScreen
+        expenses={expenses}
+        openAddSheet={openAddSheet}
+      />
+    </Suspense>
+  )
+  const reportsScreenNode = (
+    <Suspense fallback={<ReportsFallback />}>
+      <ReportsScreen
+        advancedReport={advancedReport}
+        expenseBreakdown={reportExpenseBreakdown}
+        financialState={reportFinancialState}
+        reportTransactions={reportTransactions}
+        transactionSummary={reportTransactionSummary}
+        monthlyComparison={monthlyComparison}
+        downloadPdf={downloadPdf}
+        requestReportExport={requestReportExport}
+        reportTemplate={reportTemplate}
+        setReportTemplate={setReportTemplate}
+        reportHistory={reportHistory}
+        redownloadReport={redownloadReport}
+        deleteReportHistoryEntry={deleteReportHistoryEntry}
+        onStatementMappingsChange={onStatementMappingsChange}
+        exportCsv={exportCsv}
+        isExportingPdf={isExportingPdf}
+        exportingReportType={exportingReportType}
+        reportExportPrompt={reportExportPrompt}
+        onReportPromptAction={handleReportPromptAction}
+        clearReportExportPrompt={clearReportExportPrompt}
+        selectedMonthKey={selectedMonthKey}
+        setSelectedMonthKey={setSelectedMonthKey}
+        monthOptions={monthOptions}
+        statementImportRequestId={statementImportRequestId}
+      />
+      {pdfError && <p className="form-message">{pdfError}</p>}
+    </Suspense>
+  )
 
   return (
     <motion.div className="app-shell" {...fadeUp}>
@@ -6406,6 +7269,7 @@ function MainApp(props) {
         aria-label="Open profile and settings"
         onClick={() => {
           setIsSettingsOpen(true)
+          trackEvent('profile_viewed')
           trackFeatureUsage('settings_opened', {
             surface: 'app_chrome',
           })
@@ -6443,80 +7307,104 @@ function MainApp(props) {
       )}
       <QuickAddFab openAddSheet={openAddSheet} />
       <main className="screen-panel">
-        {activeTab === 'home' && (
-          <Suspense fallback={<HomeScreenFallback />}>
-            <TodayScreen
-              profile={profile}
-              financialState={financialState}
-              insights={insights}
-              smartHomeInsights={smartHomeInsights}
-              smartReminders={smartReminders}
-              financialHealth={financialHealth}
-              safeToSpend={safeToSpend}
-              calmSummaries={calmSummaries}
-              whatChangedInsights={whatChangedInsights}
-              emergencyCushion={emergencyCushion}
-              savingsBuckets={savingsBuckets}
-              recurringSchedules={recurringSchedules}
-              moneyReminders={moneyReminders}
-              upcomingMoney={upcomingMoney}
-              financialCalendarEvents={financialCalendarEvents}
-              reportHistory={reportHistory}
-              redownloadReport={redownloadReport}
-              sharedGroups={sharedGroups}
-              sharedSummary={sharedSummary}
-              moneyBookSummary={moneyBookSummary}
-              todayTransactions={todayTransactions}
-              expenses={expenses}
-              selectedPlan={selectedPlan}
-              plannerInput={plannerInput}
-              plannerTargetAmount={plannerTargetAmount}
-              plannerCurrentSavings={plannerCurrentSavings}
-              plannerTimeline={plannerTimeline}
-              recommendation={recommendation}
-              lowEnergyMode={lowEnergyMode}
-              setActiveTab={setActiveTab}
-              openAddSheet={openAddSheet}
-              downloadPdf={downloadPdf}
-              isExportingPdf={isExportingPdf}
-              pdfError={pdfError}
-              navigateToTarget={navigateToTarget}
-            />
-          </Suspense>
+        {activeNavigationTab === 'home' && (
+          <>
+            {!useLegacyNavigation && (
+              <DailyCompanionEntry
+                safeToSpend={safeToSpend}
+                openAddSheet={openAddSheet}
+                openQuickEntry={openDailyHeroEntry}
+                todayTransactions={todayTransactions}
+                recommendation={recommendation}
+                legacyDailyHero={useLegacyDailyHero}
+              />
+            )}
+            {(useLegacyNavigation || useLegacyDailyHero) && todayScreenNode}
+            {!useLegacyNavigation && useLegacyDailyHero && dailyBookScreenNode}
+            {!useLegacyNavigation && !useLegacyDailyHero && (
+              <details className="v72-daily-secondary">
+                <summary>
+                  <span>
+                    <strong>More Daily Details</strong>
+                    <small>Daily Book, trends, analytics, and extended history</small>
+                  </span>
+                  <StatusBadge>Open</StatusBadge>
+                </summary>
+                <div className="v72-daily-secondary-stack">
+                  {todayScreenNode}
+                  {dailyBookScreenNode}
+                </div>
+              </details>
+            )}
+          </>
         )}
-        {activeTab === 'history' && (
-          <Suspense fallback={<DailyBookScreenFallback />}>
-            <DailyBookScreen
-              expenses={expenses}
-              openAddSheet={openAddSheet}
-            />
-            <ActivityScreen
-              groups={historyGroups}
-              summary={transactionSummary}
-              cashflowTimeline={cashflowTimeline}
-              expenses={expenses}
-              moneyBookEntries={moneyBookEntries}
-              moneyBookSummary={moneyBookSummary}
-              profile={profile}
-              sharedGroups={sharedGroups}
-              sharedSummary={sharedSummary}
-              addSharedGroup={addSharedGroup}
-              addSharedPayment={addSharedPayment}
-              markSharedSettlementReceived={markSharedSettlementReceived}
-              removeSharedGroup={removeSharedGroup}
-              onSaveMoneyBookEntry={saveMoneyBookEntry}
-              onToggleMoneyBookSettlement={toggleMoneyBookSettlement}
-              onDeleteMoneyBookEntry={deleteMoneyBookEntry}
-              selectedMonthKey={selectedMonthKey}
-              setSelectedMonthKey={setSelectedMonthKey}
-              monthOptions={monthOptions}
-              onEditExpense={editExpense}
-              setActiveTab={setActiveTab}
-              openAddSheet={openAddSheet}
-            />
-          </Suspense>
+        {activeNavigationTab === 'history' && (
+          <>
+            {!useLegacyNavigation && (
+              <ToolsCompanionHub
+                navigateToTarget={navigateToTarget}
+                openStatementImport={openStatementImportFromAddHub}
+              />
+            )}
+            {useLegacyNavigation && (
+              <Suspense fallback={<DailyBookScreenFallback />}>
+                <DailyBookScreen
+                  expenses={expenses}
+                  openAddSheet={openAddSheet}
+                />
+              </Suspense>
+            )}
+            {!useLegacyNavigation && (
+              <Suspense fallback={<ScreenFallback eyebrow="Savings" title="Preparing savings goals" />}>
+                <GoalsScreen
+                  plannerInput={plannerInput}
+                  setPlannerInput={setPlannerInput}
+                  selectedPlan={selectedPlan}
+                  setSelectedPlan={setSelectedPlan}
+                  plannerTargetAmount={plannerTargetAmount}
+                  setPlannerTargetAmount={setPlannerTargetAmount}
+                  plannerCurrentSavings={plannerCurrentSavings}
+                  setPlannerCurrentSavings={setPlannerCurrentSavings}
+                  plannerTimeline={plannerTimeline}
+                  setPlannerTimeline={setPlannerTimeline}
+                  recommendation={recommendation}
+                  financialState={financialState}
+                  savingsBuckets={savingsBuckets}
+                  addSavingsBucket={addSavingsBucket}
+                  updateSavingsBucket={updateSavingsBucket}
+                  removeSavingsBucket={removeSavingsBucket}
+                />
+              </Suspense>
+            )}
+            <Suspense fallback={<DailyBookScreenFallback />}>
+              <ActivityScreen
+                groups={historyGroups}
+                summary={transactionSummary}
+                cashflowTimeline={cashflowTimeline}
+                expenses={expenses}
+                moneyBookEntries={moneyBookEntries}
+                moneyBookSummary={moneyBookSummary}
+                profile={profile}
+                sharedGroups={sharedGroups}
+                sharedSummary={sharedSummary}
+                addSharedGroup={addSharedGroup}
+                addSharedPayment={addSharedPayment}
+                markSharedSettlementReceived={markSharedSettlementReceived}
+                removeSharedGroup={removeSharedGroup}
+                onSaveMoneyBookEntry={saveMoneyBookEntry}
+                onToggleMoneyBookSettlement={toggleMoneyBookSettlement}
+                onDeleteMoneyBookEntry={deleteMoneyBookEntry}
+                selectedMonthKey={selectedMonthKey}
+                setSelectedMonthKey={setSelectedMonthKey}
+                monthOptions={monthOptions}
+                onEditExpense={editExpense}
+                setActiveTab={setCompanionActiveTab}
+                openAddSheet={openAddSheet}
+              />
+            </Suspense>
+          </>
         )}
-        {activeTab === 'planner' && (
+        {activeNavigationTab === 'planner' && (
           <Suspense fallback={<ScreenFallback eyebrow="Savings" title="Preparing savings goals" />}>
             <GoalsScreen
               plannerInput={plannerInput}
@@ -6538,39 +7426,59 @@ function MainApp(props) {
             />
           </Suspense>
         )}
-        {activeTab === 'reports' && (
-          <Suspense fallback={<ReportsFallback />}>
-            <ReportsScreen
-              advancedReport={advancedReport}
-              expenseBreakdown={reportExpenseBreakdown}
-              financialState={reportFinancialState}
-              reportTransactions={reportTransactions}
-              transactionSummary={reportTransactionSummary}
-              monthlyComparison={monthlyComparison}
-              downloadPdf={downloadPdf}
-              requestReportExport={requestReportExport}
-              reportTemplate={reportTemplate}
-              setReportTemplate={setReportTemplate}
-              reportHistory={reportHistory}
-              redownloadReport={redownloadReport}
-              deleteReportHistoryEntry={deleteReportHistoryEntry}
-              onStatementMappingsChange={onStatementMappingsChange}
-              exportCsv={exportCsv}
-              isExportingPdf={isExportingPdf}
-              exportingReportType={exportingReportType}
-              reportExportPrompt={reportExportPrompt}
-              onReportPromptAction={handleReportPromptAction}
-              clearReportExportPrompt={clearReportExportPrompt}
-              selectedMonthKey={selectedMonthKey}
-              setSelectedMonthKey={setSelectedMonthKey}
-              monthOptions={monthOptions}
-              statementImportRequestId={statementImportRequestId}
-            />
-            {pdfError && <p className="form-message">{pdfError}</p>}
-          </Suspense>
+        {activeNavigationTab === 'reports' && (
+          <>
+            {!useLegacyNavigation && (
+              <InsightsCompanionOverview
+                financialHealth={financialHealth}
+                financialState={financialState}
+                safeToSpend={safeToSpend}
+                transactionSummary={reportTransactionSummary}
+                reportHistory={reportHistory}
+                onViewReports={openInsightsReports}
+                onGenerateReport={generateInsightsReport}
+                isGeneratingReport={isExportingPdf || Boolean(exportingReportType)}
+                legacyInsights={useLegacyInsights}
+              />
+            )}
+            {(useLegacyNavigation || useLegacyInsights) && reportsScreenNode}
+            {!useLegacyNavigation && !useLegacyInsights && (
+              <details
+                className="v73-insights-reports-details"
+                id="v73-insights-reports"
+                open={isInsightsReportsOpen}
+                onToggle={(event) => setIsInsightsReportsOpen(event.currentTarget.open)}
+              >
+                <summary>
+                  <span>
+                    <strong>Reports, History & Exports</strong>
+                    <small>Full reports, saved files, exports, and advanced reporting</small>
+                  </span>
+                  <StatusBadge>{isInsightsReportsOpen ? 'Open' : 'View'}</StatusBadge>
+                </summary>
+                <div className="v73-insights-reports-stack">
+                  {isInsightsReportsOpen && reportsScreenNode}
+                </div>
+              </details>
+            )}
+          </>
         )}
-        {activeTab === 'profile' && (
-          <ProfileScreen
+        {activeNavigationTab === 'profile' && (
+          <>
+            {!useLegacyNavigation && (
+              <ProfileCompanionHome
+                authUser={authUser}
+                moneyTheme={moneyTheme}
+                openSettings={() => {
+                  setIsSettingsOpen(true)
+                  trackEvent('profile_viewed')
+                  trackFeatureUsage('settings_opened', {
+                    surface: 'profile_tab',
+                  })
+                }}
+              />
+            )}
+            <ProfileScreen
             profile={profile}
             setProfile={setProfile}
             authUser={authUser}
@@ -6622,6 +7530,7 @@ function MainApp(props) {
             navigateToTarget={navigateToTarget}
             openStatementImport={openStatementImportFromAddHub}
           />
+          </>
         )}
       </main>
       {isLegacyFooterExperience() && <LoggedInLegalFooter />}
@@ -6629,7 +7538,7 @@ function MainApp(props) {
         <QuickAddSheet
           mode={addSheetMode}
           setMode={openAddSheet}
-          onClose={closeAddSheet}
+          onClose={closeQuickAddSheet}
           profile={profile}
           setProfile={setProfile}
           savingsBuckets={savingsBuckets}
@@ -6670,9 +7579,10 @@ function MainApp(props) {
           undoVoiceSave={undoVoiceSave}
           lastVoiceSave={lastVoiceSave}
           saveMoneyBookEntry={saveMoneyBookEntry}
-          setActiveTab={setActiveTab}
+          setActiveTab={setCompanionActiveTab}
           navigateToTarget={navigateToTarget}
           openStatementImport={openStatementImportFromAddHub}
+          initialIncomeAmount={quickIncomeInitialAmount}
         />
       )}
       {isSettingsOpen && (
@@ -6706,7 +7616,7 @@ function MainApp(props) {
           />
         </Suspense>
       )}
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      <BottomNav activeTab={activeNavigationTab} setActiveTab={setCompanionActiveTab} items={navigationItems} />
     </motion.div>
   )
 }
@@ -6958,6 +7868,7 @@ function QuickAddSheet({
   setActiveTab,
   navigateToTarget,
   openStatementImport,
+  initialIncomeAmount = '',
 }) {
   const title = {
     menu: 'Add',
@@ -7000,6 +7911,7 @@ function QuickAddSheet({
   }
 
   const openSharedExpense = () => {
+    trackEvent('add_people_selected')
     trackFeatureUsage('add_hub_action_selected', {
       surface: 'add_hub',
       action: 'shared_expense',
@@ -7008,6 +7920,7 @@ function QuickAddSheet({
   }
 
   const openStatementImportFromHub = () => {
+    trackEvent('add_other_actions_selected')
     trackFeatureUsage('add_hub_action_selected', {
       surface: 'add_hub',
       action: 'statement_import',
@@ -7017,6 +7930,7 @@ function QuickAddSheet({
   }
 
   const openSavingsGoalFromHub = () => {
+    trackEvent('add_other_actions_selected')
     trackFeatureUsage('add_hub_action_selected', {
       surface: 'add_hub',
       action: 'savings_goal',
@@ -7205,6 +8119,7 @@ function QuickAddSheet({
           <QuickIncomeEntry
             profile={profile}
             setProfile={setProfile}
+            initialAmount={initialIncomeAmount}
             onSaved={(saved) => showActionSuccess({
               title: 'Income Added',
               detail: `${rupees(saved?.amount || 0)} monthly income. Successfully added.`,
@@ -7339,7 +8254,12 @@ function QuickAddSheet({
         )}
 
         {mode === 'income' && (
-          <QuickIncomeEntry profile={profile} setProfile={setProfile} onSaved={onClose} />
+          <QuickIncomeEntry
+            profile={profile}
+            setProfile={setProfile}
+            initialAmount={initialIncomeAmount}
+            onSaved={onClose}
+          />
         )}
 
         {mode === 'transfer' && (
@@ -7409,6 +8329,9 @@ function QuickExpenseEntry({
       const saved = addExpense(event)
 
       if (saved) {
+        trackEvent('quick_expense_created', {
+          screen: 'quick_add',
+        })
         onSaved(saved)
         return
       }
@@ -7501,8 +8424,8 @@ function QuickExpenseEntry({
   )
 }
 
-function QuickIncomeEntry({ profile, setProfile, onSaved }) {
-  const [incomeAmount, setIncomeAmount] = useState(profile.income ? String(profile.income) : '')
+function QuickIncomeEntry({ profile, setProfile, onSaved, initialAmount = '' }) {
+  const [incomeAmount, setIncomeAmount] = useState(initialAmount || (profile.income ? String(profile.income) : ''))
   const [error, setError] = useState('')
 
   return (
@@ -7520,6 +8443,9 @@ function QuickIncomeEntry({ profile, setProfile, onSaved }) {
       setProfile((current) => ({ ...current, income: parsed }))
       trackFeatureUsage('income_saved', {
         surface: 'quick_add',
+      })
+      trackEvent('quick_income_created', {
+        screen: 'quick_add',
       })
 
       if (normalizeMoney(profile.income) <= 0) {
@@ -8674,10 +9600,10 @@ function CommitmentEditorSheet({ commitments, updateCommitment, addCommitment, r
   )
 }
 
-function BottomNav({ activeTab, setActiveTab }) {
+function BottomNav({ activeTab, setActiveTab, items = legacyNavItems }) {
   return (
     <nav className="bottom-nav" aria-label="Main navigation">
-      {navItems.map((item) => {
+      {items.map((item) => {
         const Icon = item.icon
         return (
           <button

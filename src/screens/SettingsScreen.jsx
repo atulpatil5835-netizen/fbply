@@ -7,9 +7,48 @@ import RecurringScheduleManager from '../components/RecurringScheduleManager.jsx
 import { FLoader, moneyOSThemeOptions, normalizeMoneyOSTheme } from '../design-system'
 import { getProfileBalanceMessage } from '../lib/financeVisuals'
 import { normalizeMoney } from '../lib/money'
+import { trackEvent } from '../lib/analytics'
 import { titleCase } from '../lib/uiHelpers'
 
 const ProfileHub = lazy(() => import('../components/ProfileHub.jsx'))
+const ProductHealthDashboard = lazy(() => import('../components/ProductHealthDashboard.jsx'))
+
+function normalizeEmail(value = '') {
+  return String(value || '').trim().toLowerCase()
+}
+
+function configuredFounderEmails(supportEmail) {
+  const configuredEmails = [
+    supportEmail,
+    import.meta.env.VITE_FOUNDER_EMAILS || '',
+    import.meta.env.VITE_ADMIN_EMAILS || '',
+  ].join(',')
+
+  return new Set(
+    configuredEmails
+      .split(',')
+      .map(normalizeEmail)
+      .filter(Boolean),
+  )
+}
+
+function isLocalDevelopmentHost() {
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
+    return false
+  }
+
+  return ['localhost', '127.0.0.1'].includes(window.location.hostname)
+}
+
+function canViewFounderDashboard({ authUser, profile, supportEmail }) {
+  const accountEmail = normalizeEmail(authUser?.email || profile?.email)
+
+  if (accountEmail && configuredFounderEmails(supportEmail).has(accountEmail)) {
+    return true
+  }
+
+  return isLocalDevelopmentHost()
+}
 
 function ThemePreference({ moneyTheme, setMoneyTheme }) {
   const selectedTheme = normalizeMoneyOSTheme(moneyTheme)
@@ -33,7 +72,13 @@ function ThemePreference({ moneyTheme, setMoneyTheme }) {
               aria-checked={isSelected}
               data-theme-option={theme.id}
               key={theme.id}
-              onClick={() => setMoneyTheme?.(theme.id)}
+              onClick={() => {
+                if (!isSelected) {
+                  trackEvent('theme_changed')
+                }
+
+                setMoneyTheme?.(theme.id)
+              }}
             >
               <span className="theme-choice-swatch" aria-hidden="true" />
               <span>{theme.label}</span>
@@ -75,6 +120,7 @@ export default function SettingsScreen({
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const balanceMessage = getProfileBalanceMessage(financialState)
+  const showProductHealthDashboard = canViewFounderDashboard({ authUser, profile, supportEmail })
   const navigateFromHub = (tab, targetId) => {
     onClose()
     navigateToTarget?.(tab, targetId)
@@ -221,6 +267,12 @@ export default function SettingsScreen({
                   onOpenStatementAnalysis={openStatementImportFromHub}
                 />
               </Suspense>
+
+              {showProductHealthDashboard && (
+                <Suspense fallback={<FLoader label="Opening product health" />}>
+                  <ProductHealthDashboard />
+                </Suspense>
+              )}
             </div>
           )}
         </details>

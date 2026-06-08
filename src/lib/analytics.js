@@ -1,6 +1,9 @@
-const EVENT_PREFIX = 'fbply_'
 const MAX_DEBUG_EVENTS = 200
-const SENSITIVE_KEY_PATTERN = /(email|password|name|person|participant|note|transcript|description|token|secret|file_name|filename)/i
+const MAX_PRODUCT_HEALTH_EVENTS = 500
+const DUPLICATE_WINDOW_MS = 500
+const APP_VERSION = String(import.meta.env.VITE_APP_VERSION || '0.0.0')
+const PRODUCT_HEALTH_STORAGE_KEY = 'fbply-product-health-events-v1'
+
 const PUBLIC_PAGE_EVENT_BY_TYPE = {
   landing: 'landing_page_viewed',
   guide: 'guide_viewed',
@@ -13,107 +16,162 @@ const PUBLIC_PAGE_EVENT_BY_TYPE = {
   template: 'template_viewed',
   authorityTemplate: 'template_viewed',
 }
-const KNOWN_FEATURES = [
-  'home',
-  'history',
-  'daily_book',
-  'daily_book_history_filter',
-  'daily_book_insights',
-  'planner',
-  'reports',
-  'profile',
-  'quick_add_opened',
-  'settings_opened',
-  'activation_checklist',
-  'feature_discovery_card',
-  'intent_shortcut',
-  'expense_saved',
-  'income_saved',
-  'goal_created',
-  'goal_transfer_saved',
-  'trip_created',
-  'shared_payment_added',
-  'borrow_lend_saved',
-  'statement_analysis_opened',
-  'statement_upload_picker_opened',
-  'statement_preview_confirmed',
-  'report_template_selected',
-  'report_details_opened',
-  'report_prompt_action',
-  'calculator_used',
+
+const PRODUCT_EVENT_SCREENS = {
+  app_opened: 'app',
+  theme_changed: 'profile',
+  daily_viewed: 'daily',
+  home_viewed: 'home',
+  insights_viewed: 'insights',
+  tools_viewed: 'tools',
+  next_action_clicked: 'home',
+  add_hub_opened: 'add_hub',
+  quick_expense_entry_opened: 'daily',
+  add_expense_selected: 'add_hub',
+  add_income_selected: 'add_hub',
+  add_people_selected: 'add_hub',
+  add_other_actions_selected: 'add_hub',
+  quick_expense_created: 'expenses',
+  quick_income_created: 'income',
+  expense_created: 'expenses',
+  income_created: 'income',
+  people_viewed: 'people',
+  borrow_created: 'people',
+  lend_created: 'people',
+  shared_group_created: 'people',
+  settlement_completed: 'people',
+  savings_viewed: 'savings',
+  goal_created: 'savings',
+  goal_updated: 'savings',
+  reports_viewed: 'reports',
+  report_generated: 'reports',
+  statement_analysis_started: 'reports',
+  statement_analysis_completed: 'reports',
+  profile_viewed: 'profile',
+  sign_out_clicked: 'profile',
+}
+
+const FEATURE_EVENT_ALIASES = {
+  quick_add_opened: 'add_hub_opened',
+  expense_saved: 'expense_created',
+  income_saved: 'income_created',
+  trip_created: 'shared_group_created',
+  goal_created: 'goal_created',
+  reports: 'reports_viewed',
+  profile: 'profile_viewed',
+  planner: 'savings_viewed',
+  home: 'home_viewed',
+}
+
+const SCREEN_ALIASES = {
+  app: 'app',
+  app_chrome: 'app',
+  auth: 'auth',
+  activation: 'home',
+  today: 'home',
+  home: 'home',
+  daily: 'daily',
+  insights: 'insights',
+  tools: 'tools',
+  history: 'people',
+  people: 'people',
+  money_book: 'people',
+  shared_expenses: 'people',
+  goals: 'savings',
+  planner: 'savings',
+  savings: 'savings',
+  setup: 'savings',
+  reports: 'reports',
+  statement_analysis: 'reports',
+  quick_add: 'add_hub',
+  add_hub: 'add_hub',
+  profile: 'profile',
+  public_seo: 'public',
+}
+
+const PRODUCT_HEALTH_METRICS = [
+  { event: 'app_opened', label: 'App opened', group: 'App Usage', screen: 'app' },
+  { event: 'daily_viewed', label: 'Daily viewed', group: 'Daily', screen: 'daily' },
+  { event: 'insights_viewed', label: 'Insights viewed', group: 'Insights', screen: 'insights' },
+  { event: 'tools_viewed', label: 'Tools viewed', group: 'Tools', screen: 'tools' },
+  { event: 'home_viewed', label: 'Home viewed', group: 'Home', screen: 'home' },
+  { event: 'next_action_clicked', label: 'Next action clicked', group: 'Home', screen: 'home' },
+  { event: 'quick_expense_entry_opened', label: 'Quick expense entry opened', group: 'Daily', screen: 'daily' },
+  { event: 'add_hub_opened', label: 'Add hub opened', group: 'Add Hub', screen: 'add_hub' },
+  { event: 'add_expense_selected', label: 'Expense selected', group: 'Add Hub', screen: 'add_hub' },
+  { event: 'add_income_selected', label: 'Income selected', group: 'Add Hub', screen: 'add_hub' },
+  { event: 'add_people_selected', label: 'People selected', group: 'Add Hub', screen: 'add_hub' },
+  { event: 'add_other_actions_selected', label: 'Other actions selected', group: 'Add Hub', screen: 'add_hub' },
+  { event: 'quick_expense_created', label: 'Quick expense created', group: 'Creation Metrics', screen: 'expenses' },
+  { event: 'quick_income_created', label: 'Quick income created', group: 'Creation Metrics', screen: 'income' },
+  { event: 'expense_created', label: 'Expense created', group: 'Creation Metrics', screen: 'expenses' },
+  { event: 'income_created', label: 'Income created', group: 'Creation Metrics', screen: 'income' },
+  { event: 'goal_created', label: 'Goal created', group: 'Creation Metrics', screen: 'savings' },
+  { event: 'borrow_created', label: 'Borrow created', group: 'Creation Metrics', screen: 'people' },
+  { event: 'shared_group_created', label: 'Shared group created', group: 'Creation Metrics', screen: 'people' },
+  { event: 'reports_viewed', label: 'Reports viewed', group: 'Reports', screen: 'reports' },
+  { event: 'report_generated', label: 'Report generated', group: 'Reports', screen: 'reports' },
+  { event: 'statement_analysis_started', label: 'Statement analysis started', group: 'Reports', screen: 'reports' },
+  { event: 'statement_analysis_completed', label: 'Statement analysis completed', group: 'Reports', screen: 'reports' },
+  { event: 'goal_updated', label: 'Goal updated', group: 'Retention Signals', screen: 'savings' },
 ]
 
 const debugState = {
   events: [],
   counts: {},
-  pages: {},
-  features: {},
-  calculators: {},
-  reports: {},
-  exports: {},
-  auth: {
-    signup_open: 0,
-    signup_success: 0,
-    login_open: 0,
-    login_success: 0,
-    auth_abandon: 0,
-  },
-  funnel: {
-    seo_page: 0,
-    signup: 0,
-    first_action: 0,
-    report_generation: 0,
-    export: 0,
-  },
+  screens: {},
 }
+
+const recentEventKeys = new Map()
+let productHealthEvents = null
+let productHealthPersistQueued = false
 
 function normalizeEventName(action = '') {
-  const cleanAction = String(action || '').trim().replace(/^fbply_/, '')
-  return `${EVENT_PREFIX}${cleanAction || 'event'}`
+  return String(action || '')
+    .trim()
+    .replace(/^fbply_/, '')
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase() || 'event'
 }
 
-function isSafeValue(value) {
-  return ['string', 'number', 'boolean'].includes(typeof value) || value === null
+function normalizeScreen(screen = 'app') {
+  const cleanScreen = normalizeEventName(screen)
+  return SCREEN_ALIASES[cleanScreen] || cleanScreen || 'app'
 }
 
-function sanitizeValue(value) {
-  if (value === undefined) {
-    return undefined
+function resolveScreen(eventName, payload = {}) {
+  if (PRODUCT_EVENT_SCREENS[eventName]) {
+    return PRODUCT_EVENT_SCREENS[eventName]
   }
 
-  if (value === null) {
-    return null
-  }
-
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : undefined
-  }
-
-  if (typeof value === 'boolean') {
-    return value
-  }
-
-  if (typeof value === 'string') {
-    return value.slice(0, 120)
-  }
-
-  return undefined
+  return normalizeScreen(payload.screen || payload.surface || 'app')
 }
 
-function sanitizePayload(payload = {}) {
-  return Object.entries(payload).reduce((safePayload, [key, value]) => {
-    if (SENSITIVE_KEY_PATTERN.test(key) || !isSafeValue(value)) {
-      return safePayload
-    }
+function buildAnalyticsEvent(action, payload = {}) {
+  const eventName = normalizeEventName(action)
 
-    const safeValue = sanitizeValue(value)
+  return {
+    event_name: eventName,
+    timestamp: new Date().toISOString(),
+    screen: resolveScreen(eventName, payload),
+    app_version: APP_VERSION,
+  }
+}
 
-    if (safeValue !== undefined) {
-      safePayload[key] = safeValue
-    }
+function isProductHealthEvent(event) {
+  if (!event || typeof event !== 'object') {
+    return false
+  }
 
-    return safePayload
-  }, {})
+  const keys = Object.keys(event).sort()
+
+  return keys.join('|') === 'app_version|event_name|screen|timestamp'
+    && typeof event.event_name === 'string'
+    && typeof event.timestamp === 'string'
+    && typeof event.screen === 'string'
+    && typeof event.app_version === 'string'
 }
 
 function increment(target, key) {
@@ -124,85 +182,125 @@ function increment(target, key) {
   target[key] = (target[key] || 0) + 1
 }
 
-function updateFunnel(action, payload) {
-  if (payload.surface === 'public_seo' || action.endsWith('_viewed')) {
-    debugState.funnel.seo_page += 1
-  }
-
-  if (action === 'signup_success') {
-    debugState.funnel.signup += 1
-  }
-
-  if (action.startsWith('first_')) {
-    debugState.funnel.first_action += 1
-  }
-
-  if (action === 'report_generated') {
-    debugState.funnel.report_generation += 1
-  }
-
-  if (action === 'report_exported' || action === 'csv_exported' || action === 'report_shared') {
-    debugState.funnel.export += 1
-  }
+function pruneDuplicateCache(now) {
+  recentEventKeys.forEach((timestamp, key) => {
+    if (now - timestamp > DUPLICATE_WINDOW_MS * 4) {
+      recentEventKeys.delete(key)
+    }
+  })
 }
 
-function recordDebugEvent(action, payload) {
-  const timestamp = new Date().toISOString()
-  const event = {
-    action,
-    timestamp,
-    ...payload,
-  }
+function shouldSkipDuplicate(event) {
+  const now = Date.now()
+  const key = `${event.event_name}:${event.screen}`
+  const lastSeen = recentEventKeys.get(key)
 
+  recentEventKeys.set(key, now)
+  pruneDuplicateCache(now)
+
+  return typeof lastSeen === 'number' && now - lastSeen < DUPLICATE_WINDOW_MS
+}
+
+function recordDebugEvent(event) {
   debugState.events = [event, ...debugState.events].slice(0, MAX_DEBUG_EVENTS)
-  increment(debugState.counts, action)
-
-  if (payload.path) {
-    increment(debugState.pages, payload.path)
-  }
-
-  if (payload.feature) {
-    increment(debugState.features, payload.feature)
-  }
-
-  if (payload.calculator_type) {
-    increment(debugState.calculators, payload.calculator_type)
-  }
-
-  if (payload.report_type) {
-    increment(debugState.reports, payload.report_type)
-  }
-
-  if (action.includes('export') || action.includes('shared')) {
-    increment(debugState.exports, payload.report_type || payload.export_type || action)
-  }
-
-  if (Object.hasOwn(debugState.auth, action)) {
-    debugState.auth[action] += 1
-  }
-
-  updateFunnel(action, payload)
+  increment(debugState.counts, event.event_name)
+  increment(debugState.screens, event.screen)
 }
 
-function getAttribution() {
-  if (typeof window === 'undefined') {
-    return {}
+function readStoredProductHealthEvents() {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return []
   }
-
-  const params = new URLSearchParams(window.location.search || '')
-  let referrer_host
 
   try {
-    referrer_host = document.referrer ? new URL(document.referrer).host : ''
+    const parsed = JSON.parse(window.localStorage.getItem(PRODUCT_HEALTH_STORAGE_KEY) || '[]')
+
+    return Array.isArray(parsed)
+      ? parsed.filter(isProductHealthEvent).slice(0, MAX_PRODUCT_HEALTH_EVENTS)
+      : []
   } catch {
-    referrer_host = ''
+    return []
+  }
+}
+
+function getStoredProductHealthEvents() {
+  if (!productHealthEvents) {
+    productHealthEvents = readStoredProductHealthEvents()
   }
 
-  return {
-    referrer_host,
-    utm_source: params.get('utm_source') || '',
-    utm_medium: params.get('utm_medium') || '',
-    utm_campaign: params.get('utm_campaign') || '',
+  return productHealthEvents
+}
+
+function flushProductHealthEvents() {
+  productHealthPersistQueued = false
+
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(
+      PRODUCT_HEALTH_STORAGE_KEY,
+      JSON.stringify(getStoredProductHealthEvents().slice(0, MAX_PRODUCT_HEALTH_EVENTS)),
+    )
+  } catch {
+    // Product health is internal-only and should never affect the app.
+  }
+}
+
+function queueProductHealthPersist() {
+  if (productHealthPersistQueued || typeof window === 'undefined') {
+    return
+  }
+
+  productHealthPersistQueued = true
+
+  try {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(flushProductHealthEvents, { timeout: 1500 })
+      return
+    }
+
+    window.setTimeout(flushProductHealthEvents, 0)
+  } catch {
+    flushProductHealthEvents()
+  }
+}
+
+function recordProductHealthEvent(event) {
+  if (!isProductHealthEvent(event)) {
+    return
+  }
+
+  const current = getStoredProductHealthEvents()
+  productHealthEvents = [event, ...current].slice(0, MAX_PRODUCT_HEALTH_EVENTS)
+  queueProductHealthPersist()
+}
+
+function dispatchEvent(event) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const send = () => {
+    try {
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', event.event_name, event)
+      }
+    } catch {
+      // Analytics must never interrupt the product experience.
+    }
+  }
+
+  try {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(send, { timeout: 1000 })
+      return
+    }
+
+    window.setTimeout(send, 0)
+  } catch {
+    send()
   }
 }
 
@@ -215,34 +313,217 @@ function shouldExposeDebugDashboard() {
 }
 
 function buildSummary() {
-  const leastUsedFeatures = Object.entries(debugState.features)
-    .sort((first, second) => first[1] - second[1])
-    .slice(0, 10)
-  const deadFeatureCandidates = KNOWN_FEATURES.filter((feature) => !debugState.features[feature])
-
   return {
-    topPages: debugState.pages,
-    topFeatures: debugState.features,
-    leastUsedFeatures,
-    deadFeatureCandidates,
-    topCalculators: debugState.calculators,
-    reportUsage: debugState.reports,
-    exportUsage: debugState.exports,
-    signupConversion: {
-      signupOpen: debugState.auth.signup_open,
-      signupSuccess: debugState.auth.signup_success,
-      loginOpen: debugState.auth.login_open,
-      loginSuccess: debugState.auth.login_success,
-      authAbandon: debugState.auth.auth_abandon,
-      signupSuccessRate:
-        debugState.auth.signup_open > 0
-          ? Number((debugState.auth.signup_success / debugState.auth.signup_open).toFixed(3))
-          : 0,
-    },
-    funnel: debugState.funnel,
-    eventCounts: debugState.counts,
+    eventCounts: { ...debugState.counts },
+    screenViews: { ...debugState.screens },
     recentEvents: debugState.events.slice(0, 25),
   }
+}
+
+function eventDateKey(event) {
+  const date = new Date(event.timestamp)
+
+  if (Number.isNaN(date.getTime())) {
+    return String(event.timestamp || '').slice(0, 10)
+  }
+
+  return date.toISOString().slice(0, 10)
+}
+
+function productHealthEventKey(event) {
+  return `${event.timestamp}|${event.event_name}|${event.screen}|${event.app_version}`
+}
+
+function getProductHealthEvents() {
+  const seen = new Set()
+
+  return [...debugState.events, ...getStoredProductHealthEvents()]
+    .filter(isProductHealthEvent)
+    .filter((event) => {
+      const key = productHealthEventKey(event)
+
+      if (seen.has(key)) {
+        return false
+      }
+
+      seen.add(key)
+      return true
+    })
+    .sort((first, second) => String(second.timestamp).localeCompare(String(first.timestamp)))
+    .slice(0, MAX_PRODUCT_HEALTH_EVENTS)
+}
+
+function percent(numerator, denominator) {
+  if (!denominator) {
+    return 0
+  }
+
+  return Math.round((numerator / denominator) * 100)
+}
+
+function buildInvestmentAreas(counts) {
+  const creationTotal =
+    (counts.expense_created || 0)
+    + (counts.income_created || 0)
+    + (counts.goal_created || 0)
+    + (counts.borrow_created || 0)
+    + (counts.shared_group_created || 0)
+  const areas = []
+
+  if ((counts.home_viewed || 0) > 0 && !(counts.next_action_clicked || 0)) {
+    areas.push({
+      title: 'Home next action needs proof',
+      detail: 'Home is being seen, but the primary recommendation is not being clicked yet.',
+      tone: 'warning',
+    })
+  }
+
+  if ((counts.add_hub_opened || 0) > 0 && creationTotal === 0) {
+    areas.push({
+      title: 'Add hub is not converting',
+      detail: 'Users reach the hub, but creation events have not followed in this sample.',
+      tone: 'warning',
+    })
+  }
+
+  if ((counts.reports_viewed || 0) > 0 && !(counts.report_generated || 0)) {
+    areas.push({
+      title: 'Reports need a clearer path',
+      detail: 'Reports are viewed without report generation in the current event stream.',
+      tone: 'warning',
+    })
+  }
+
+  if ((counts.statement_analysis_started || 0) > (counts.statement_analysis_completed || 0)) {
+    areas.push({
+      title: 'Statement analysis drop-off',
+      detail: 'Started analyses are higher than completed analyses.',
+      tone: 'danger',
+    })
+  }
+
+  if ((counts.goal_created || 0) > 0 && (counts.goal_updated || 0) > 1) {
+    areas.push({
+      title: 'Savings goals show retention',
+      detail: 'Repeat goal updates suggest savings deserves continued investment.',
+      tone: 'success',
+    })
+  }
+
+  if ((counts.report_generated || 0) > 1) {
+    areas.push({
+      title: 'Reports are repeating',
+      detail: 'Multiple generated reports indicate a validation signal for reporting.',
+      tone: 'success',
+    })
+  }
+
+  if (areas.length === 0) {
+    areas.push({
+      title: 'Keep collecting signal',
+      detail: 'The current event stream is still light. Watch ignored features and repeat actions first.',
+      tone: 'neutral',
+    })
+  }
+
+  return areas.slice(0, 5)
+}
+
+function buildProductHealthSummary() {
+  const events = getProductHealthEvents()
+  const counts = events.reduce((eventCounts, event) => {
+    increment(eventCounts, event.event_name)
+    return eventCounts
+  }, {})
+  const activeDays = new Set(events.map(eventDateKey).filter(Boolean))
+  const appOpenDays = new Set(events.filter((event) => event.event_name === 'app_opened').map(eventDateKey).filter(Boolean))
+  const metricRows = PRODUCT_HEALTH_METRICS.map((metric) => ({
+    ...metric,
+    count: counts[metric.event] || 0,
+  }))
+  const groups = metricRows.reduce((groupMap, metric) => {
+    const current = groupMap[metric.group] || { group: metric.group, total: 0, events: [] }
+    current.total += metric.count
+    current.events.push(metric)
+    groupMap[metric.group] = current
+    return groupMap
+  }, {})
+  const creationTotal =
+    (counts.expense_created || 0)
+    + (counts.income_created || 0)
+    + (counts.goal_created || 0)
+    + (counts.borrow_created || 0)
+    + (counts.shared_group_created || 0)
+  const addHubSelections =
+    (counts.add_expense_selected || 0)
+    + (counts.add_income_selected || 0)
+    + (counts.add_people_selected || 0)
+    + (counts.add_other_actions_selected || 0)
+  const engagementEvents = new Set([
+    'next_action_clicked',
+    'expense_created',
+    'income_created',
+    'goal_created',
+    'goal_updated',
+    'borrow_created',
+    'shared_group_created',
+    'report_generated',
+    'statement_analysis_completed',
+  ])
+
+  return {
+    generatedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    totalEvents: events.length,
+    activeDays: activeDays.size,
+    appOpenDays: appOpenDays.size,
+    appOpens: counts.app_opened || 0,
+    eventCounts: counts,
+    groups: Object.values(groups),
+    metrics: metricRows,
+    topActions: metricRows
+      .filter((metric) => metric.count > 0)
+      .sort((first, second) => second.count - first.count)
+      .slice(0, 8),
+    ignoredFeatures: metricRows.filter((metric) => metric.count === 0).slice(0, 8),
+    engagementActions: metricRows
+      .filter((metric) => engagementEvents.has(metric.event) && metric.count > 0)
+      .sort((first, second) => second.count - first.count)
+      .slice(0, 6),
+    retentionSignals: [
+      {
+        label: 'Opening app multiple days',
+        value: appOpenDays.size > 1 ? `${appOpenDays.size} days` : `${appOpenDays.size || 0} day`,
+        active: appOpenDays.size > 1,
+      },
+      {
+        label: 'Repeat goal updates',
+        value: `${counts.goal_updated || 0} updates`,
+        active: (counts.goal_updated || 0) > 1,
+      },
+      {
+        label: 'Repeat report generation',
+        value: `${counts.report_generated || 0} reports`,
+        active: (counts.report_generated || 0) > 1,
+      },
+    ],
+    rates: {
+      nextActionClickRate: percent(counts.next_action_clicked || 0, counts.home_viewed || 0),
+      addHubSelectionRate: percent(addHubSelections, counts.add_hub_opened || 0),
+      creationPerHubOpenRate: percent(creationTotal, counts.add_hub_opened || 0),
+      statementCompletionRate: percent(counts.statement_analysis_completed || 0, counts.statement_analysis_started || 0),
+      reportGenerationRate: percent(counts.report_generated || 0, counts.reports_viewed || 0),
+    },
+    investmentAreas: buildInvestmentAreas(counts),
+    recentEvents: events.slice(0, 25),
+  }
+}
+
+function resetDebugState() {
+  debugState.events = []
+  debugState.counts = {}
+  debugState.screens = {}
+  recentEventKeys.clear()
 }
 
 function exposeDebugDashboard() {
@@ -253,69 +534,52 @@ function exposeDebugDashboard() {
   window.__FBPLY_ANALYTICS__ = {
     events: () => [...debugState.events],
     summary: buildSummary,
-    reset: () => {
-      debugState.events = []
-      debugState.counts = {}
-      debugState.pages = {}
-      debugState.features = {}
-      debugState.calculators = {}
-      debugState.reports = {}
-      debugState.exports = {}
-      Object.keys(debugState.auth).forEach((key) => {
-        debugState.auth[key] = 0
-      })
-      Object.keys(debugState.funnel).forEach((key) => {
-        debugState.funnel[key] = 0
-      })
-    },
+    productHealth: buildProductHealthSummary,
+    reset: resetDebugState,
   }
 }
 
 export function trackEvent(action, payload = {}) {
-  const cleanAction = String(action || '').trim().replace(/^fbply_/, '') || 'event'
-  const eventName = normalizeEventName(cleanAction)
-  const safePayload = sanitizePayload(payload)
+  const event = buildAnalyticsEvent(action, payload)
 
-  recordDebugEvent(cleanAction, safePayload)
-
-  if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
-    window.gtag('event', eventName, safePayload)
+  if (shouldSkipDuplicate(event)) {
+    return
   }
+
+  recordDebugEvent(event)
+  recordProductHealthEvent(event)
+  dispatchEvent(event)
 
   if (typeof window !== 'undefined') {
     exposeDebugDashboard()
   }
 }
 
-export function trackPublicPageView(path, pageType, payload = {}) {
+export function trackPublicPageView(path, pageType) {
   const action = PUBLIC_PAGE_EVENT_BY_TYPE[pageType] || 'public_page_viewed'
   trackEvent(action, {
-    surface: 'public_seo',
-    page_type: pageType || 'unknown',
+    screen: 'public',
     path,
-    ...getAttribution(),
-    ...payload,
   })
 }
 
 export function trackFeatureUsage(feature, payload = {}) {
-  trackEvent('feature_used', {
-    surface: 'app',
-    feature,
-    ...payload,
-  })
+  trackEvent(FEATURE_EVENT_ALIASES[feature] || feature || 'feature_used', payload)
 }
 
 export function trackActivation(action, payload = {}) {
   trackEvent(action, {
-    surface: 'activation',
-    activation_step: action,
+    screen: 'home',
     ...payload,
   })
 }
 
 export function getAnalyticsSummary() {
   return buildSummary()
+}
+
+export function getProductHealthSummary() {
+  return buildProductHealthSummary()
 }
 
 if (typeof window !== 'undefined') {

@@ -62,14 +62,14 @@ export default function GoalsScreen({
 
       <details className="planner-details-panel savings-planner-details">
         <summary>
-          <span>Plan a purchase</span>
+          <span>Purchase goal check</span>
           <ChevronRight size={16} />
         </summary>
 
       <section className="buy-safely-section">
         <div className="planner-section-title">
           <div>
-            <h2>Can I afford it?</h2>
+            <h2>Check a future purchase</h2>
           </div>
         </div>
 
@@ -106,14 +106,14 @@ export default function GoalsScreen({
             <span className="goal-step-index">2</span>
             <div className="goal-step-content">
               <CurrencyInput
-                label="Price"
+                label="Target price"
                 id="planner-target-amount"
                 ariaLabel="Target purchase amount"
                 value={plannerTargetAmount}
                 placeholder="300000"
                 onChange={setPlannerTargetAmount}
               />
-              <small className="field-hint">Use the expected total price. Approximate is fine.</small>
+              <small className="field-hint">Use the expected total amount. Approximate is fine.</small>
             </div>
           </div>
 
@@ -122,14 +122,14 @@ export default function GoalsScreen({
               <span className="goal-step-index">3</span>
               <div className="goal-step-content">
                 <CurrencyInput
-                  label="Savings ready"
+                  label="Saved already"
                   id="planner-current-savings"
                   ariaLabel="Current savings available"
                   value={plannerCurrentSavings}
                   placeholder="40000"
                   onChange={setPlannerCurrentSavings}
                 />
-                <small className="field-hint">Money already available for this purchase.</small>
+                <small className="field-hint">Money already set aside for this purchase.</small>
               </div>
             </div>
           )}
@@ -186,7 +186,7 @@ export default function GoalsScreen({
           )}
 
           {!hasPlannerPrice && (
-            <p className="goal-flow-hint">Add a price to unlock savings, timeline, and a quick affordability summary.</p>
+            <p className="goal-flow-hint">Add a target amount to see a simple path.</p>
           )}
         </section>
 
@@ -272,11 +272,11 @@ function RecommendationPanel({ recommendation, financialState }) {
 
         <div className="planner-summary-grid">
           <div>
-            <span>Monthly saving</span>
+            <span>Monthly add</span>
             <strong>{shortRupees(recommendation.monthlySetAside)}</strong>
           </div>
           <div>
-            <span>Affordability</span>
+            <span>Payment idea</span>
             <strong>{requiredEmiValue}</strong>
           </div>
           <div>
@@ -357,7 +357,7 @@ function RecommendationPanel({ recommendation, financialState }) {
                 <span style={{ width: `${Math.min(recommendation.downpaymentCoveragePercent, 100)}%` }} />
               </div>
               <div className="pressure-list">
-                <span>Monthly set-aside: {shortRupees(recommendation.monthlySetAside)}</span>
+                <span>Monthly add: {shortRupees(recommendation.monthlySetAside)}</span>
                 <span>Downpayment gap: {shortRupees(recommendation.downpaymentGap)}</span>
                 <span>Safe space after EMI: {shortRupees(recommendation.projectedFlexAfterEmi)}</span>
                 <span>Safety savings after EMI: {shortRupees(recommendation.projectedBreathingAfterEmi)}</span>

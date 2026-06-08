@@ -286,6 +286,7 @@ export default function StatementUploadSheet({
       const parsed = await parseStatementFiles(files, mode, { pdfPassword: password, categoryMappings })
       setResult(parsed)
       setPreviewTransactions(parsed.transactions || [])
+      trackEvent('statement_analysis_completed')
       trackEvent('statement_upload_parsed', {
         surface: 'statement_analysis',
         mode,
@@ -328,6 +329,7 @@ export default function StatementUploadSheet({
       return
     }
 
+    trackEvent('statement_analysis_started')
     trackEvent('statement_upload_started', {
       surface: 'statement_analysis',
       mode,

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PiggyBank, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, PiggyBank, Plus, Trash2 } from 'lucide-react'
 import { CurrencyInput, EmptyState } from './AppPrimitives.jsx'
 import { SuccessState as MoneyOSSuccessState } from '../design-system'
 import { normalizeMoney } from '../lib/money'
@@ -7,8 +7,87 @@ import { rupees } from '../lib/ruleEngine'
 import { slugify } from '../lib/uiHelpers'
 import { trackEvent } from '../lib/analytics'
 
-export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavingsBucket, removeSavingsBucket }) {
+const defaultWeeklyStep = 500
+
+function buildGoalViewModel(bucket = {}) {
+  const saved = normalizeMoney(bucket.saved)
+  const target = normalizeMoney(bucket.target)
+  const remaining = Math.max(target - saved, 0)
+  const progress = target > 0 ? Math.min(Math.round((saved / target) * 100), 100) : 0
+  const monthlyContribution = normalizeMoney(bucket.monthlyContribution)
+
+  return {
+    ...bucket,
+    title: String(bucket.name || '').trim() || 'Savings goal',
+    saved,
+    target,
+    remaining,
+    progress,
+    monthlyContribution,
+  }
+}
+
+function buildSuggestedNextStep(goals = []) {
+  const focusGoal = goals.find((goal) => goal.remaining > 0) || goals[0]
+
+  if (!focusGoal) {
+    return {
+      label: 'Create Goal',
+      detail: 'Start with one future plan.',
+    }
+  }
+
+  if (focusGoal.target <= 0) {
+    return {
+      label: 'Set a target',
+      detail: `${focusGoal.title} can show progress once it has a target.`,
+    }
+  }
+
+  if (goals.every((goal) => goal.target > 0 && goal.remaining <= 0)) {
+    return {
+      label: 'Continue current pace',
+      detail: 'Your visible goals are fully saved.',
+    }
+  }
+
+  if (focusGoal.monthlyContribution > 0 && focusGoal.saved > 0) {
+    return {
+      label: 'Continue current pace',
+      detail: `${focusGoal.title} is ${focusGoal.progress}% saved.`,
+    }
+  }
+
+  const weeklyStep = focusGoal.monthlyContribution > 0
+    ? Math.max(Math.ceil(focusGoal.monthlyContribution / 4 / 100) * 100, 100)
+    : defaultWeeklyStep
+
+  return {
+    label: `Add ${rupees(weeklyStep)} this week`,
+    detail: `${focusGoal.title} needs ${rupees(focusGoal.remaining)} more.`,
+  }
+}
+
+function buildSavingsOverview(buckets = []) {
+  const goals = buckets.map(buildGoalViewModel)
+  const saved = normalizeMoney(goals.reduce((total, goal) => total + goal.saved, 0))
+  const target = normalizeMoney(goals.reduce((total, goal) => total + goal.target, 0))
+  const remaining = Math.max(target - saved, 0)
+  const progress = target > 0 ? Math.min(Math.round((saved / target) * 100), 100) : 0
+
+  return {
+    goals,
+    saved,
+    target,
+    remaining,
+    progress,
+    nextStep: buildSuggestedNextStep(goals),
+  }
+}
+
+export function SavingsBucketsManager({ buckets = [], addSavingsBucket, updateSavingsBucket, removeSavingsBucket }) {
   const [successMessage, setSuccessMessage] = useState('')
+  const overview = buildSavingsOverview(buckets)
 
   const handleAddGoal = (source = 'header') => {
     trackEvent(source === 'empty_state' ? 'empty_state_cta_clicked' : 'feature_discovery_click', {
@@ -19,47 +98,61 @@ export function SavingsBucketsManager({ buckets, addSavingsBucket, updateSavings
       target: 'create_goal',
     })
     addSavingsBucket?.()
-    setSuccessMessage('Savings goal created.')
+    setSuccessMessage('Goal created.')
   }
 
   return (
     <section className="savings-manager" id="savings-goals-section">
-      <div className="section-heading-row">
+      <div className="section-heading-row savings-goals-heading">
         <div>
           <h2>Goals</h2>
         </div>
         {buckets.length > 0 && (
-          <button className="ghost-button small-button" type="button" onClick={() => handleAddGoal('header')}>
+          <button className="primary-button small-button" type="button" onClick={() => handleAddGoal('header')}>
             <Plus size={17} />
             Create Goal
           </button>
         )}
       </div>
+      {buckets.length > 0 && (
+        <div className="savings-progress-summary" aria-label="Savings goals progress">
+          <article className="savings-overview-item savings-overview-progress">
+            <span>Progress</span>
+            <strong>{overview.progress}%</strong>
+            <div className="bucket-progress" aria-label={`${overview.progress}% saved across goals`}>
+              <span style={{ width: `${overview.progress}%` }} />
+            </div>
+          </article>
+          <article className="savings-overview-item">
+            <span>Remaining Amount</span>
+            <strong>{rupees(overview.remaining)}</strong>
+            <small>{rupees(overview.saved)} saved</small>
+          </article>
+          <article className="savings-overview-item savings-next-step">
+            <span>Suggested Next Step</span>
+            <strong>{overview.nextStep.label}</strong>
+            <small>{overview.nextStep.detail}</small>
+          </article>
+        </div>
+      )}
       {successMessage && (
         <MoneyOSSuccessState
           title="Savings Goal Created"
-          detail={`${successMessage} Successfully added.`}
-          actions={[
-            {
-              label: 'Add another',
-              onClick: () => handleAddGoal('success_state'),
-              variant: 'primary',
-            },
-          ]}
+          detail={successMessage}
           className="savings-goal-success-state"
         />
       )}
       <div className="bucket-grid">
         {buckets.length === 0 ? (
           <EmptyState
-            title="No goals yet"
-            detail="Start with one protected target."
+            title="Start your first goal"
+            detail="Emergency fund, bike, vacation, laptop, debt payoff."
             actionLabel="Create Goal"
             onAction={() => handleAddGoal('empty_state')}
             icon={PiggyBank}
           />
         ) : (
-          buckets.map((bucket) => (
+          overview.goals.map((bucket) => (
             <SavingsBucketEditor
               bucket={bucket}
               key={bucket.id}
@@ -78,13 +171,19 @@ function SavingsBucketEditor({ bucket, updateSavingsBucket, removeSavingsBucket 
     <article className="bucket-editor">
       <SavingsBucketCard bucket={bucket} />
       <details className="bucket-editor-details">
-        <summary>Edit</summary>
+        <summary>
+          <span>Adjust details</span>
+          <ChevronRight size={14} />
+        </summary>
         <div className="bucket-editor-fields">
-          <input
-            className="plain-input"
-            value={bucket.name}
-            onChange={(event) => updateSavingsBucket(bucket.id, { name: event.target.value })}
-          />
+          <label>
+            <span className="input-label">Goal name</span>
+            <input
+              className="plain-input"
+              value={bucket.name}
+              onChange={(event) => updateSavingsBucket(bucket.id, { name: event.target.value })}
+            />
+          </label>
           <CurrencyInput
             label="Saved"
             id={`bucket-saved-${slugify(bucket.id)}`}
@@ -129,7 +228,7 @@ function SavingsBucketEditor({ bucket, updateSavingsBucket, removeSavingsBucket 
               onChange={(event) => updateSavingsBucket(bucket.id, { deadline: event.target.value })}
             />
           </label>
-          <button className="ghost-button" type="button" onClick={() => removeSavingsBucket(bucket.id)}>
+          <button className="ghost-button bucket-remove-button" type="button" onClick={() => removeSavingsBucket(bucket.id)}>
             <Trash2 size={17} />
             Remove
           </button>
@@ -144,25 +243,31 @@ function SavingsBucketCard({ bucket, compact = false }) {
   const target = normalizeMoney(bucket.target)
   const progress = target > 0 ? Math.min(Math.round((saved / target) * 100), 100) : 0
   const remaining = Math.max(target - saved, 0)
-  const monthlyContribution = normalizeMoney(bucket.monthlyContribution) || (remaining > 0 ? Math.ceil(remaining / 6) : 0)
 
   return (
     <article className={`bucket-card ${compact ? 'compact' : ''}`}>
-      <div>
-        <h3>{bucket.name || 'Savings goal'}</h3>
-        <p>{progress}% complete</p>
+      <div className="bucket-card-heading">
+        <div>
+          <h3>{bucket.title || bucket.name || 'Savings goal'}</h3>
+          <p>{progress}% saved</p>
+        </div>
+        <span className="bucket-progress-pill">{progress}%</span>
       </div>
-      <div className="bucket-progress" aria-label={`${progress}% saved`}>
+      <div className="bucket-progress" aria-label={`${progress}% saved toward ${bucket.title || bucket.name || 'goal'}`}>
         <span style={{ width: `${progress}%` }} />
       </div>
       <div className="bucket-card-metrics">
+        <span>
+          <small>Saved</small>
+          <strong>{rupees(saved)}</strong>
+        </span>
         <span>
           <small>Remaining</small>
           <strong>{rupees(remaining)}</strong>
         </span>
         <span>
-          <small>Monthly</small>
-          <strong>{monthlyContribution > 0 ? rupees(monthlyContribution) : 'Set'}</strong>
+          <small>Target</small>
+          <strong>{rupees(target)}</strong>
         </span>
       </div>
     </article>

@@ -111,6 +111,12 @@ function buildSingleTodayInsight({ smartHomeInsights = [], whatChangedInsights =
 }
 
 function trackHomeInteraction(action, detail = {}) {
+  if (action !== 'next_action_clicked' && String(action || '').startsWith('next_action')) {
+    trackEvent('next_action_clicked', {
+      screen: 'home',
+    })
+  }
+
   trackEvent(action, {
     surface: 'today',
     ...detail,
@@ -1024,6 +1030,12 @@ export default function TodayScreen({
     }
   }
   const handleActivationClick = (item, source = 'checklist') => {
+    if (source === 'next_action') {
+      trackEvent('next_action_clicked', {
+        screen: 'home',
+      })
+    }
+
     trackEvent('activation_checklist_cta_clicked', {
       surface: 'today',
       source,
@@ -1103,7 +1115,10 @@ export default function TodayScreen({
             icon: Receipt,
             tone: 'tint',
             badge: 'Add',
-            onClick: () => openAddSheet?.('expense'),
+            onClick: () => {
+              trackHomeInteraction('next_action_clicked')
+              openAddSheet?.('expense')
+            },
           }
 
   useEffect(() => {
