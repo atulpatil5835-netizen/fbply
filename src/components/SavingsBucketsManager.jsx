@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronRight, PiggyBank, Plus, Trash2 } from 'lucide-react'
 import { CurrencyInput, EmptyState } from './AppPrimitives.jsx'
 import { SuccessState as MoneyOSSuccessState } from '../design-system'
@@ -6,6 +6,7 @@ import { normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { slugify } from '../lib/uiHelpers'
 import { trackEvent } from '../lib/analytics'
+import { isLegacyProgressLayer, trackProgressComponentsViewed } from '../lib/progressLayer'
 
 const defaultWeeklyStep = 500
 
@@ -88,6 +89,13 @@ function buildSavingsOverview(buckets = []) {
 export function SavingsBucketsManager({ buckets = [], addSavingsBucket, updateSavingsBucket, removeSavingsBucket }) {
   const [successMessage, setSuccessMessage] = useState('')
   const overview = buildSavingsOverview(buckets)
+  const legacyProgressLayer = isLegacyProgressLayer()
+
+  useEffect(() => {
+    if (buckets.length > 0) {
+      trackProgressComponentsViewed('savings', ['savings_goal_progress'])
+    }
+  }, [buckets.length])
 
   const handleAddGoal = (source = 'header') => {
     trackEvent(source === 'empty_state' ? 'empty_state_cta_clicked' : 'feature_discovery_click', {
@@ -115,25 +123,54 @@ export function SavingsBucketsManager({ buckets = [], addSavingsBucket, updateSa
         )}
       </div>
       {buckets.length > 0 && (
-        <div className="savings-progress-summary" aria-label="Savings goals progress">
-          <article className="savings-overview-item savings-overview-progress">
-            <span>Progress</span>
-            <strong>{overview.progress}%</strong>
-            <div className="bucket-progress" aria-label={`${overview.progress}% saved across goals`}>
-              <span style={{ width: `${overview.progress}%` }} />
-            </div>
-          </article>
-          <article className="savings-overview-item">
-            <span>Remaining Amount</span>
-            <strong>{rupees(overview.remaining)}</strong>
-            <small>{rupees(overview.saved)} saved</small>
-          </article>
-          <article className="savings-overview-item savings-next-step">
-            <span>Suggested Next Step</span>
-            <strong>{overview.nextStep.label}</strong>
-            <small>{overview.nextStep.detail}</small>
-          </article>
-        </div>
+        legacyProgressLayer ? (
+          <div className="savings-progress-summary" aria-label="Savings goals progress">
+            <article className="savings-overview-item savings-overview-progress">
+              <span>Progress</span>
+              <strong>{overview.progress}%</strong>
+              <div className="bucket-progress" aria-label={`${overview.progress}% saved across goals`}>
+                <span style={{ width: `${overview.progress}%` }} />
+              </div>
+            </article>
+            <article className="savings-overview-item">
+              <span>Remaining Amount</span>
+              <strong>{rupees(overview.remaining)}</strong>
+              <small>{rupees(overview.saved)} saved</small>
+            </article>
+            <article className="savings-overview-item savings-next-step">
+              <span>Suggested Next Step</span>
+              <strong>{overview.nextStep.label}</strong>
+              <small>{overview.nextStep.detail}</small>
+            </article>
+          </div>
+        ) : (
+          <div className="savings-progress-summary v74-savings-summary" aria-label="Savings goals progress">
+            <article className="v74-progress-strip v74-savings-overview">
+              <div className="v74-progress-header">
+                <span>Savings Progress</span>
+                <strong>{overview.progress}%</strong>
+              </div>
+              <div className="v74-progress-track" aria-label={`${overview.progress}% saved across goals`}>
+                <span className="v74-progress-fill" style={{ width: `${overview.progress}%` }} />
+              </div>
+              <p className="v74-progress-note">
+                {rupees(overview.saved)} saved of {rupees(overview.target)} target; {rupees(overview.remaining)} remaining.
+              </p>
+            </article>
+            <article className="v74-progress-metric">
+              <span>Saved</span>
+              <strong>{rupees(overview.saved)}</strong>
+            </article>
+            <article className="v74-progress-metric">
+              <span>Target</span>
+              <strong>{rupees(overview.target)}</strong>
+            </article>
+            <article className="v74-progress-metric">
+              <span>Remaining</span>
+              <strong>{rupees(overview.remaining)}</strong>
+            </article>
+          </div>
+        )
       )}
       {successMessage && (
         <MoneyOSSuccessState
@@ -156,6 +193,7 @@ export function SavingsBucketsManager({ buckets = [], addSavingsBucket, updateSa
             <SavingsBucketEditor
               bucket={bucket}
               key={bucket.id}
+              progressLayerActive={!legacyProgressLayer}
               updateSavingsBucket={updateSavingsBucket}
               removeSavingsBucket={removeSavingsBucket}
             />
@@ -166,10 +204,10 @@ export function SavingsBucketsManager({ buckets = [], addSavingsBucket, updateSa
   )
 }
 
-function SavingsBucketEditor({ bucket, updateSavingsBucket, removeSavingsBucket }) {
+function SavingsBucketEditor({ bucket, progressLayerActive = false, updateSavingsBucket, removeSavingsBucket }) {
   return (
     <article className="bucket-editor">
-      <SavingsBucketCard bucket={bucket} />
+      <SavingsBucketCard bucket={bucket} progressLayerActive={progressLayerActive} />
       <details className="bucket-editor-details">
         <summary>
           <span>Adjust details</span>
@@ -238,14 +276,14 @@ function SavingsBucketEditor({ bucket, updateSavingsBucket, removeSavingsBucket 
   )
 }
 
-function SavingsBucketCard({ bucket, compact = false }) {
+function SavingsBucketCard({ bucket, compact = false, progressLayerActive = false }) {
   const saved = normalizeMoney(bucket.saved)
   const target = normalizeMoney(bucket.target)
   const progress = target > 0 ? Math.min(Math.round((saved / target) * 100), 100) : 0
   const remaining = Math.max(target - saved, 0)
 
   return (
-    <article className={`bucket-card ${compact ? 'compact' : ''}`}>
+    <article className={`bucket-card ${compact ? 'compact' : ''} ${progressLayerActive ? 'v74-savings-goal' : ''}`}>
       <div className="bucket-card-heading">
         <div>
           <h3>{bucket.title || bucket.name || 'Savings goal'}</h3>

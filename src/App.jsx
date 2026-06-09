@@ -85,6 +85,11 @@ import {
   normalizeReportHistory,
 } from './lib/reportHistory'
 import {
+  clampProgressPercent,
+  isLegacyProgressLayer,
+  trackProgressComponentsViewed,
+} from './lib/progressLayer'
+import {
   cloudRowToProfile,
   hasLocalProfileData,
   hasProfileMigrationRun,
@@ -410,11 +415,14 @@ function resolveNavigationTab(tab, useLegacyNavigation = isLegacyNavigation()) {
     return tab
   }
 
-  if (tab === 'planner') {
-    return 'history'
-  }
-
-  return tab
+  return {
+    daily: 'home',
+    insights: 'reports',
+    tools: 'history',
+    planner: 'history',
+    savings: 'history',
+    people: 'history',
+  }[tab] || tab
 }
 
 const fixedExpenseSuggestions = ['Rent', 'Electricity', 'Internet', 'Petrol', 'Shopping', 'Food', 'Subscription']
@@ -6414,6 +6422,53 @@ function buildDailyHeroNextAction(recommendation) {
   }
 }
 
+function buildMonthProgressView(now = new Date()) {
+  const fallbackDate = new Date()
+  const date = Number.isNaN(now?.getTime?.()) ? fallbackDate : now
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const currentDay = Math.min(date.getDate(), daysInMonth)
+  const daysRemaining = Math.max(daysInMonth - currentDay, 0)
+  const progress = clampProgressPercent((currentDay / daysInMonth) * 100)
+  const monthLabel = date.toLocaleDateString('en-IN', { month: 'long' })
+
+  return {
+    currentDay,
+    daysInMonth,
+    daysRemaining,
+    monthLabel,
+    progress,
+  }
+}
+
+function DailyMonthProgress() {
+  const monthProgress = useMemo(() => buildMonthProgressView(), [])
+
+  useEffect(() => {
+    trackProgressComponentsViewed('daily', ['month_progress'])
+  }, [])
+
+  if (isLegacyProgressLayer()) {
+    return null
+  }
+
+  return (
+    <div className="v74-progress-strip v74-daily-month-progress" aria-label={`${monthProgress.monthLabel} progress`}>
+      <div className="v74-progress-header">
+        <span>Month Progress</span>
+        <strong>{monthProgress.progress}%</strong>
+      </div>
+      <div className="v74-progress-track" aria-label={`${monthProgress.progress}% of the current month complete`}>
+        <span className="v74-progress-fill" style={{ width: `${monthProgress.progress}%` }} />
+      </div>
+      <p className="v74-progress-note">
+        {monthProgress.monthLabel} is {monthProgress.currentDay} of {monthProgress.daysInMonth}; {monthProgress.daysRemaining} day{monthProgress.daysRemaining === 1 ? '' : 's'} left.
+      </p>
+    </div>
+  )
+}
+
 function DailyCompanionEntry({
   safeToSpend = {},
   openAddSheet,
@@ -6548,6 +6603,7 @@ function DailyCompanionEntry({
             tone="tint"
             className="v72-available-card"
           />
+          <DailyMonthProgress />
           <MoneyCard
             as={nextAction.target === 'expense' ? 'button' : 'section'}
             type={nextAction.target === 'expense' ? 'button' : undefined}
@@ -7127,6 +7183,16 @@ function MainApp(props) {
       const target = document.getElementById(targetId)
 
       if (target) {
+        let ancestor = target.parentElement
+
+        while (ancestor) {
+          if (ancestor.tagName === 'DETAILS' && !ancestor.open) {
+            ancestor.open = true
+          }
+
+          ancestor = ancestor.parentElement
+        }
+
         target.scrollIntoView({ behavior: 'smooth', block: 'start' })
         target.classList.add('section-focus-pulse')
         window.setTimeout(() => target.classList.remove('section-focus-pulse'), 1200)
@@ -7143,13 +7209,23 @@ function MainApp(props) {
     window.setTimeout(tryScroll, 60)
   }, [])
   const navigateToTarget = useCallback((tab, targetId) => {
+    const destinationTab = resolveNavigationTab(tab, useLegacyNavigation)
+
+    if (!useLegacyNavigation && !useLegacyInsights && destinationTab === 'reports') {
+      setIsInsightsReportsOpen(true)
+    }
+
     setCompanionActiveTab(tab)
     scrollToTargetId(targetId)
-  }, [scrollToTargetId, setCompanionActiveTab])
+  }, [scrollToTargetId, setCompanionActiveTab, useLegacyInsights, useLegacyNavigation])
   const openStatementImportFromAddHub = useCallback(() => {
+    if (!useLegacyNavigation && !useLegacyInsights) {
+      setIsInsightsReportsOpen(true)
+    }
+
     setCompanionActiveTab('reports')
     setStatementImportRequestId((current) => current + 1)
-  }, [setCompanionActiveTab])
+  }, [setCompanionActiveTab, useLegacyInsights, useLegacyNavigation])
   const handleReportPromptAction = useCallback((prompt) => {
     if (!prompt?.tab || !prompt?.targetId) {
       return

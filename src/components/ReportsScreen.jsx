@@ -2,6 +2,7 @@ import {
   lazy,
   Suspense,
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from 'react'
@@ -35,6 +36,12 @@ import { getFinanceColor } from '../lib/financeColors'
 import { addMoney, normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { trackEvent, trackFeatureUsage } from '../lib/analytics'
+import {
+  clampProgressPercent,
+  isLegacyProgressLayer,
+  percentFromParts,
+  trackProgressComponentsViewed,
+} from '../lib/progressLayer'
 
 const StatementUploadSheet = lazy(() => import('./StatementUploadSheet.jsx'))
 const ReportCharts = lazy(() => import('./ReportCharts.jsx'))
@@ -298,6 +305,102 @@ function reportTypeLabel(type = 'monthly') {
   }[type] || 'Report'
 }
 
+function monthLabelFromKey(monthKey, fallbackDate = new Date()) {
+  const match = String(monthKey || '').match(/^(\d{4})-(\d{2})/)
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, 1)
+    : fallbackDate
+
+  if (Number.isNaN(date.getTime())) {
+    return fallbackDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  }
+
+  return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+}
+
+function buildMonthCompletenessProgress(monthKey, now = new Date()) {
+  const fallbackDate = Number.isNaN(now?.getTime?.()) ? new Date() : now
+  const match = String(monthKey || '').match(/^(\d{4})-(\d{2})/)
+  const selectedYear = match ? Number(match[1]) : fallbackDate.getFullYear()
+  const selectedMonth = match ? Number(match[2]) - 1 : fallbackDate.getMonth()
+  const selectedMonthStart = new Date(selectedYear, selectedMonth, 1)
+  const currentMonthStart = new Date(fallbackDate.getFullYear(), fallbackDate.getMonth(), 1)
+  const monthLabel = monthLabelFromKey(monthKey, fallbackDate)
+
+  if (selectedMonthStart < currentMonthStart) {
+    return {
+      label: 'Month Completeness',
+      progress: 100,
+      note: `${monthLabel} is complete and ready for review.`,
+    }
+  }
+
+  if (selectedMonthStart > currentMonthStart) {
+    return {
+      label: 'Month Completeness',
+      progress: 0,
+      note: `${monthLabel} has not started yet.`,
+    }
+  }
+
+  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate()
+  const currentDay = Math.min(fallbackDate.getDate(), daysInMonth)
+  const daysRemaining = Math.max(daysInMonth - currentDay, 0)
+
+  return {
+    label: 'Month Completeness',
+    progress: clampProgressPercent((currentDay / daysInMonth) * 100),
+    note: `${monthLabel} is ${currentDay} of ${daysInMonth}; ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left.`,
+  }
+}
+
+function buildReportReadinessProgress({
+  financialState = {},
+  reportTransactions = [],
+  expenseBreakdown = [],
+  hasReportInsights = false,
+  canExport = false,
+} = {}) {
+  const snapshotReady = normalizeMoney(financialState.income) > 0 || normalizeMoney(financialState.committed) > 0
+  const activityReady = reportTransactions.length > 0 || expenseBreakdown.length > 0
+  const insightsReady = Boolean(hasReportInsights)
+  const exportReady = canExport && (snapshotReady || activityReady || insightsReady)
+  const readyCount = [snapshotReady, activityReady, insightsReady, exportReady].filter(Boolean).length
+
+  return {
+    label: 'Report Readiness',
+    progress: percentFromParts(readyCount, 4),
+    note: `${readyCount} of 4 report inputs ready.`,
+  }
+}
+
+function ReportProgressLayer({ readiness, monthCompleteness }) {
+  useEffect(() => {
+    trackProgressComponentsViewed('reports', ['report_readiness', 'month_completeness'])
+  }, [])
+
+  if (isLegacyProgressLayer()) {
+    return null
+  }
+
+  return (
+    <section className="v74-report-progress-grid" aria-label="Report progress">
+      {[readiness, monthCompleteness].map((item) => (
+        <article className="v74-progress-strip" key={item.label}>
+          <div className="v74-progress-header">
+            <span>{item.label}</span>
+            <strong>{item.progress}%</strong>
+          </div>
+          <div className="v74-progress-track" aria-label={`${item.progress}% ${item.label.toLowerCase()}`}>
+            <span className="v74-progress-fill" style={{ width: `${item.progress}%` }} />
+          </div>
+          <p className="v74-progress-note">{item.note}</p>
+        </article>
+      ))}
+    </section>
+  )
+}
+
 export default function ReportsScreen({
   advancedReport,
   expenseBreakdown = [],
@@ -461,6 +564,21 @@ export default function ReportsScreen({
   const statementReportCount = reportHistoryCounts.statement || 0
   const tripReportCount = reportHistoryCounts.trip || 0
   const canExport = !isExportingPdf
+  const hasReportInsights = storyItems.length > 0 || Boolean(advancedReport?.advisory)
+  const reportReadinessProgress = useMemo(
+    () => buildReportReadinessProgress({
+      financialState,
+      reportTransactions,
+      expenseBreakdown,
+      hasReportInsights,
+      canExport,
+    }),
+    [canExport, expenseBreakdown, financialState, hasReportInsights, reportTransactions],
+  )
+  const monthCompletenessProgress = useMemo(
+    () => buildMonthCompletenessProgress(selectedMonthKey),
+    [selectedMonthKey],
+  )
   const handleStatementDiscovery = (source = 'statement_discovery_card') => {
     trackEvent('feature_discovery_click', {
       surface: 'reports',
@@ -542,6 +660,11 @@ export default function ReportsScreen({
       <MoneyOSProvider as="section" className="screen-content reports-screen advanced-reports-screen money-os-reports">
         <SectionHeader
           title="Reports"
+        />
+
+        <ReportProgressLayer
+          readiness={reportReadinessProgress}
+          monthCompleteness={monthCompletenessProgress}
         />
 
         {isStatementImportOpen && (

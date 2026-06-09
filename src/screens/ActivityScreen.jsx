@@ -1,4 +1,4 @@
-import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
   CheckCircle2,
@@ -32,6 +32,7 @@ import { rupees, shortRupees } from '../lib/ruleEngine'
 import { focusInvalidField } from '../lib/uiHelpers'
 import SharedExpensesPanel from './SharedExpenseScreen.jsx'
 import { trackEvent } from '../lib/analytics'
+import { isLegacyProgressLayer, percentFromParts, trackProgressComponentsViewed } from '../lib/progressLayer'
 import { displayPersonName, reconcileSharedGroup } from '../lib/financialActivity'
 
 const HISTORY_GROUP_BATCH_SIZE = 12
@@ -120,6 +121,70 @@ function MonthSelector({ selectedMonthKey, setSelectedMonthKey, monthOptions = [
 
 function moneyBookEntryDue(entry = {}) {
   return addMoney(entry.amount, entry.interest)
+}
+
+function buildMoneyBookProgressItems(entries = []) {
+  return [
+    {
+      key: 'collection',
+      label: 'Collection',
+      entries: entries.filter((entry) => entry.kind === 'given'),
+      note: 'money to receive',
+    },
+    {
+      key: 'repayment',
+      label: 'Repayment',
+      entries: entries.filter((entry) => entry.kind === 'taken'),
+      note: 'money to repay',
+    },
+  ]
+    .map((item) => {
+      const total = item.entries.length
+      const completed = item.entries.filter((entry) => entry.status === 'settled').length
+      const pending = Math.max(total - completed, 0)
+
+      return {
+        ...item,
+        completed,
+        pending,
+        progress: percentFromParts(completed, total),
+        total,
+      }
+    })
+    .filter((item) => item.total > 0)
+}
+
+function BorrowLendProgressLayer({ entries = [] }) {
+  const progressItems = useMemo(() => buildMoneyBookProgressItems(entries), [entries])
+
+  useEffect(() => {
+    if (progressItems.length > 0) {
+      trackProgressComponentsViewed('people', ['borrow_lend_progress'])
+    }
+  }, [progressItems.length])
+
+  if (isLegacyProgressLayer() || progressItems.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="v74-progress-stack v74-people-progress" aria-label="Borrow and lend progress">
+      {progressItems.map((item) => (
+        <article className="v74-progress-strip" key={item.key}>
+          <div className="v74-progress-header">
+            <span>{item.label}</span>
+            <strong>{item.progress}%</strong>
+          </div>
+          <div className="v74-progress-track" aria-label={`${item.progress}% ${item.label.toLowerCase()} complete`}>
+            <span className="v74-progress-fill" style={{ width: `${item.progress}%` }} />
+          </div>
+          <p className="v74-progress-note">
+            {item.completed} settled, {item.pending} pending across {item.total} {item.note} entr{item.total === 1 ? 'y' : 'ies'}.
+          </p>
+        </article>
+      ))}
+    </div>
+  )
 }
 
 const activityFilterOptions = [
@@ -580,6 +645,8 @@ function PeopleHubPanel({
           actions={<StatusBadge tone="success">Settled</StatusBadge>}
         />
       )}
+
+      <BorrowLendProgressLayer entries={moneyBookEntries} />
 
       <details className="money-os mos-people-secondary-details">
         <summary>

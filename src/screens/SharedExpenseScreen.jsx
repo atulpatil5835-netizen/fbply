@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Download, Plus, Trash2, User } from 'lucide-react'
 import { CurrencyInput } from '../components/AppPrimitives.jsx'
 import { EmptyState as MoneyOSEmptyState, SuccessState as MoneyOSSuccessState } from '../design-system'
@@ -13,6 +13,7 @@ import { normalizeMoney } from '../lib/money'
 import { rupees } from '../lib/ruleEngine'
 import { focusInvalidField, slugify } from '../lib/uiHelpers'
 import { trackEvent } from '../lib/analytics'
+import { isLegacyProgressLayer, percentFromParts, trackProgressComponentsViewed } from '../lib/progressLayer'
 
 function loadCanvasImage(src) {
   return new Promise((resolve) => {
@@ -64,6 +65,52 @@ function downloadCanvas(canvas, fileName) {
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
+}
+
+function isSharedSettlementComplete(settlement = {}) {
+  return ['received', 'paid', 'settled'].includes(settlement.status) || normalizeMoney(settlement.remainingAmount) <= 0
+}
+
+function buildSharedSettlementProgress(group = {}) {
+  const settlements = group.settlements || []
+  const total = settlements.length
+
+  if (total <= 0) {
+    return null
+  }
+
+  const completed = settlements.filter(isSharedSettlementComplete).length
+  const pending = Math.max(total - completed, 0)
+
+  return {
+    completed,
+    pending,
+    progress: percentFromParts(completed, total),
+    total,
+  }
+}
+
+function SharedSettlementProgress({ group = {} }) {
+  const progress = buildSharedSettlementProgress(group)
+
+  if (isLegacyProgressLayer() || !progress) {
+    return null
+  }
+
+  return (
+    <div className="v74-progress-strip v74-shared-progress" aria-label={`${group.name || 'Shared group'} settlement progress`}>
+      <div className="v74-progress-header">
+        <span>Settlement Progress</span>
+        <strong>{progress.progress}%</strong>
+      </div>
+      <div className="v74-progress-track" aria-label={`${progress.progress}% settled`}>
+        <span className="v74-progress-fill" style={{ width: `${progress.progress}%` }} />
+      </div>
+      <p className="v74-progress-note">
+        {progress.completed} settled, {progress.pending} pending across {progress.total} participant settlement{progress.total === 1 ? '' : 's'}.
+      </p>
+    </div>
+  )
 }
 
 function roundedCanvasRect(context, x, y, width, height, radius) {
@@ -258,6 +305,13 @@ export default function SharedExpensesPanel({
     () => groups.map((group) => reconcileSharedGroup(group, profile)),
     [groups, profile],
   )
+  const groupsWithSettlementProgress = reconciledGroups.filter((group) => (group.settlements || []).length > 0).length
+
+  useEffect(() => {
+    if (groupsWithSettlementProgress > 0) {
+      trackProgressComponentsViewed('shared_expenses', ['shared_expense_progress'])
+    }
+  }, [groupsWithSettlementProgress])
 
   const clearGroupError = (field) => {
     setGroupErrors((current) => {
@@ -579,6 +633,8 @@ export default function SharedExpensesPanel({
                   </button>
                 </div>
               </div>
+
+              <SharedSettlementProgress group={group} />
 
               <section className="participant-expense-entry" aria-label={`Add payments for ${group.name}`}>
                 <div className="participant-expense-heading">
