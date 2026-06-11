@@ -1,5 +1,4 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bell,
   Calculator,
@@ -9,6 +8,7 @@ import {
   ChevronRight,
   Coffee,
   CreditCard,
+  Divide,
   Download,
   ExternalLink,
   House,
@@ -19,6 +19,7 @@ import {
   Mic,
   MoreVertical,
   Pencil,
+  Percent,
   PiggyBank,
   Plane,
   Plus,
@@ -57,6 +58,13 @@ import {
 } from './lib/financeVisuals'
 import { buildFinancialHealthScore, buildSmartHomeInsights } from './lib/homeIntelligence'
 import { buildMoneyScore, ensureMoneyScoreRollbackFlag, isLegacyMoneyScoreEnabled } from './lib/moneyScore'
+import {
+  buildNextBestAction,
+  ensureNextActionRollbackFlag,
+  getNextActionCompletionMetrics,
+  hasNextActionCompletion,
+  isLegacyNextActionEnabled,
+} from './lib/nextBestAction'
 import { buildUnifiedFinanceEngine } from './lib/financeEngine'
 import {
   buildCashflowTimeline,
@@ -240,15 +248,10 @@ const LegalScreen = lazy(() => import('./screens/LegalScreen.jsx'))
 const NotificationCenter = lazy(() => import('./components/NotificationCenter.jsx'))
 const ProfileHub = lazy(() => import('./components/ProfileHub.jsx'))
 const PublicSeoScreen = lazy(() => import('./screens/PublicSeoScreen.jsx'))
+const QuickToolsSheet = lazy(() => import('./components/QuickToolsSheet.jsx'))
 const ReportsScreen = lazy(() => import('./components/ReportsScreen.jsx'))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen.jsx'))
 const TodayScreen = lazy(() => import('./screens/TodayScreen.jsx'))
-
-const v75Motion = Object.freeze({
-  durationFast: 0.15,
-  durationNormal: 0.2,
-  easingStandard: [0.2, 0, 0, 1],
-})
 
 function isLegacyMotion() {
   return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_MOTION__)
@@ -264,20 +267,34 @@ function syncLegacyMotionFlag() {
 
 syncLegacyMotionFlag()
 ensureMoneyScoreRollbackFlag()
+ensureNextActionRollbackFlag()
 
-const fadeUp = isLegacyMotion()
-  ? {
-      initial: false,
-      animate: { opacity: 1, y: 0 },
-      exit: { opacity: 1, y: 0 },
-      transition: { duration: 0 },
-    }
-  : {
-      initial: { opacity: 0, y: 8 },
-      animate: { opacity: 1, y: 0 },
-      exit: { opacity: 0, y: -6 },
-      transition: { duration: v75Motion.durationNormal, ease: v75Motion.easingStandard },
-    }
+function ensureAuthRequiredRollbackFlag() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  if (typeof window.__FBPLY_LEGACY_AUTH_REQUIRED__ === 'undefined') {
+    window.__FBPLY_LEGACY_AUTH_REQUIRED__ = false
+  }
+}
+
+function ensureQuickToolsRollbackFlag() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  if (typeof window.__FBPLY_LEGACY_QUICK_TOOLS__ === 'undefined') {
+    window.__FBPLY_LEGACY_QUICK_TOOLS__ = false
+  }
+}
+
+ensureAuthRequiredRollbackFlag()
+ensureQuickToolsRollbackFlag()
+
+function motionSurfaceClassName(className = '') {
+  return [className, !isLegacyMotion() && 'fbply-v8-motion-surface'].filter(Boolean).join(' ')
+}
 
 function isLegacyAddExperience() {
   return typeof window !== 'undefined' && window.__FBPLY_LEGACY_ADD__
@@ -300,6 +317,30 @@ function isLegacyDailyHero() {
 
 function isLegacyInsights() {
   return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_INSIGHTS__)
+}
+
+function isLegacyQuickTools() {
+  return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_QUICK_TOOLS__)
+}
+
+function isLegacyAuthRequired() {
+  return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_AUTH_REQUIRED__)
+}
+
+function resolveAnonymousFirstPhase({ hasSeenOnboarding, hasCompletedSetup }) {
+  if (!hasSeenOnboarding) {
+    return 'welcome'
+  }
+
+  if (isLegacyAuthRequired()) {
+    return hasCompletedSetup && !isSupabaseReady ? 'app' : 'auth'
+  }
+
+  return 'app'
+}
+
+function resolveAuthenticatedPhase(setupCompleted) {
+  return setupCompleted || !isLegacyAuthRequired() ? 'app' : 'setup'
 }
 
 const expenseCategories = [
@@ -994,7 +1035,7 @@ function authErrorNotice(error, authMode = 'login') {
 
   if (authMode === 'signup' && isExistingAccount) {
     return {
-      message: 'Account already exists. Please sign in.',
+      message: 'Cloud backup already exists. Use existing backup.',
       followUp: 'sign_in',
       reason: 'account_exists',
     }
@@ -1009,7 +1050,7 @@ function authErrorNotice(error, authMode = 'login') {
   }
 
   return {
-    message: error?.message || (authMode === 'signup' ? 'Sign up could not finish. Please try again.' : 'Login could not finish. Please try again.'),
+    message: error?.message || (authMode === 'signup' ? 'Cloud backup could not start. Please try again.' : 'Cloud backup could not open. Please try again.'),
     followUp: authMode === 'login' ? 'forgot_password' : null,
     reason: authErrorReason(error),
   }
@@ -1024,7 +1065,7 @@ function signupResultNotice(data) {
 
   if (identities && identities.length === 0) {
     return {
-      message: 'Account already exists. Please sign in.',
+      message: 'Cloud backup already exists. Use existing backup.',
       followUp: 'sign_in',
       reason: 'account_exists',
     }
@@ -1135,6 +1176,47 @@ function readLocalVoiceMemoryCache(fallback = {}) {
   }
 
   return storedMemory
+}
+
+function backupMigrationCompletedKey(userId) {
+  return `fbply-backup-migration-completed-v1-${userId}`
+}
+
+function hasBackupMigrationCompleted(userId) {
+  return Boolean(userId) && safeStorageGet(backupMigrationCompletedKey(userId), 'false') === 'true'
+}
+
+function markBackupMigrationCompleted(userId) {
+  if (!userId) {
+    return
+  }
+
+  safeStorageSet(backupMigrationCompletedKey(userId), 'true')
+}
+
+function hasMeaningfulLocalBackupData() {
+  flushStorageQueue()
+
+  const localProfile = readLocalProfileCache(emptyProfile)
+  const hasProfileData = Boolean(
+    readLocalSetupComplete(false) ||
+    String(localProfile.name || '').trim() ||
+    String(localProfile.email || '').trim() ||
+    normalizeMoney(localProfile.income) > 0 ||
+    normalizeProfileCommitments(localProfile).length > 0,
+  )
+
+  return Boolean(
+    hasProfileData ||
+    normalizeExpenseRecords(readStoredJson('fbply-expenses', [])).length > 0 ||
+    normalizeSavingsBuckets(readStoredJson('fbply-savings-buckets', [])).length > 0 ||
+    normalizeRecurringSchedules(readStoredJson('fbply-recurring-schedules', [])).length > 0 ||
+    buildSharedGroupsSyncRecords(readStoredJson('fbply-shared-groups', [])).length > 0 ||
+    normalizeMoneyBookEntries(readStoredJson('fbply-money-book', [])).length > 0 ||
+    normalizeReportHistory(readStoredJson('fbply-report-history', [])).length > 0 ||
+    Object.keys(normalizeStatementMappings(readStoredJson('fbply-statement-category-mappings', {}))).length > 0 ||
+    Object.keys(normalizeVoiceMemory(readStoredJson('fbply-voice-memory', {}))).length > 0,
+  )
 }
 
 function writeExpenseCache(expenseRecords) {
@@ -1516,17 +1598,17 @@ function App() {
   const [moneyTheme, setMoneyTheme] = useState(() =>
     normalizeMoneyOSTheme(safeStorageGet('fbply-money-theme', defaultMoneyOSTheme)),
   )
-  const [profile, setProfile] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-profile', emptyProfile) : emptyProfile))
-  const [expenses, setExpenses] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-expenses', []) : []))
+  const [profile, setProfile] = useState(() => readLocalProfileCache(emptyProfile))
+  const [expenses, setExpenses] = useState(() => readLocalExpenseCache([]))
   const [savingsBuckets, setSavingsBuckets] = useState(() =>
-    hasCompletedSetup ? normalizeSavingsBuckets(readStoredJson('fbply-savings-buckets', [])) : [],
+    readLocalSavingsBucketCache([]),
   )
   const [recurringSchedules, setRecurringSchedules] = useState(() =>
-    hasCompletedSetup ? normalizeRecurringSchedules(readStoredJson('fbply-recurring-schedules', [])) : [],
+    readLocalRecurringScheduleCache([]),
   )
-  const [sharedGroups, setSharedGroups] = useState(() => (hasCompletedSetup ? readStoredJson('fbply-shared-groups', []) : []))
+  const [sharedGroups, setSharedGroups] = useState(() => readLocalSharedGroupsCache([]))
   const [moneyBookEntries, setMoneyBookEntries] = useState(() =>
-    hasCompletedSetup ? normalizeMoneyBookEntries(readStoredJson('fbply-money-book', [])) : [],
+    readLocalMoneyBookCache([]),
   )
   const [selectedMonthKey, setSelectedMonthKey] = useState(() => currentMonthKey())
   const expenseMode = 'daily'
@@ -1583,6 +1665,7 @@ function App() {
   const voiceMemoryRef = useRef(voiceMemory)
   const hasCompletedSetupRef = useRef(hasCompletedSetup)
   const hasTrackedAppOpenedRef = useRef(false)
+  const hasTrackedAnonymousStartedRef = useRef(safeStorageGet('fbply-anonymous-started', 'false') === 'true')
   const skipNextProfileCloudSaveRef = useRef(false)
   const skipNextExpenseCloudSaveRef = useRef(false)
   const skipNextSavingsCloudSaveRef = useRef(false)
@@ -1625,7 +1708,10 @@ function App() {
   setActiveCurrency(activeCurrency)
 
   useEffect(() => {
+    ensureAuthRequiredRollbackFlag()
+    ensureQuickToolsRollbackFlag()
     ensureMoneyScoreRollbackFlag()
+    ensureNextActionRollbackFlag()
     syncLegacyMotionFlag()
   })
 
@@ -1637,6 +1723,24 @@ function App() {
     hasTrackedAppOpenedRef.current = true
     trackEvent('app_opened')
   }, [isPublicSeoPage])
+
+  useEffect(() => {
+    if (
+      isPublicSeoPage ||
+      phase !== 'app' ||
+      authUser?.id ||
+      hasTrackedAnonymousStartedRef.current
+    ) {
+      return
+    }
+
+    hasTrackedAnonymousStartedRef.current = true
+    safeStorageSet('fbply-anonymous-started', 'true')
+    trackEvent('anonymous_started', {
+      surface: 'auth',
+      storage: 'local_only',
+    })
+  }, [authUser?.id, isPublicSeoPage, phase])
 
   useEffect(() => {
     const handlePopState = () => setCurrentPath(window.location.pathname || '/')
@@ -1666,7 +1770,7 @@ function App() {
         return
       }
 
-      setPhase(hasCompletedSetup && !isSupabaseReady ? 'app' : 'auth')
+      setPhase(resolveAnonymousFirstPhase({ hasSeenOnboarding, hasCompletedSetup }))
     })
     return () => {
       if (timer && typeof window.clearTimeout === 'function') {
@@ -3428,6 +3532,11 @@ function App() {
   }, [])
 
   const loadCloudStateForUser = useCallback(async (user, source = 'session') => {
+    const shouldTrackBackupMigration =
+      Boolean(user?.id) &&
+      ['signup', 'login', 'auth_state'].includes(source) &&
+      hasMeaningfulLocalBackupData() &&
+      !hasBackupMigrationCompleted(user.id)
     const syncedProfile = await loadProfileForUser(user, source)
     await loadCommitmentsForUser(user, source)
     await loadSavingsForUser(user, source)
@@ -3437,6 +3546,15 @@ function App() {
     await loadReportHistoryForUser(user, source)
     await loadStatementMappingsForUser(user, source)
     await loadVoiceMemoryForUser(user, source)
+
+    if (shouldTrackBackupMigration) {
+      markBackupMigrationCompleted(user.id)
+      trackEvent('migration_completed', {
+        surface: 'auth',
+        source,
+      })
+    }
+
     return syncedProfile
   }, [
     loadCommitmentsForUser,
@@ -3472,7 +3590,7 @@ function App() {
         }
 
         setIsSessionChecking(false)
-        setPhase(synced.setupCompleted ? 'app' : 'setup')
+        setPhase(resolveAuthenticatedPhase(synced.setupCompleted))
         return
       }
 
@@ -3496,7 +3614,7 @@ function App() {
           .then((synced) => {
             setIsSessionChecking(false)
             setPhase((currentPhase) => (currentPhase === 'auth' || currentPhase === 'setup'
-              ? (synced.setupCompleted ? 'app' : 'setup')
+              ? resolveAuthenticatedPhase(synced.setupCompleted)
               : currentPhase))
           })
           .catch(() => {
@@ -3507,16 +3625,16 @@ function App() {
 
       if (event === 'SIGNED_OUT') {
         applyAuthUser(null)
-        setIsProfileSyncReady(!isSupabaseReady)
-        setIsExpenseSyncReady(!isSupabaseReady)
-        setIsSavingsSyncReady(!isSupabaseReady)
-        setIsCommitmentSyncReady(!isSupabaseReady)
-        setIsSharedGroupsSyncReady(!isSupabaseReady)
-        setIsMoneyBookSyncReady(!isSupabaseReady)
-        setIsReportHistorySyncReady(!isSupabaseReady)
-        setIsStatementMappingsSyncReady(!isSupabaseReady)
-        setIsVoiceMemorySyncReady(!isSupabaseReady)
-        setPhase('auth')
+        setIsProfileSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setIsExpenseSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setIsSavingsSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setIsCommitmentSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setIsSharedGroupsSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setIsMoneyBookSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setIsReportHistorySyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setIsStatementMappingsSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setIsVoiceMemorySyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+        setPhase(isLegacyAuthRequired() ? 'auth' : 'app')
         return
       }
 
@@ -3835,6 +3953,46 @@ function App() {
       sharedSummary,
     ],
   )
+  const nextBestAction = useMemo(
+    () => {
+      if (isLegacyNextActionEnabled()) {
+        return null
+      }
+
+      return buildNextBestAction({
+        profile,
+        financialState,
+        safeToSpend,
+        expenses,
+        savingsBuckets,
+        recommendation,
+        sharedSummary,
+        sharedGroups,
+        moneyBookEntries,
+        moneyBookSummary: financialActivity.moneyBookSummary,
+        financialCalendarEvents,
+        moneyReminders,
+        reportHistory,
+        smartHomeInsights,
+      })
+    },
+    [
+      expenses,
+      financialActivity.moneyBookSummary,
+      financialCalendarEvents,
+      financialState,
+      moneyBookEntries,
+      moneyReminders,
+      profile,
+      recommendation,
+      reportHistory,
+      safeToSpend,
+      savingsBuckets,
+      sharedGroups,
+      sharedSummary,
+      smartHomeInsights,
+    ],
+  )
   const selectedCashflowTimeline = useMemo(
     () => buildCashflowTimeline(selectedMonthActivity.transactions),
     [selectedMonthActivity.transactions],
@@ -3997,7 +4155,7 @@ function App() {
       setAuthNotice(
         hasSupabaseAnonKey
           ? 'Secure sign-in could not start. Please try again in a moment.'
-          : 'Secure cloud sign-in is not active here, so FBPly will continue locally on this device.',
+          : 'Cloud backup is not active here, so FBPly will continue locally on this device.',
         null,
       )
       setProfile((current) => ({
@@ -4011,7 +4169,7 @@ function App() {
         auth_provider: 'local',
         setup_completed: hasCompletedSetup,
       })
-      setPhase(hasCompletedSetup ? 'app' : 'setup')
+      setPhase(resolveAuthenticatedPhase(hasCompletedSetup))
       return
     }
 
@@ -4049,6 +4207,10 @@ function App() {
 
         if (data.session?.user) {
           const synced = await loadCloudStateForUser(data.session.user, 'signup')
+          trackEvent('backup_enabled', {
+            surface: 'auth',
+            auth_mode: authMode,
+          })
           trackEvent('signup_success', {
             surface: 'auth',
             auth_mode: authMode,
@@ -4056,11 +4218,11 @@ function App() {
             session_created: true,
             setup_completed: hasCompletedSetup,
           })
-          setPhase(synced.setupCompleted ? 'app' : 'setup')
+          setPhase(resolveAuthenticatedPhase(synced.setupCompleted))
           return
         }
 
-        setAuthNotice('Account created. Please confirm your email, then log in.', { type: 'resend_verification', email: cleanEmail })
+        setAuthNotice('Cloud backup is ready. Please confirm your email, then open your backup.', { type: 'resend_verification', email: cleanEmail })
         trackEvent('signup_success', {
           surface: 'auth',
           auth_mode: authMode,
@@ -4084,13 +4246,17 @@ function App() {
       }
 
       const synced = await loadCloudStateForUser(data.user, 'login')
+      trackEvent('backup_enabled', {
+        surface: 'auth',
+        auth_mode: authMode,
+      })
       trackEvent('login_success', {
         surface: 'auth',
         auth_mode: authMode,
         auth_provider: 'supabase',
         setup_completed: hasCompletedSetup,
       })
-      setPhase(synced.setupCompleted ? 'app' : 'setup')
+      setPhase(resolveAuthenticatedPhase(synced.setupCompleted))
     } catch (error) {
       const notice = authErrorNotice(error, authMode)
       setAuthNotice(notice.message, notice.followUp ? { type: notice.followUp, email: cleanEmail } : null)
@@ -4109,11 +4275,16 @@ function App() {
     }
 
     setAuthUser(null)
-    setIsProfileSyncReady(!isSupabaseReady)
-    setIsExpenseSyncReady(!isSupabaseReady)
-    setIsSavingsSyncReady(!isSupabaseReady)
-    setIsCommitmentSyncReady(!isSupabaseReady)
-    setPhase('auth')
+    setIsProfileSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setIsExpenseSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setIsSavingsSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setIsCommitmentSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setIsSharedGroupsSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setIsMoneyBookSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setIsReportHistorySyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setIsStatementMappingsSyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setIsVoiceMemorySyncReady(!isSupabaseReady || !isLegacyAuthRequired())
+    setPhase(isLegacyAuthRequired() ? 'auth' : 'app')
   }, [clearAuthNotice])
 
   const updateCommitment = useCallback((id, patch) => {
@@ -5455,11 +5626,11 @@ function App() {
         onStart={startRewardedExport}
         onClose={closeRewardedExport}
       />
-      <AnimatePresence mode="wait">
+      <>
         {phase === 'splash' && (
           <SplashScreen
             key="splash"
-            onDone={() => setPhase(hasCompletedSetup && !isSupabaseReady ? 'app' : hasSeenOnboarding ? 'auth' : 'welcome')}
+            onDone={() => setPhase(resolveAnonymousFirstPhase({ hasSeenOnboarding, hasCompletedSetup }))}
           />
         )}
         {phase === 'welcome' && (
@@ -5467,7 +5638,7 @@ function App() {
             key="welcome"
             onStart={() => {
               setHasSeenOnboarding(true)
-              setPhase('auth')
+              setPhase(isLegacyAuthRequired() ? 'auth' : 'app')
             }}
           />
         )}
@@ -5479,11 +5650,13 @@ function App() {
               key="auth"
               authMessage={authMessage}
               authFollowUp={authFollowUp}
+              allowLocalContinue={!isLegacyAuthRequired()}
               isAuthBusy={isAuthBusy}
               isAuthFollowUpBusy={isAuthFollowUpBusy}
               onClearAuthNotice={clearAuthNotice}
               onEmailAuth={handleEmailAuth}
               onForgotPassword={handleForgotPassword}
+              onUseLocal={() => setPhase('app')}
               onResendVerification={handleResendVerification}
             />
           )
@@ -5512,6 +5685,10 @@ function App() {
               profile={profile}
               setProfile={setProfile}
               authUser={authUser}
+              onEnableBackup={() => {
+                clearAuthNotice()
+                setPhase('auth')
+              }}
               onSignOut={handleSignOut}
               addSheetMode={addSheetMode}
               openAddSheet={openAddSheet}
@@ -5521,6 +5698,7 @@ function App() {
               smartHomeInsights={smartHomeInsights}
               smartReminders={smartReminders}
               financialHealth={financialHealth}
+              nextBestAction={nextBestAction}
               safeToSpend={safeToSpend}
               fixedDistribution={fixedDistribution}
               flexibleDistribution={flexibleDistribution}
@@ -5631,7 +5809,7 @@ function App() {
             />
           </AppErrorBoundary>
         )}
-      </AnimatePresence>
+      </>
       {phase === 'app' && hasCompletedSetup && walkthroughStep >= 0 && (
         <WalkthroughOverlay
           step={walkthroughSteps[walkthroughStep]}
@@ -5733,7 +5911,7 @@ function CookieConsentBanner() {
 
 function SplashScreen({ onDone }) {
   return (
-    <motion.main className="splash-screen" {...fadeUp}>
+    <main className={motionSurfaceClassName('splash-screen')}>
       <span className="splash-progress" aria-hidden="true" onAnimationEnd={onDone} />
       <div className="splash-brand-card">
         <BrandMark size="hero" />
@@ -5745,13 +5923,13 @@ function SplashScreen({ onDone }) {
           Continue
         </button>
       </div>
-    </motion.main>
+    </main>
   )
 }
 
 function WelcomeScreen({ onStart }) {
   return (
-    <motion.main className="entry-screen" {...fadeUp}>
+    <main className={motionSurfaceClassName('entry-screen')}>
       <div className="entry-shell welcome-shell">
         <HeaderLogo />
         <section className="welcome-card">
@@ -5781,13 +5959,13 @@ function WelcomeScreen({ onStart }) {
           <ChevronRight size={18} />
         </button>
       </div>
-    </motion.main>
+    </main>
   )
 }
 
 function AuthFallback() {
   return (
-    <motion.main className="entry-screen" {...fadeUp}>
+    <main className={motionSurfaceClassName('entry-screen')}>
       <div className="entry-shell auth-shell compact-auth-shell">
         <div className="auth-card auth-card-compact skeleton-auth-card" aria-label="Loading login form">
           <HeaderLogo />
@@ -5799,18 +5977,20 @@ function AuthFallback() {
           <span className="skeleton-option" />
         </div>
       </div>
-    </motion.main>
+    </main>
   )
 }
 
 function AuthScreen({
   authMessage,
   authFollowUp,
+  allowLocalContinue = false,
   isAuthBusy,
   isAuthFollowUpBusy,
   onClearAuthNotice,
   onEmailAuth,
   onForgotPassword,
+  onUseLocal,
   onResendVerification,
 }) {
   const [authMode, setAuthMode] = useState('login')
@@ -5820,8 +6000,8 @@ function AuthScreen({
   const hasSubmittedRef = useRef(false)
   const latestAuthModeRef = useRef(authMode)
   const isSignup = authMode === 'signup'
-  const authTitle = isSignup ? 'Create account' : 'Welcome back'
-  const authTagline = isSignup ? 'Set up your private money workspace.' : 'Sign in to continue your money system.'
+  const authTitle = isSignup ? 'Protect Your Data' : 'Enable Cloud Backup'
+  const authTagline = isSignup ? 'Keep Your Data Safe Across Devices.' : 'Open your protected FBPly backup.'
   const followUpType = authFollowUp?.type || ''
   const followUpEmail = authFollowUp?.email || email
   const authLegalLinks = legalLinks
@@ -5875,7 +6055,7 @@ function AuthScreen({
   }
 
   return (
-    <motion.main className="entry-screen" {...fadeUp}>
+    <main className={motionSurfaceClassName('entry-screen')}>
       <div className="entry-shell auth-shell compact-auth-shell">
         <form className="auth-card auth-card-compact" onSubmit={submitAuth}>
           <div className="auth-brand-block">
@@ -5952,8 +6132,21 @@ function AuthScreen({
             </p>
           )}
           <button className="primary-button full" type="submit" disabled={isAuthBusy}>
-            {isAuthBusy ? 'Please wait...' : isSignup ? 'Create account' : 'Continue'}
+            {isAuthBusy ? 'Please wait...' : isSignup ? 'Enable Cloud Backup' : 'Continue'}
           </button>
+          {allowLocalContinue && (
+            <button
+              className="ghost-button full"
+              type="button"
+              disabled={isAuthBusy || isAuthFollowUpBusy}
+              onClick={() => {
+                markAuthInteraction()
+                onUseLocal?.()
+              }}
+            >
+              Continue locally
+            </button>
+          )}
           {authMessage && (
             <>
               <p className="form-message">{authMessage}</p>
@@ -5990,18 +6183,18 @@ function AuthScreen({
                   disabled={isAuthBusy}
                   onClick={() => switchAuthMode('login')}
                 >
-                  Sign in
+                  Use existing backup
                 </button>
               )}
             </>
           )}
           <p className="auth-switch-line">
-            {isSignup ? 'Already have an account?' : 'New to FBPly?'}
+            {isSignup ? 'Already protected?' : 'Keep your data safe across devices?'}
             <button
               type="button"
               onClick={() => switchAuthMode(isSignup ? 'login' : 'signup')}
             >
-              {isSignup ? 'Sign in' : 'Create account'}
+              {isSignup ? 'Use existing backup' : 'Protect data'}
             </button>
           </p>
         </form>
@@ -6013,7 +6206,7 @@ function AuthScreen({
           ))}
         </footer>
       </div>
-    </motion.main>
+    </main>
   )
 }
 
@@ -6307,7 +6500,7 @@ function SetupScreen({ profile, setProfile, onCreateSavingsGoal, onComplete }) {
   }
 
   return (
-    <motion.main className="setup-page" {...fadeUp}>
+    <main className={motionSurfaceClassName('setup-page')}>
       <div className="setup-shell">
         <HeaderLogo />
         <div className="setup-progress" aria-label={`Setup step ${activeStep} of ${totalSteps}`}>
@@ -6344,7 +6537,7 @@ function SetupScreen({ profile, setProfile, onCreateSavingsGoal, onComplete }) {
         </div>
         {setupError && <p className="form-message setup-error">{setupError}</p>}
       </div>
-    </motion.main>
+    </main>
   )
 }
 
@@ -6481,6 +6674,61 @@ function buildDailyHeroNextAction(recommendation) {
   }
 }
 
+const NEXT_BEST_ACTION_ICONS = {
+  check: CheckCircle2,
+  creditCard: CreditCard,
+  plus: Plus,
+  receipt: Receipt,
+  sparkles: Sparkles,
+  target: Target,
+  wallet: Wallet,
+}
+
+function NextBestActionCard({ action, surface = 'home', onAction, className = '' }) {
+  const actionId = action?.id || ''
+  const actionType = action?.type || ''
+  const actionSystem = action?.system || ''
+
+  useEffect(() => {
+    if (actionSystem !== 'v7.8-next-action') {
+      return
+    }
+
+    trackEvent('next_action_viewed', {
+      surface,
+      action_type: actionType,
+    })
+  }, [actionId, actionSystem, actionType, surface])
+
+  if (!action) {
+    return null
+  }
+
+  const ActionIcon = NEXT_BEST_ACTION_ICONS[action.iconKey] || Sparkles
+
+  return (
+    <MoneyCard
+      eyebrow="Next Action"
+      title={action.title}
+      detail={action.reason}
+      meta={action.badge || 'Next'}
+      icon={ActionIcon}
+      tone={action.tone || 'tint'}
+      className={`v72-next-action-card v78-next-action-card ${className}`.trim()}
+      footer={(
+        <button
+          className="ghost-button v78-next-action-cta"
+          type="button"
+          onClick={() => onAction?.(action, surface)}
+        >
+          <span>{action.action}</span>
+          <ChevronRight size={15} />
+        </button>
+      )}
+    />
+  )
+}
+
 function buildMonthProgressView(now = new Date()) {
   const fallbackDate = new Date()
   const date = Number.isNaN(now?.getTime?.()) ? fallbackDate : now
@@ -6534,12 +6782,14 @@ function DailyCompanionEntry({
   openQuickEntry,
   todayTransactions = [],
   recommendation,
+  nextBestAction,
+  onNextActionClick,
   legacyDailyHero = false,
 }) {
   const [heroAmount, setHeroAmount] = useState('')
   const recentActivity = useMemo(() => buildDailyHeroActivity(todayTransactions), [todayTransactions])
-  const nextAction = buildDailyHeroNextAction(recommendation)
-  const NextActionIcon = nextAction.icon
+  const legacyNextAction = buildDailyHeroNextAction(recommendation)
+  const LegacyNextActionIcon = legacyNextAction.icon
   const hasAmount = normalizeMoney(heroAmount) > 0
   const handleEntry = (mode) => {
     if (openQuickEntry) {
@@ -6662,20 +6912,28 @@ function DailyCompanionEntry({
             tone="tint"
             className="v72-available-card"
           />
+          {nextBestAction ? (
+            <NextBestActionCard
+              action={nextBestAction}
+              surface="home"
+              onAction={onNextActionClick}
+            />
+          ) : (
+            <MoneyCard
+              as={legacyNextAction.target === 'expense' ? 'button' : 'section'}
+              type={legacyNextAction.target === 'expense' ? 'button' : undefined}
+              eyebrow="Next Action"
+              title={legacyNextAction.title}
+              detail={legacyNextAction.detail}
+              meta={legacyNextAction.badge}
+              icon={LegacyNextActionIcon}
+              tone={legacyNextAction.tone}
+              className="v72-next-action-card"
+              interactive={legacyNextAction.target === 'expense'}
+              onClick={legacyNextAction.target === 'expense' ? () => handleEntry('expense') : undefined}
+            />
+          )}
           <DailyMonthProgress />
-          <MoneyCard
-            as={nextAction.target === 'expense' ? 'button' : 'section'}
-            type={nextAction.target === 'expense' ? 'button' : undefined}
-            eyebrow="Next Action"
-            title={nextAction.title}
-            detail={nextAction.detail}
-            meta={nextAction.badge}
-            icon={NextActionIcon}
-            tone={nextAction.tone}
-            className="v72-next-action-card"
-            interactive={nextAction.target === 'expense'}
-            onClick={nextAction.target === 'expense' ? () => handleEntry('expense') : undefined}
-          />
         </section>
       </div>
     </MoneyOSProvider>
@@ -6814,6 +7072,8 @@ function InsightsCompanionOverview({
   safeToSpend = {},
   transactionSummary = {},
   reportHistory = [],
+  nextBestAction,
+  onNextActionClick,
   onViewReports,
   onGenerateReport,
   isGeneratingReport = false,
@@ -6953,6 +7213,15 @@ function InsightsCompanionOverview({
         <StatusBadge tone={health.tone}>{health.badge}</StatusBadge>
       </section>
 
+      {nextBestAction && (
+        <NextBestActionCard
+          action={nextBestAction}
+          surface="insights"
+          onAction={onNextActionClick}
+          className="v78-insights-next-action"
+        />
+      )}
+
       <section className="v73-insights-section" aria-label="Money Flow">
         <div className="v73-insights-section-header">
           <span>Money Flow</span>
@@ -7013,7 +7282,17 @@ function InsightsCompanionOverview({
   )
 }
 
-function ToolsCompanionHub({ navigateToTarget, openStatementImport }) {
+const V77_QUICK_TOOLS = [
+  { key: 'calculator', label: 'Calculator', detail: 'Basic arithmetic', icon: Calculator, tone: 'tint' },
+  { key: 'split', label: 'Split Amount', detail: 'Amount per person', icon: Divide, tone: 'success' },
+  { key: 'percentage', label: 'Percentage', detail: 'Add or reduce percent', icon: Percent, tone: 'warning' },
+  { key: 'emi', label: 'EMI Estimate', detail: 'Monthly estimate', icon: CreditCard, tone: 'tint' },
+  { key: 'gst', label: 'GST Add/Remove', detail: 'GST totals', icon: Receipt, tone: 'success' },
+]
+
+function ToolsCompanionHub({ navigateToTarget, openStatementImport, openQuickTools }) {
+  const useLegacyQuickTools = isLegacyQuickTools()
+
   return (
     <MoneyOSProvider as="section" className="screen-content v7-tools-hub money-os-tools">
       <SectionHeader
@@ -7021,6 +7300,36 @@ function ToolsCompanionHub({ navigateToTarget, openStatementImport }) {
         detail="Solve money problems"
         actions={<StatusBadge>Utilities</StatusBadge>}
       />
+
+      {!useLegacyQuickTools && (
+        <section className="v7-tool-group v77-quick-tools-surface" aria-label="Smart Quick Tools">
+          <SectionHeader
+            title="Quick Tools"
+            detail="Fast local calculations"
+            actions={<StatusBadge>Local</StatusBadge>}
+          />
+          <div className="v77-quick-tool-strip">
+            {V77_QUICK_TOOLS.map((tool) => {
+              const ToolIcon = tool.icon
+
+              return (
+                <button
+                  className={`v77-quick-tool-button v77-quick-tool-button--${tool.tone}`}
+                  type="button"
+                  key={tool.key}
+                  onClick={() => openQuickTools?.(tool.key)}
+                >
+                  <span aria-hidden="true">
+                    <ToolIcon size={17} />
+                  </span>
+                  <strong>{tool.label}</strong>
+                  <small>{tool.detail}</small>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="v7-tool-group" aria-label="People money tools">
         <SectionHeader title="People Money" />
@@ -7065,11 +7374,12 @@ function ToolsCompanionHub({ navigateToTarget, openStatementImport }) {
           />
           <ActionCard
             title="Calculator"
-            detail="Placeholder"
-            actionLabel="Planned"
+            detail={useLegacyQuickTools ? 'Placeholder' : 'Quick arithmetic, split, EMI, and GST'}
+            actionLabel={useLegacyQuickTools ? 'Planned' : 'Open'}
             icon={Calculator}
             tone="neutral"
-            disabled
+            disabled={useLegacyQuickTools}
+            onClick={() => openQuickTools?.('calculator')}
           />
         </div>
       </section>
@@ -7099,8 +7409,8 @@ function ToolsCompanionHub({ navigateToTarget, openStatementImport }) {
   )
 }
 
-function ProfileCompanionHome({ authUser, moneyTheme, openSettings }) {
-  const accountLabel = authUser?.email || 'Local profile'
+function ProfileCompanionHome({ authUser, moneyTheme, openSettings, onEnableBackup }) {
+  const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
   const themeLabel = titleCase(String(moneyTheme || defaultMoneyOSTheme).replace(/-/g, ' '))
 
   return (
@@ -7108,7 +7418,7 @@ function ProfileCompanionHome({ authUser, moneyTheme, openSettings }) {
       <SectionHeader
         title="Profile"
         detail="Settings and backup"
-        actions={<StatusBadge>{accountLabel}</StatusBadge>}
+        actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
       />
       <div className="v7-companion-grid">
         <ActionCard
@@ -7128,11 +7438,16 @@ function ProfileCompanionHome({ authUser, moneyTheme, openSettings }) {
           onClick={openSettings}
         />
         <MoneyCard
-          title="Cloud Backup"
-          detail="Future backup option"
+          title={authUser?.id ? 'Protected by Cloud Backup' : 'Protect Your Data'}
+          detail={authUser?.id ? 'Keep Your Data Safe Across Devices.' : 'Enable Cloud Backup when you are ready.'}
           icon={ShieldCheck}
-          tone="warning"
-          actions={<StatusBadge>Future</StatusBadge>}
+          tone={authUser?.id ? 'success' : 'warning'}
+          actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
+          footer={!authUser?.id && (
+            <button className="ghost-button full" type="button" onClick={onEnableBackup}>
+              Enable Cloud Backup
+            </button>
+          )}
         />
         <ActionCard
           title="Support"
@@ -7166,6 +7481,7 @@ function MainApp(props) {
     profile,
     setProfile,
     authUser,
+    onEnableBackup,
     onSignOut,
     addSheetMode,
     openAddSheet,
@@ -7175,6 +7491,7 @@ function MainApp(props) {
     smartHomeInsights,
     smartReminders,
     financialHealth,
+    nextBestAction,
     safeToSpend,
     fixedDistribution,
     flexibleDistribution,
@@ -7288,7 +7605,9 @@ function MainApp(props) {
   const [hasOpenedNotifications, setHasOpenedNotifications] = useState(false)
   const [statementImportRequestId, setStatementImportRequestId] = useState(0)
   const [quickIncomeInitialAmount, setQuickIncomeInitialAmount] = useState('')
+  const [quickToolsSheet, setQuickToolsSheet] = useState(null)
   const [isInsightsReportsOpen, setIsInsightsReportsOpen] = useState(false)
+  const pendingNextActionRef = useRef(null)
   const useLegacyNavigation = isLegacyNavigation()
   const useLegacyDailyHero = isLegacyDailyHero()
   const useLegacyInsights = isLegacyInsights()
@@ -7318,6 +7637,16 @@ function MainApp(props) {
     setQuickIncomeInitialAmount('')
     closeAddSheet()
   }, [closeAddSheet])
+  const openQuickTools = useCallback((tool = 'calculator') => {
+    if (isLegacyQuickTools()) {
+      return
+    }
+
+    setQuickToolsSheet(tool)
+  }, [])
+  const closeQuickTools = useCallback(() => {
+    setQuickToolsSheet(null)
+  }, [])
 
   useEffect(() => {
     const viewEvent = (useLegacyNavigation ? LEGACY_TAB_VIEW_EVENTS : COMPANION_TAB_VIEW_EVENTS)[activeNavigationTab]
@@ -7413,6 +7742,74 @@ function MainApp(props) {
     setIsInsightsReportsOpen(true)
     requestReportExport?.('monthly')
   }, [requestReportExport])
+  const nextActionCompletionMetrics = useMemo(
+    () => getNextActionCompletionMetrics({
+      expenses,
+      savingsBuckets,
+      moneyBookSummary,
+      sharedSummary,
+    }),
+    [expenses, moneyBookSummary, savingsBuckets, sharedSummary],
+  )
+  const completeNextAction = useCallback(() => {
+    pendingNextActionRef.current = null
+    trackEvent('next_action_completed', {
+      surface: 'home',
+    })
+  }, [])
+  const handleNextActionClick = useCallback((action, surface = 'home') => {
+    if (!action) {
+      return
+    }
+
+    const completionRule = action.completionRule || {}
+    pendingNextActionRef.current = {
+      actionId: action.id,
+      rule: completionRule,
+      baseline: nextActionCompletionMetrics,
+      clickedAt: Date.now(),
+    }
+
+    trackEvent('next_action_clicked', {
+      surface,
+      action_type: action.type,
+    })
+
+    const destination = action.destination || {}
+
+    if (destination.kind === 'sheet' && destination.sheet) {
+      openDailyHeroEntry(destination.sheet)
+    } else if (destination.kind === 'tab' && destination.tab) {
+      navigateToTarget(destination.tab, destination.targetId)
+    } else if (destination.kind === 'settings') {
+      setIsSettingsOpen(true)
+      trackEvent('profile_viewed')
+      trackFeatureUsage('settings_opened', {
+        surface: 'next_action',
+      })
+    }
+
+    if (completionRule.comparison === 'view') {
+      completeNextAction()
+    }
+  }, [completeNextAction, navigateToTarget, nextActionCompletionMetrics, openDailyHeroEntry])
+
+  useEffect(() => {
+    const pending = pendingNextActionRef.current
+
+    if (!pending || pending.rule?.comparison === 'view') {
+      return
+    }
+
+    if (Date.now() - pending.clickedAt > 30 * 60 * 1000) {
+      pendingNextActionRef.current = null
+      return
+    }
+
+    if (hasNextActionCompletion(pending.rule, pending.baseline, nextActionCompletionMetrics)) {
+      completeNextAction()
+    }
+  }, [completeNextAction, nextActionCompletionMetrics])
 
   const todayScreenNode = (
     <Suspense fallback={<HomeScreenFallback />}>
@@ -7496,7 +7893,7 @@ function MainApp(props) {
   )
 
   return (
-    <motion.div className="app-shell" {...fadeUp}>
+    <div className={motionSurfaceClassName('app-shell')}>
       <div className="app-brand-chip" aria-label="FBPly">
         <BrandMark size="tiny" />
         <span>FBPly</span>
@@ -7554,6 +7951,8 @@ function MainApp(props) {
                 openQuickEntry={openDailyHeroEntry}
                 todayTransactions={todayTransactions}
                 recommendation={recommendation}
+                nextBestAction={nextBestAction}
+                onNextActionClick={handleNextActionClick}
                 legacyDailyHero={useLegacyDailyHero}
               />
             )}
@@ -7582,6 +7981,7 @@ function MainApp(props) {
               <ToolsCompanionHub
                 navigateToTarget={navigateToTarget}
                 openStatementImport={openStatementImportFromAddHub}
+                openQuickTools={openQuickTools}
               />
             )}
             {useLegacyNavigation && (
@@ -7673,6 +8073,8 @@ function MainApp(props) {
                 safeToSpend={safeToSpend}
                 transactionSummary={reportTransactionSummary}
                 reportHistory={reportHistory}
+                nextBestAction={nextBestAction}
+                onNextActionClick={handleNextActionClick}
                 onViewReports={openInsightsReports}
                 onGenerateReport={generateInsightsReport}
                 isGeneratingReport={isExportingPdf || Boolean(exportingReportType)}
@@ -7707,6 +8109,7 @@ function MainApp(props) {
               <ProfileCompanionHome
                 authUser={authUser}
                 moneyTheme={moneyTheme}
+                onEnableBackup={onEnableBackup}
                 openSettings={() => {
                   setIsSettingsOpen(true)
                   trackEvent('profile_viewed')
@@ -7720,6 +8123,7 @@ function MainApp(props) {
             profile={profile}
             setProfile={setProfile}
             authUser={authUser}
+            onEnableBackup={onEnableBackup}
             onSignOut={onSignOut}
             financialState={financialState}
             fixedDistribution={fixedDistribution}
@@ -7823,6 +8227,16 @@ function MainApp(props) {
           initialIncomeAmount={quickIncomeInitialAmount}
         />
       )}
+      {quickToolsSheet && !isLegacyQuickTools() && (
+        <Suspense fallback={<FLoader fullPage label="Opening Quick Tools" />}>
+          <QuickToolsSheet
+            key={quickToolsSheet}
+            open
+            initialTool={quickToolsSheet}
+            onClose={closeQuickTools}
+          />
+        </Suspense>
+      )}
       {isSettingsOpen && (
         <Suspense fallback={<FLoader fullPage label="Opening Profile Hub" />}>
           <SettingsScreen
@@ -7831,6 +8245,7 @@ function MainApp(props) {
             setMoneyTheme={setMoneyTheme}
             profile={profile}
             setProfile={setProfile}
+            onEnableBackup={onEnableBackup}
             onClose={() => setIsSettingsOpen(false)}
             onSignOut={onSignOut}
             financialState={financialState}
@@ -7855,7 +8270,7 @@ function MainApp(props) {
         </Suspense>
       )}
       <BottomNav activeTab={activeNavigationTab} setActiveTab={setCompanionActiveTab} items={navigationItems} />
-    </motion.div>
+    </div>
   )
 }
 
@@ -9424,6 +9839,7 @@ function ProfileScreen({
   profile,
   setProfile,
   authUser,
+  onEnableBackup,
   onSignOut,
   financialState,
   fixedDistribution,
@@ -9597,6 +10013,7 @@ function ProfileScreen({
           authUser={authUser}
           profile={profile}
           setProfile={setProfile}
+          onEnableBackup={onEnableBackup}
           onClose={() => setIsProfileMenuOpen(false)}
           onSignOut={onSignOut}
         />
@@ -9605,7 +10022,9 @@ function ProfileScreen({
   )
 }
 
-function ProfileMenuSheet({ authUser, profile, setProfile, onClose, onSignOut }) {
+function ProfileMenuSheet({ authUser, profile, setProfile, onEnableBackup, onClose, onSignOut }) {
+  const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
+
   return (
     <AppModal onClose={onClose} labelledBy="profile-menu-title" sheetClassName="editor-sheet profile-menu-sheet">
       <div className="editor-sheet-header">
@@ -9620,8 +10039,8 @@ function ProfileMenuSheet({ authUser, profile, setProfile, onClose, onSignOut })
       <div className="profile-menu-account">
         <BrandMark size="small" />
         <div>
-          <span className="mini-label">Signed in as</span>
-          <strong>{authUser?.email || profile.email || 'Local profile'}</strong>
+          <span className="mini-label">{backupStatus}</span>
+          <strong>{authUser?.email || profile.email || 'This device'}</strong>
         </div>
       </div>
       <div className="editor-sheet-body profile-menu-body">
@@ -9676,17 +10095,31 @@ function ProfileMenuSheet({ authUser, profile, setProfile, onClose, onSignOut })
         </div>
       </div>
       <div className="editor-sheet-footer profile-menu-footer">
-        <button
-          className="sign-out-button"
-          type="button"
-          onClick={() => {
-            onClose()
-            onSignOut()
-          }}
-        >
-          <LogOut size={17} />
-          Sign out
-        </button>
+        {authUser?.id ? (
+          <button
+            className="sign-out-button"
+            type="button"
+            onClick={() => {
+              onClose()
+              onSignOut()
+            }}
+          >
+            <LogOut size={17} />
+            Sign out
+          </button>
+        ) : (
+          <button
+            className="sign-out-button"
+            type="button"
+            onClick={() => {
+              onClose()
+              onEnableBackup?.()
+            }}
+          >
+            <ShieldCheck size={17} />
+            Enable Cloud Backup
+          </button>
+        )}
       </div>
     </AppModal>
   )

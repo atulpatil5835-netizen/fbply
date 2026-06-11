@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { CheckCircle2, LogOut, X } from 'lucide-react'
+import { CheckCircle2, LogOut, ShieldCheck, X } from 'lucide-react'
 import { AppModal, BrandMark, CurrencyInput } from '../components/AppPrimitives.jsx'
 import FinanceDonut from '../components/FinanceDonut.jsx'
 import { CommitmentsEditor, CurrencyPreference } from '../components/ProfileSettingsControls.jsx'
@@ -97,6 +97,7 @@ export default function SettingsScreen({
   setMoneyTheme,
   profile,
   setProfile,
+  onEnableBackup,
   onClose,
   onSignOut,
   financialState,
@@ -120,6 +121,7 @@ export default function SettingsScreen({
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const balanceMessage = getProfileBalanceMessage(financialState)
+  const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
   const showProductHealthDashboard = canViewFounderDashboard({ authUser, profile, supportEmail })
   const navigateFromHub = (tab, targetId) => {
     onClose()
@@ -185,11 +187,31 @@ export default function SettingsScreen({
                 <div className="profile-menu-account settings-account">
                   <BrandMark size="small" />
                   <div>
-                    <span className="mini-label">Signed in</span>
-                    <strong>{authUser?.email || profile.email || 'Local profile'}</strong>
+                    <span className="mini-label">{backupStatus}</span>
+                    <strong>{authUser?.email || profile.email || 'This device'}</strong>
                     <p>{balanceMessage}</p>
                   </div>
                 </div>
+
+                {!authUser?.id && (
+                  <div className="settings-backup-callout">
+                    <ShieldCheck size={18} />
+                    <div>
+                      <strong>Protect Your Data</strong>
+                      <p>Keep Your Data Safe Across Devices.</p>
+                    </div>
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      onClick={() => {
+                        onClose()
+                        onEnableBackup?.()
+                      }}
+                    >
+                      Enable Cloud Backup
+                    </button>
+                  </div>
+                )}
 
                 <div className="settings-form-grid">
                   <CurrencyPreference profile={profile} setProfile={setProfile} id="settings-currency" />
@@ -279,17 +301,31 @@ export default function SettingsScreen({
       </div>
 
       <div className="editor-sheet-footer profile-menu-footer">
-        <button
-          className="sign-out-button"
-          type="button"
-          onClick={() => {
-            onClose()
-            onSignOut()
-          }}
-        >
-          <LogOut size={17} />
-          Sign out
-        </button>
+        {authUser?.id ? (
+          <button
+            className="sign-out-button"
+            type="button"
+            onClick={() => {
+              onClose()
+              onSignOut()
+            }}
+          >
+            <LogOut size={17} />
+            Sign out
+          </button>
+        ) : (
+          <button
+            className="sign-out-button"
+            type="button"
+            onClick={() => {
+              onClose()
+              onEnableBackup?.()
+            }}
+          >
+            <ShieldCheck size={17} />
+            Enable Cloud Backup
+          </button>
+        )}
       </div>
     </AppModal>
   )

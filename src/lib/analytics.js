@@ -19,6 +19,9 @@ const PUBLIC_PAGE_EVENT_BY_TYPE = {
 
 const PRODUCT_EVENT_SCREENS = {
   app_opened: 'app',
+  anonymous_started: 'auth',
+  backup_enabled: 'auth',
+  migration_completed: 'auth',
   theme_changed: 'profile',
   daily_viewed: 'daily',
   home_viewed: 'home',
@@ -27,7 +30,11 @@ const PRODUCT_EVENT_SCREENS = {
   money_health_improved: 'insights',
   money_health_declined: 'insights',
   tools_viewed: 'tools',
+  quick_tool_opened: 'tools',
+  quick_tool_used: 'tools',
+  next_action_viewed: 'home',
   next_action_clicked: 'home',
+  next_action_completed: 'home',
   add_hub_opened: 'add_hub',
   quick_expense_entry_opened: 'daily',
   add_expense_selected: 'add_hub',
@@ -94,11 +101,16 @@ const SCREEN_ALIASES = {
 
 const PRODUCT_HEALTH_METRICS = [
   { event: 'app_opened', label: 'App opened', group: 'App Usage', screen: 'app' },
+  { event: 'anonymous_started', label: 'Anonymous started', group: 'App Usage', screen: 'auth' },
+  { event: 'backup_enabled', label: 'Backup enabled', group: 'App Usage', screen: 'auth' },
+  { event: 'migration_completed', label: 'Migration completed', group: 'App Usage', screen: 'auth' },
   { event: 'daily_viewed', label: 'Daily viewed', group: 'Daily', screen: 'daily' },
   { event: 'insights_viewed', label: 'Insights viewed', group: 'Insights', screen: 'insights' },
   { event: 'tools_viewed', label: 'Tools viewed', group: 'Tools', screen: 'tools' },
   { event: 'home_viewed', label: 'Home viewed', group: 'Home', screen: 'home' },
+  { event: 'next_action_viewed', label: 'Next action viewed', group: 'Home', screen: 'home' },
   { event: 'next_action_clicked', label: 'Next action clicked', group: 'Home', screen: 'home' },
+  { event: 'next_action_completed', label: 'Next action completed', group: 'Home', screen: 'home' },
   { event: 'quick_expense_entry_opened', label: 'Quick expense entry opened', group: 'Daily', screen: 'daily' },
   { event: 'add_hub_opened', label: 'Add hub opened', group: 'Add Hub', screen: 'add_hub' },
   { event: 'add_expense_selected', label: 'Expense selected', group: 'Add Hub', screen: 'add_hub' },
@@ -464,6 +476,7 @@ function buildProductHealthSummary() {
     + (counts.add_other_actions_selected || 0)
   const engagementEvents = new Set([
     'next_action_clicked',
+    'next_action_completed',
     'expense_created',
     'income_created',
     'goal_created',

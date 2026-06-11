@@ -1,0 +1,183 @@
+.quick-tools-sheet {
+  width: min(100%, 540px);
+  max-height: min(86svh, 760px);
+}
+
+.quick-tools-sheet__body {
+  display: grid;
+  gap: var(--mos-space-md);
+}
+
+.quick-tools-shell {
+  display: grid;
+  gap: var(--mos-space-md);
+  min-width: 0;
+}
+
+.quick-tools-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.quick-tools-tab {
+  min-width: 0;
+  min-height: 48px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: 8px;
+  color: var(--theme-muted);
+  background: color-mix(in srgb, var(--theme-card) 90%, transparent);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 850;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.quick-tools-tab svg {
+  flex: 0 0 auto;
+}
+
+.quick-tools-tab span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-tools-tab.active {
+  border-color: color-mix(in srgb, var(--theme-primary) 44%, var(--theme-border));
+  color: var(--theme-text);
+  background: color-mix(in srgb, var(--theme-primary) 12%, var(--theme-card));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--theme-shadow) 10%, transparent);
+}
+
+.quick-tools-card {
+  min-width: 0;
+}
+
+.quick-tools-card .mos-card__header {
+  align-items: start;
+}
+
+.quick-tools-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.quick-tools-fields,
+.quick-tools-results-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.quick-tools-fields--three,
+.quick-tools-results-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quick-tools-result {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-bg) 58%, var(--theme-card));
+}
+
+.quick-tools-result span,
+.quick-tools-result small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--theme-muted);
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.quick-tools-result strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--theme-text);
+  font-size: 19px;
+  line-height: 1.15;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.quick-tools-keypad {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.quick-tools-key {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: 8px;
+  color: var(--theme-text);
+  background: color-mix(in srgb, var(--theme-card) 92%, transparent);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.quick-tools-key:active {
+  transform: scale(var(--motion-press-scale));
+}
+
+.quick-tools-key--utility {
+  color: var(--theme-muted);
+  background: color-mix(in srgb, var(--theme-bg) 72%, var(--theme-card));
+}
+
+@media (max-width: 520px) {
+  .quick-tools-sheet {
+    max-height: 88svh;
+  }
+
+  .quick-tools-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quick-tools-fields,
+  .quick-tools-fields--three,
+  .quick-tools-results-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-tools-tab,
+  .quick-tools-key {
+    transition-duration: 0.01ms;
+  }
+}
