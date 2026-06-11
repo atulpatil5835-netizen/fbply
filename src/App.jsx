@@ -65,6 +65,10 @@ import {
   hasNextActionCompletion,
   isLegacyNextActionEnabled,
 } from './lib/nextBestAction'
+import {
+  buildSmartFeedback,
+  ensureSmartFeedbackRollbackFlag,
+} from './lib/smartFeedback'
 import { buildUnifiedFinanceEngine } from './lib/financeEngine'
 import {
   buildCashflowTimeline,
@@ -268,6 +272,7 @@ function syncLegacyMotionFlag() {
 syncLegacyMotionFlag()
 ensureMoneyScoreRollbackFlag()
 ensureNextActionRollbackFlag()
+ensureSmartFeedbackRollbackFlag()
 
 function ensureAuthRequiredRollbackFlag() {
   if (typeof window === 'undefined') {
@@ -1712,6 +1717,7 @@ function App() {
     ensureQuickToolsRollbackFlag()
     ensureMoneyScoreRollbackFlag()
     ensureNextActionRollbackFlag()
+    ensureSmartFeedbackRollbackFlag()
     syncLegacyMotionFlag()
   })
 
@@ -3993,6 +3999,29 @@ function App() {
       smartHomeInsights,
     ],
   )
+  const smartFeedback = useMemo(
+    () => buildSmartFeedback({
+      financialHealth,
+      financialState,
+      savingsBuckets,
+      recommendation,
+      moneyBookSummary: financialActivity.moneyBookSummary,
+      smartHomeInsights,
+      transactionSummary: financialActivity.transactionSummary,
+      nextBestAction,
+    }),
+    [
+      financialActivity.moneyBookSummary,
+      financialActivity.transactionSummary,
+      financialHealth,
+      financialState,
+      nextBestAction,
+      recommendation,
+      savingsBuckets,
+      smartHomeInsights,
+    ],
+  )
+
   const selectedCashflowTimeline = useMemo(
     () => buildCashflowTimeline(selectedMonthActivity.transactions),
     [selectedMonthActivity.transactions],
@@ -5699,6 +5728,7 @@ function App() {
               smartReminders={smartReminders}
               financialHealth={financialHealth}
               nextBestAction={nextBestAction}
+              smartFeedback={smartFeedback}
               safeToSpend={safeToSpend}
               fixedDistribution={fixedDistribution}
               flexibleDistribution={flexibleDistribution}
@@ -6578,6 +6608,18 @@ function LoggedInLegalFooter() {
   )
 }
 
+function ProfileLegalFooter() {
+  return (
+    <footer className="v83-profile-legal-footer" aria-label="Legal information">
+      {legalLinks.slice(0, 4).map((link) => (
+        <a href={link.href} key={link.href}>
+          {link.href === '/privacy' ? 'Privacy' : link.href === '/terms' ? 'Terms' : link.href === '/disclaimer' ? 'Disclaimer' : 'About'}
+        </a>
+      ))}
+    </footer>
+  )
+}
+
 function normalizeDailyHeroAmount(value) {
   const amount = normalizeMoney(value)
 
@@ -6729,6 +6771,62 @@ function NextBestActionCard({ action, surface = 'home', onAction, className = ''
   )
 }
 
+const SMART_FEEDBACK_ICONS = {
+  chartPie: ChartPie,
+  check: CheckCircle2,
+  receipt: Receipt,
+  shieldCheck: ShieldCheck,
+  sparkles: Sparkles,
+  target: Target,
+  wallet: Wallet,
+}
+
+function SmartFeedbackCard({ feedback, surface = 'home', onFeedbackClick, className = '' }) {
+  const feedbackId = feedback?.id || ''
+  const feedbackType = feedback?.type || ''
+  const feedbackSystem = feedback?.system || ''
+
+  useEffect(() => {
+    if (feedbackSystem !== 'v8.2-smart-feedback') {
+      return
+    }
+
+    trackEvent('feedback_viewed', {
+      surface,
+      feedback_type: feedbackType,
+    })
+  }, [feedbackId, feedbackSystem, feedbackType, surface])
+
+  if (!feedback) {
+    return null
+  }
+
+  const FeedbackIcon = SMART_FEEDBACK_ICONS[feedback.iconKey] || CheckCircle2
+
+  return (
+    <MoneyCard
+      as="button"
+      type="button"
+      eyebrow="Smart Feedback"
+      title={feedback.title}
+      detail={feedback.detail}
+      meta={feedback.label || 'Progress'}
+      icon={FeedbackIcon}
+      tone={feedback.tone || 'tint'}
+      interactive
+      className={`v82-smart-feedback-card ${className}`.trim()}
+      id={surface === 'insights' ? 'v82-smart-feedback-insights' : undefined}
+      onClick={() => onFeedbackClick?.(feedback, surface)}
+      footer={(
+        <span className="v82-smart-feedback-cue">
+          <span>View</span>
+          <ChevronRight size={15} />
+        </span>
+      )}
+    />
+  )
+}
+
 function buildMonthProgressView(now = new Date()) {
   const fallbackDate = new Date()
   const date = Number.isNaN(now?.getTime?.()) ? fallbackDate : now
@@ -6783,7 +6881,9 @@ function DailyCompanionEntry({
   todayTransactions = [],
   recommendation,
   nextBestAction,
+  smartFeedback,
   onNextActionClick,
+  onSmartFeedbackClick,
   legacyDailyHero = false,
 }) {
   const [heroAmount, setHeroAmount] = useState('')
@@ -6933,6 +7033,11 @@ function DailyCompanionEntry({
               onClick={legacyNextAction.target === 'expense' ? () => handleEntry('expense') : undefined}
             />
           )}
+          <SmartFeedbackCard
+            feedback={smartFeedback}
+            surface="home"
+            onFeedbackClick={onSmartFeedbackClick}
+          />
           <DailyMonthProgress />
         </section>
       </div>
@@ -7073,7 +7178,9 @@ function InsightsCompanionOverview({
   transactionSummary = {},
   reportHistory = [],
   nextBestAction,
+  smartFeedback,
   onNextActionClick,
+  onSmartFeedbackClick,
   onViewReports,
   onGenerateReport,
   isGeneratingReport = false,
@@ -7222,6 +7329,13 @@ function InsightsCompanionOverview({
         />
       )}
 
+      <SmartFeedbackCard
+        feedback={smartFeedback}
+        surface="insights"
+        onFeedbackClick={onSmartFeedbackClick}
+        className="v82-insights-smart-feedback"
+      />
+
       <section className="v73-insights-section" aria-label="Money Flow">
         <div className="v73-insights-section-header">
           <span>Money Flow</span>
@@ -7289,6 +7403,18 @@ const V77_QUICK_TOOLS = [
   { key: 'emi', label: 'EMI Estimate', detail: 'Monthly estimate', icon: CreditCard, tone: 'tint' },
   { key: 'gst', label: 'GST Add/Remove', detail: 'GST totals', icon: Receipt, tone: 'success' },
 ]
+const V83_MORE_QUICK_TOOLS = V77_QUICK_TOOLS.filter((tool) => tool.key === 'percentage')
+
+const V83_TOP_TOOLS = [
+  { key: 'calculator', label: 'Calculator', detail: 'Basic arithmetic', icon: Calculator, tone: 'tint', quickTool: 'calculator' },
+  { key: 'split', label: 'Split', detail: 'Split an amount', icon: Divide, tone: 'success', quickTool: 'split' },
+  { key: 'gst', label: 'GST', detail: 'Add or remove GST', icon: Receipt, tone: 'warning', quickTool: 'gst' },
+  { key: 'emi', label: 'EMI', detail: 'Monthly estimate', icon: CreditCard, tone: 'tint', quickTool: 'emi' },
+  { key: 'savings', label: 'Savings', detail: 'Goals and plans', icon: Target, tone: 'success', tab: 'planner', targetId: 'savings-goals-section' },
+  { key: 'borrow', label: 'Borrow/Lend', detail: 'Money Book', icon: Wallet, tone: 'warning', tab: 'history', targetId: 'money-book-section' },
+  { key: 'shared', label: 'Shared', detail: 'Groups and splits', icon: Receipt, tone: 'success', tab: 'history', targetId: 'shared-expenses-section' },
+  { key: 'statement', label: 'Statement', detail: 'Analyze PDF or CSV', icon: Upload, tone: 'warning', statement: true },
+]
 
 function ToolsCompanionHub({ navigateToTarget, openStatementImport, openQuickTools }) {
   const useLegacyQuickTools = isLegacyQuickTools()
@@ -7304,12 +7430,52 @@ function ToolsCompanionHub({ navigateToTarget, openStatementImport, openQuickToo
       {!useLegacyQuickTools && (
         <section className="v7-tool-group v77-quick-tools-surface" aria-label="Smart Quick Tools">
           <SectionHeader
-            title="Quick Tools"
-            detail="Fast local calculations"
-            actions={<StatusBadge>Local</StatusBadge>}
+            title="Top Tools"
+            detail="Most-used actions"
+            actions={<StatusBadge>Quick access</StatusBadge>}
           />
+          <div className="v83-top-tools-grid">
+            {V83_TOP_TOOLS.map((tool) => {
+              const ToolIcon = tool.icon
+
+              return (
+                <button
+                  className={`v83-top-tool-button v77-quick-tool-button--${tool.tone}`}
+                  type="button"
+                  key={tool.key}
+                  onClick={() => {
+                    if (tool.quickTool) {
+                      openQuickTools?.(tool.quickTool)
+                    } else if (tool.statement) {
+                      openStatementImport?.()
+                    } else {
+                      navigateToTarget?.(tool.tab, tool.targetId)
+                    }
+                  }}
+                >
+                  <span aria-hidden="true">
+                    <ToolIcon size={17} />
+                  </span>
+                  <strong>{tool.label}</strong>
+                  <small>{tool.detail}</small>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {!useLegacyQuickTools && (
+        <details className="v83-more-tools-details">
+          <summary>
+            <span>
+              <strong>More quick calculations</strong>
+              <small>Less frequent calculators</small>
+            </span>
+            <StatusBadge>More</StatusBadge>
+          </summary>
           <div className="v77-quick-tool-strip">
-            {V77_QUICK_TOOLS.map((tool) => {
+            {V83_MORE_QUICK_TOOLS.map((tool) => {
               const ToolIcon = tool.icon
 
               return (
@@ -7328,7 +7494,7 @@ function ToolsCompanionHub({ navigateToTarget, openStatementImport, openQuickToo
               )
             })}
           </div>
-        </section>
+        </details>
       )}
 
       <section className="v7-tool-group" aria-label="People money tools">
@@ -7416,30 +7582,22 @@ function ProfileCompanionHome({ authUser, moneyTheme, openSettings, onEnableBack
   return (
     <MoneyOSProvider as="section" className="screen-content v7-profile-home money-os-profile">
       <SectionHeader
-        title="Profile"
-        detail="Settings and backup"
+        title="Account & Preferences"
+        detail="Identity, backup, theme, and support"
         actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
       />
       <div className="v7-companion-grid">
         <ActionCard
-          title="Settings"
-          detail="Profile, income, bills, and preferences"
+          title="Account"
+          detail="Name, income, currency, bills, and theme"
           actionLabel="Open"
           icon={User}
           tone="tint"
           onClick={openSettings}
         />
-        <ActionCard
-          title="Theme"
-          detail={themeLabel}
-          actionLabel="Change"
-          icon={Sparkles}
-          tone="success"
-          onClick={openSettings}
-        />
         <MoneyCard
-          title={authUser?.id ? 'Protected by Cloud Backup' : 'Protect Your Data'}
-          detail={authUser?.id ? 'Keep Your Data Safe Across Devices.' : 'Enable Cloud Backup when you are ready.'}
+          title="Backup Status"
+          detail={authUser?.id ? 'Cloud Backup is active for this account.' : 'Local only until Cloud Backup is enabled.'}
           icon={ShieldCheck}
           tone={authUser?.id ? 'success' : 'warning'}
           actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
@@ -7449,10 +7607,21 @@ function ProfileCompanionHome({ authUser, moneyTheme, openSettings, onEnableBack
             </button>
           )}
         />
+        <MoneyCard
+          title="Theme"
+          detail={themeLabel}
+          icon={Sparkles}
+          tone="success"
+          footer={(
+            <button className="ghost-button full" type="button" onClick={openSettings}>
+              Change Theme
+            </button>
+          )}
+        />
         <ActionCard
           title="Support"
-          detail="Support and feedback"
-          actionLabel="Open"
+          detail="Support independent FBPly development."
+          actionLabel="Support"
           icon={Coffee}
           tone="neutral"
           href={supportPaymentUrl}
@@ -7460,14 +7629,15 @@ function ProfileCompanionHome({ authUser, moneyTheme, openSettings, onEnableBack
           rel="noreferrer noopener"
         />
         <ActionCard
-          title="Legal"
-          detail="Privacy, terms, disclaimer, and contact"
-          actionLabel="Open"
-          icon={LockKeyhole}
+          title="About FBPLY"
+          detail="Founder, purpose, privacy posture, and contact."
+          actionLabel="Read"
+          icon={Sparkles}
           tone="neutral"
-          href="/privacy"
+          href="/about"
         />
       </div>
+      <ProfileLegalFooter />
     </MoneyOSProvider>
   )
 }
@@ -7492,6 +7662,7 @@ function MainApp(props) {
     smartReminders,
     financialHealth,
     nextBestAction,
+    smartFeedback,
     safeToSpend,
     fixedDistribution,
     flexibleDistribution,
@@ -7794,6 +7965,23 @@ function MainApp(props) {
     }
   }, [completeNextAction, navigateToTarget, nextActionCompletionMetrics, openDailyHeroEntry])
 
+  const handleSmartFeedbackClick = useCallback((feedback, surface = 'home') => {
+    if (!feedback) {
+      return
+    }
+
+    trackEvent('feedback_clicked', {
+      surface,
+      feedback_type: feedback.type,
+    })
+
+    const destination = feedback.destination || {}
+
+    if (destination.kind === 'tab' && destination.tab) {
+      navigateToTarget(destination.tab, destination.targetId)
+    }
+  }, [navigateToTarget])
+
   useEffect(() => {
     const pending = pendingNextActionRef.current
 
@@ -7952,7 +8140,9 @@ function MainApp(props) {
                 todayTransactions={todayTransactions}
                 recommendation={recommendation}
                 nextBestAction={nextBestAction}
+                smartFeedback={smartFeedback}
                 onNextActionClick={handleNextActionClick}
+                onSmartFeedbackClick={handleSmartFeedbackClick}
                 legacyDailyHero={useLegacyDailyHero}
               />
             )}
@@ -8074,7 +8264,9 @@ function MainApp(props) {
                 transactionSummary={reportTransactionSummary}
                 reportHistory={reportHistory}
                 nextBestAction={nextBestAction}
+                smartFeedback={smartFeedback}
                 onNextActionClick={handleNextActionClick}
+                onSmartFeedbackClick={handleSmartFeedbackClick}
                 onViewReports={openInsightsReports}
                 onGenerateReport={generateInsightsReport}
                 isGeneratingReport={isExportingPdf || Boolean(exportingReportType)}
@@ -8119,59 +8311,124 @@ function MainApp(props) {
                 }}
               />
             )}
-            <ProfileScreen
-            profile={profile}
-            setProfile={setProfile}
-            authUser={authUser}
-            onEnableBackup={onEnableBackup}
-            onSignOut={onSignOut}
-            financialState={financialState}
-            fixedDistribution={fixedDistribution}
-            flexibleDistribution={flexibleDistribution}
-            updateCommitment={updateCommitment}
-            addCommitment={addCommitment}
-            removeCommitment={removeCommitment}
-            savingsBuckets={savingsBuckets}
-            addSavingsBucket={addSavingsBucket}
-            updateSavingsBucket={updateSavingsBucket}
-            removeSavingsBucket={removeSavingsBucket}
-            voiceState={voiceState}
-            voiceDraft={voiceDraft}
-            voiceDrafts={voiceDrafts}
-            voiceStatus={voiceStatus}
-            voiceTranscriptDraft={voiceTranscriptDraft}
-            setVoiceTranscriptDraft={setVoiceTranscriptDraft}
-            voiceTranscriptOptions={voiceTranscriptOptions}
-            isListening={isListening}
-            startVoiceExpense={startVoiceExpense}
-            stopVoiceExpense={stopVoiceExpense}
-            reviewVoiceTranscript={reviewVoiceTranscript}
-            confirmVoiceExpense={confirmVoiceExpense}
-            updateVoiceDraft={updateVoiceDraft}
-            updateVoiceDraftAt={updateVoiceDraftAt}
-            removeVoiceDraftAt={removeVoiceDraftAt}
-            clearVoiceDraft={clearVoiceDraft}
-            useVoiceManualFallback={useVoiceManualFallback}
-            useVoiceDraftInForm={useVoiceDraftInForm}
-            undoVoiceSave={undoVoiceSave}
-            lastVoiceSave={lastVoiceSave}
-            selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
-            customExpenseName={customExpenseName}
-            setCustomExpenseName={setCustomExpenseName}
-            expenseAmount={expenseAmount}
-            setExpenseAmount={setExpenseAmount}
-            expenseNote={expenseNote}
-            setExpenseNote={setExpenseNote}
-            expenseError={expenseError}
-            expenseFieldErrors={expenseFieldErrors}
-            clearExpenseFieldError={clearExpenseFieldError}
-            addExpense={addExpense}
-            quickExpenseChips={quickExpenseChips}
-            applyQuickExpense={applyQuickExpense}
-            navigateToTarget={navigateToTarget}
-            openStatementImport={openStatementImportFromAddHub}
-          />
+            {!useLegacyNavigation ? (
+              <details className="v83-profile-advanced-details">
+                <summary>
+                  <span>
+                    <strong>Advanced profile tools</strong>
+                    <small>Bills, voice entry, quick expense, savings, and support details</small>
+                  </span>
+                  <StatusBadge>Open</StatusBadge>
+                </summary>
+                <ProfileScreen
+                  profile={profile}
+                  setProfile={setProfile}
+                  authUser={authUser}
+                  onEnableBackup={onEnableBackup}
+                  onSignOut={onSignOut}
+                  financialState={financialState}
+                  fixedDistribution={fixedDistribution}
+                  flexibleDistribution={flexibleDistribution}
+                  updateCommitment={updateCommitment}
+                  addCommitment={addCommitment}
+                  removeCommitment={removeCommitment}
+                  savingsBuckets={savingsBuckets}
+                  addSavingsBucket={addSavingsBucket}
+                  updateSavingsBucket={updateSavingsBucket}
+                  removeSavingsBucket={removeSavingsBucket}
+                  voiceState={voiceState}
+                  voiceDraft={voiceDraft}
+                  voiceDrafts={voiceDrafts}
+                  voiceStatus={voiceStatus}
+                  voiceTranscriptDraft={voiceTranscriptDraft}
+                  setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+                  voiceTranscriptOptions={voiceTranscriptOptions}
+                  isListening={isListening}
+                  startVoiceExpense={startVoiceExpense}
+                  stopVoiceExpense={stopVoiceExpense}
+                  reviewVoiceTranscript={reviewVoiceTranscript}
+                  confirmVoiceExpense={confirmVoiceExpense}
+                  updateVoiceDraft={updateVoiceDraft}
+                  updateVoiceDraftAt={updateVoiceDraftAt}
+                  removeVoiceDraftAt={removeVoiceDraftAt}
+                  clearVoiceDraft={clearVoiceDraft}
+                  useVoiceManualFallback={useVoiceManualFallback}
+                  useVoiceDraftInForm={useVoiceDraftInForm}
+                  undoVoiceSave={undoVoiceSave}
+                  lastVoiceSave={lastVoiceSave}
+                  selectedCategory={selectedCategory}
+                  setSelectedCategory={setSelectedCategory}
+                  customExpenseName={customExpenseName}
+                  setCustomExpenseName={setCustomExpenseName}
+                  expenseAmount={expenseAmount}
+                  setExpenseAmount={setExpenseAmount}
+                  expenseNote={expenseNote}
+                  setExpenseNote={setExpenseNote}
+                  expenseError={expenseError}
+                  expenseFieldErrors={expenseFieldErrors}
+                  clearExpenseFieldError={clearExpenseFieldError}
+                  addExpense={addExpense}
+                  quickExpenseChips={quickExpenseChips}
+                  applyQuickExpense={applyQuickExpense}
+                  navigateToTarget={navigateToTarget}
+                  openStatementImport={openStatementImportFromAddHub}
+                />
+              </details>
+            ) : (
+              <ProfileScreen
+                profile={profile}
+                setProfile={setProfile}
+                authUser={authUser}
+                onEnableBackup={onEnableBackup}
+                onSignOut={onSignOut}
+                financialState={financialState}
+                fixedDistribution={fixedDistribution}
+                flexibleDistribution={flexibleDistribution}
+                updateCommitment={updateCommitment}
+                addCommitment={addCommitment}
+                removeCommitment={removeCommitment}
+                savingsBuckets={savingsBuckets}
+                addSavingsBucket={addSavingsBucket}
+                updateSavingsBucket={updateSavingsBucket}
+                removeSavingsBucket={removeSavingsBucket}
+                voiceState={voiceState}
+                voiceDraft={voiceDraft}
+                voiceDrafts={voiceDrafts}
+                voiceStatus={voiceStatus}
+                voiceTranscriptDraft={voiceTranscriptDraft}
+                setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+                voiceTranscriptOptions={voiceTranscriptOptions}
+                isListening={isListening}
+                startVoiceExpense={startVoiceExpense}
+                stopVoiceExpense={stopVoiceExpense}
+                reviewVoiceTranscript={reviewVoiceTranscript}
+                confirmVoiceExpense={confirmVoiceExpense}
+                updateVoiceDraft={updateVoiceDraft}
+                updateVoiceDraftAt={updateVoiceDraftAt}
+                removeVoiceDraftAt={removeVoiceDraftAt}
+                clearVoiceDraft={clearVoiceDraft}
+                useVoiceManualFallback={useVoiceManualFallback}
+                useVoiceDraftInForm={useVoiceDraftInForm}
+                undoVoiceSave={undoVoiceSave}
+                lastVoiceSave={lastVoiceSave}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+                customExpenseName={customExpenseName}
+                setCustomExpenseName={setCustomExpenseName}
+                expenseAmount={expenseAmount}
+                setExpenseAmount={setExpenseAmount}
+                expenseNote={expenseNote}
+                setExpenseNote={setExpenseNote}
+                expenseError={expenseError}
+                expenseFieldErrors={expenseFieldErrors}
+                clearExpenseFieldError={clearExpenseFieldError}
+                addExpense={addExpense}
+                quickExpenseChips={quickExpenseChips}
+                applyQuickExpense={applyQuickExpense}
+                navigateToTarget={navigateToTarget}
+                openStatementImport={openStatementImportFromAddHub}
+              />
+            )}
           </>
         )}
       </main>

@@ -111,6 +111,8 @@ const PRODUCT_HEALTH_METRICS = [
   { event: 'next_action_viewed', label: 'Next action viewed', group: 'Home', screen: 'home' },
   { event: 'next_action_clicked', label: 'Next action clicked', group: 'Home', screen: 'home' },
   { event: 'next_action_completed', label: 'Next action completed', group: 'Home', screen: 'home' },
+  { event: 'feedback_viewed', label: 'Smart feedback viewed', group: 'Home', screen: 'home' },
+  { event: 'feedback_clicked', label: 'Smart feedback clicked', group: 'Home', screen: 'home' },
   { event: 'quick_expense_entry_opened', label: 'Quick expense entry opened', group: 'Daily', screen: 'daily' },
   { event: 'add_hub_opened', label: 'Add hub opened', group: 'Add Hub', screen: 'add_hub' },
   { event: 'add_expense_selected', label: 'Expense selected', group: 'Add Hub', screen: 'add_hub' },

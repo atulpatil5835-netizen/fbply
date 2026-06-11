@@ -1,17 +1,10 @@
 import { useState } from 'react'
 import {
-  ChartPie,
   Coffee,
   ExternalLink,
-  FileText,
   Mail,
   MessageCircle,
-  PiggyBank,
-  Plane,
-  Scale,
-  ShieldCheck,
   Sparkles,
-  Target,
 } from 'lucide-react'
 import {
   ActionCard,
@@ -22,7 +15,7 @@ import {
 } from '../design-system'
 import { NotesInput, TextInput } from '../design-system/forms.jsx'
 import { isSupabaseReady, supabase } from '../lib/supabaseClient'
-import { trackEvent, trackFeatureUsage } from '../lib/analytics'
+import { trackEvent } from '../lib/analytics'
 import { focusInvalidField } from '../lib/uiHelpers'
 
 function mailtoFeedbackHref(supportEmail, suggestion = '', email = '') {
@@ -198,84 +191,17 @@ export default function ProfileHub({
   supportPaymentUrl = '',
   founderName = '',
   founderLinkedInUrl = '',
-  onNavigate,
-  onOpenStatementAnalysis,
   className = '',
 }) {
-  const openFeature = (feature, tab, targetId) => {
-    trackFeatureUsage('profile_hub_navigation', {
-      surface: 'profile_hub',
-      feature,
-      target_tab: tab,
-    })
-    onNavigate?.(tab, targetId)
-  }
-
   return (
     <section className={`money-os mos-profile-hub ${className}`} aria-label="Profile Hub">
       <SectionHeader
-        title="More settings"
+        title="Support & About"
+        detail="Help, feedback, and founder notes"
       />
 
       <ProfileHubSection
-        title="Reports, savings, and statements"
-      >
-        <ActionCard
-          title="Reports"
-          detail="Open monthly reports and exports."
-          actionLabel="Open reports"
-          icon={ChartPie}
-          tone="tint"
-          onClick={() => openFeature('reports', 'reports', 'reports-export-section')}
-        />
-        <ActionCard
-          title="Savings Goals"
-          detail="Open protected goals and monthly saving plans."
-          actionLabel="Open savings"
-          icon={PiggyBank}
-          tone="success"
-          onClick={() => openFeature('savings_goals', 'planner', 'savings-goals-section')}
-        />
-        <ActionCard
-          title="Statement Analysis"
-          detail="Review PDF or CSV statement rows before reporting."
-          actionLabel="Analyze statement"
-          icon={FileText}
-          tone="warning"
-          onClick={() => {
-            trackFeatureUsage('profile_hub_navigation', {
-              surface: 'profile_hub',
-              feature: 'statement_analysis',
-              target_tab: 'reports',
-            })
-            onOpenStatementAnalysis?.()
-          }}
-        />
-      </ProfileHubSection>
-
-      <ProfileHubSection
-        title="Planning and splitting"
-      >
-        <ActionCard
-          title="Budget Planner"
-          detail="Check planned purchases and affordability."
-          actionLabel="Open planner"
-          icon={Target}
-          tone="tint"
-          onClick={() => openFeature('budget_planner', 'planner', 'planner-target-amount')}
-        />
-        <ActionCard
-          title="Trip Splitter"
-          detail="Open shared groups, trips, and settlements."
-          actionLabel="Open trips"
-          icon={Plane}
-          tone="success"
-          onClick={() => openFeature('trip_splitter', 'history', 'shared-expenses-section')}
-        />
-      </ProfileHubSection>
-
-      <ProfileHubSection
-        title="Help, feedback, and founder notes"
+        title="Contact"
       >
         <ProfileHubFeedback supportEmail={supportEmail} />
         <ActionCard
@@ -304,33 +230,7 @@ export default function ProfileHub({
             href={founderLinkedInUrl}
             {...externalProps(true)}
           />
-        )}
-      </ProfileHubSection>
-
-      <ProfileHubSection
-        title="Policies and terms"
-      >
-        <ActionCard
-          title="Privacy Policy"
-          detail="How FBPly handles app data and privacy choices."
-          actionLabel="Open privacy"
-          icon={ShieldCheck}
-          href="/privacy"
-        />
-        <ActionCard
-          title="Terms of Service"
-          detail="Terms for using FBPly as a planning tool."
-          actionLabel="Open terms"
-          icon={Scale}
-          href="/terms"
-        />
-        <ActionCard
-          title="Disclaimer"
-          detail="Planning estimates, limits, and user responsibility."
-          actionLabel="Open disclaimer"
-          icon={FileText}
-          href="/disclaimer"
-        />
+          )}
       </ProfileHubSection>
     </section>
   )

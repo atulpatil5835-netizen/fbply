@@ -215,6 +215,11 @@
   --mos-motion-normal: var(--motion-duration-normal) var(--motion-ease-standard);
   --android-safe-top: 0px;
   --android-safe-bottom: 0px;
+  --bottom-nav-height: 76px;
+  --bottom-nav-gap: 16px;
+  --app-bottom-clearance: calc(
+    var(--bottom-nav-height) + var(--bottom-nav-gap) + env(safe-area-inset-bottom) + var(--android-safe-bottom)
+  );
   color: var(--text);
   background: var(--bg);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -2011,7 +2016,7 @@ img {
   padding:
     calc(54px + env(safe-area-inset-top) + var(--android-safe-top))
     18px
-    calc(18px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+    var(--app-bottom-clearance);
 }
 
 .screen-panel {
@@ -2027,7 +2032,7 @@ img {
   justify-content: center;
   flex-wrap: wrap;
   gap: 4px;
-  margin: 12px auto calc(104px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+  margin: 12px auto calc(var(--app-bottom-clearance) + 12px);
   padding: 5px 6px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -8508,9 +8513,10 @@ img {
 .bottom-nav {
   position: fixed;
   left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+  bottom: calc(var(--bottom-nav-gap) + env(safe-area-inset-bottom) + var(--android-safe-bottom));
   z-index: 11;
-  width: min(calc(100% - 28px), 720px);
+  width: min(calc(100vw - 28px), 720px);
+  min-height: var(--bottom-nav-height);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
@@ -9156,6 +9162,11 @@ img {
 }
 
 @media (max-width: 480px) {
+  :root {
+    --bottom-nav-height: 64px;
+    --bottom-nav-gap: 8px;
+  }
+
   .splash-screen,
   .entry-screen,
   .setup-page,
@@ -9168,12 +9179,12 @@ img {
     padding:
       calc(56px + env(safe-area-inset-top) + var(--android-safe-top))
       10px
-      calc(14px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+      var(--app-bottom-clearance);
   }
 
   .app-legal-footer {
     width: 100%;
-    margin-bottom: calc(82px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+    margin-bottom: calc(var(--app-bottom-clearance) + 10px);
     padding: 5px 6px;
   }
 
@@ -9252,8 +9263,8 @@ img {
   }
 
   .bottom-nav {
-    width: calc(100% - 18px);
-    bottom: calc(8px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+    width: calc(100vw - 18px);
+    bottom: calc(var(--bottom-nav-gap) + env(safe-area-inset-bottom) + var(--android-safe-bottom));
     border-radius: 18px;
     padding: 6px;
   }
@@ -9925,6 +9936,185 @@ img {
   }
 }
 
+.v83-top-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.v83-top-tool-button {
+  min-width: 0;
+  min-height: 84px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, transparent);
+  border-radius: 8px;
+  color: var(--theme-text);
+  background: color-mix(in srgb, var(--theme-bg) 48%, var(--theme-card));
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.v83-top-tool-button > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-primary) 12%, var(--theme-card));
+}
+
+.v83-top-tool-button strong,
+.v83-top-tool-button small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.v83-top-tool-button strong {
+  color: var(--theme-text);
+  font-size: 13px;
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.v83-top-tool-button small {
+  color: var(--theme-muted);
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 750;
+}
+
+@media (hover: hover) {
+  .v83-top-tool-button:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--theme-primary) 35%, var(--theme-border));
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--theme-shadow) 12%, transparent);
+  }
+}
+
+.app-shell .v83-more-tools-details,
+.app-shell .v83-profile-advanced-details {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-card) 84%, transparent);
+  overflow: hidden;
+}
+
+.app-shell .v83-more-tools-details > summary,
+.app-shell .v83-profile-advanced-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 54px;
+  padding: 10px 12px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.app-shell .v83-more-tools-details > summary::-webkit-details-marker,
+.app-shell .v83-profile-advanced-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-shell .v83-more-tools-details > summary span,
+.app-shell .v83-profile-advanced-details > summary span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-shell .v83-more-tools-details > summary strong,
+.app-shell .v83-more-tools-details > summary small,
+.app-shell .v83-profile-advanced-details > summary strong,
+.app-shell .v83-profile-advanced-details > summary small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .v83-more-tools-details > summary strong,
+.app-shell .v83-profile-advanced-details > summary strong {
+  color: var(--theme-text);
+  font-size: 13px;
+}
+
+.app-shell .v83-more-tools-details > summary small,
+.app-shell .v83-profile-advanced-details > summary small {
+  color: var(--theme-muted);
+  font-size: 11px;
+}
+
+.app-shell .v83-more-tools-details .v77-quick-tool-strip {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0 12px 12px;
+}
+
+.app-shell .v83-profile-advanced-details {
+  margin-top: 10px;
+}
+
+.app-shell .v83-profile-advanced-details > .screen-content {
+  padding: 0 12px 12px;
+}
+
+.v83-profile-legal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 76%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-card) 78%, transparent);
+}
+
+.v83-profile-legal-footer a {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--theme-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-decoration: none;
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.v83-profile-legal-footer a:focus-visible,
+.v83-profile-legal-footer a:hover {
+  color: var(--theme-text);
+  border-color: color-mix(in srgb, var(--theme-primary) 26%, transparent);
+  background: color-mix(in srgb, var(--theme-primary) 8%, transparent);
+}
+
+@media (max-width: 720px) {
+  .v83-top-tools-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .app-shell .v7-companion-grid .mos-card {
   min-width: 0;
   min-height: 118px;
@@ -10208,7 +10398,7 @@ img {
 
 .v72-daily-side-stack {
   display: grid;
-  grid-template-rows: auto auto auto;
+  grid-auto-rows: auto;
   gap: 10px;
   min-width: 0;
 }
@@ -10275,6 +10465,79 @@ img {
 }
 
 .app-shell .v78-insights-next-action {
+  border-color: color-mix(in srgb, var(--theme-border) 78%, transparent);
+  background: color-mix(in srgb, var(--theme-card) 88%, transparent);
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--theme-shadow) 14%, transparent);
+}
+
+.app-shell .v82-smart-feedback-card {
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px;
+  text-align: left;
+  border-color: color-mix(in srgb, var(--theme-primary) 18%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-card) 88%, var(--theme-surface));
+}
+
+.app-shell .v82-smart-feedback-card .mos-card__header {
+  align-items: center;
+}
+
+.app-shell .v82-smart-feedback-card .mos-card__actions {
+  min-width: 0;
+}
+
+.app-shell .v82-smart-feedback-card .mos-card__meta {
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .v82-smart-feedback-card .mos-card__detail {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.app-shell .v82-smart-feedback-card .mos-card__footer {
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+  padding-top: 0;
+}
+
+.v82-smart-feedback-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--theme-muted);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 850;
+}
+
+.v82-smart-feedback-cue span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v82-smart-feedback-cue svg {
+  flex: 0 0 auto;
+}
+
+.app-shell .v82-smart-feedback-card:hover .v82-smart-feedback-cue,
+.app-shell .v82-smart-feedback-card:focus-visible .v82-smart-feedback-cue {
+  color: var(--theme-primary);
+}
+
+.app-shell .v82-insights-smart-feedback {
   border-color: color-mix(in srgb, var(--theme-border) 78%, transparent);
   background: color-mix(in srgb, var(--theme-card) 88%, transparent);
   box-shadow: 0 16px 42px color-mix(in srgb, var(--theme-shadow) 14%, transparent);
@@ -11252,7 +11515,7 @@ img {
 
 /* FBPLY V7.5 Premium Motion System. Presentation-only, CSS-first motion layer. */
 @media (prefers-reduced-motion: no-preference) {
-  :root:not(.fbply-legacy-motion) .fbply-v8-motion-surface {
+  :root:not(.fbply-legacy-motion) .fbply-v8-motion-surface:not(.app-shell) {
     animation: fbplyV75SurfaceIn var(--motion-duration-normal) var(--motion-ease-standard) both;
     backface-visibility: hidden;
   }
@@ -11269,7 +11532,9 @@ img {
     .v7-tools-hub,
     .v7-profile-home,
     .v72-daily-secondary,
-    .v73-insights-reports-details
+    .v73-insights-reports-details,
+    .v83-more-tools-details,
+    .v83-profile-advanced-details
   ) {
     animation: fbplyV75SurfaceIn var(--motion-duration-slow) var(--motion-ease-standard) both;
   }

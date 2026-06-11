@@ -9,6 +9,8 @@ Each dispatched event contains only `event_name`, `timestamp`, `screen`, and `ap
 | `theme_changed` | User selects a different theme in Profile | `profile` |
 | `home_viewed` | Home tab becomes active | `home` |
 | `next_action_clicked` | User clicks the Home next action | `home` |
+| `feedback_viewed` | Smart feedback card is rendered on Daily or Insights | `home` / `insights` |
+| `feedback_clicked` | User clicks the smart feedback card | `home` / `insights` |
 | `add_hub_opened` | Add hub opens | `add_hub` |
 | `add_expense_selected` | User selects Expense from Add hub or direct add entry | `add_hub` |
 | `add_income_selected` | User selects Income from Add hub | `add_hub` |
