@@ -200,6 +200,19 @@
   --mos-shadow-soft: 0 8px 22px color-mix(in srgb, var(--theme-shadow) 8%, transparent);
   --mos-shadow-medium: 0 14px 36px color-mix(in srgb, var(--theme-shadow) 12%, transparent);
   --mos-loader-shadow: 0 10px 22px color-mix(in srgb, var(--theme-shadow) 14%, transparent);
+  --motion-duration-fast: 150ms;
+  --motion-duration-normal: 200ms;
+  --motion-duration-slow: 220ms;
+  --motion-duration-modal: 180ms;
+  --motion-duration-loader: 1600ms;
+  --motion-duration-attention: 900ms;
+  --motion-duration-skeleton: 1400ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-decelerate: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-rise-distance: 6px;
+  --motion-press-scale: 0.985;
+  --mos-motion-fast: var(--motion-duration-fast) var(--motion-ease-standard);
+  --mos-motion-normal: var(--motion-duration-normal) var(--motion-ease-standard);
   --android-safe-top: 0px;
   --android-safe-bottom: 0px;
   color: var(--text);
@@ -280,8 +293,8 @@ img {
   color: var(--text);
   background: var(--page-bg);
   transition:
-    background-color 180ms ease,
-    color 180ms ease;
+    background-color var(--motion-duration-modal) var(--motion-ease-standard),
+    color var(--motion-duration-modal) var(--motion-ease-standard);
 }
 
 .offline-banner {
@@ -368,7 +381,7 @@ img {
   height: 1px;
   opacity: 0;
   pointer-events: none;
-  animation: splashProgress 1.6s linear forwards;
+  animation: splashProgress var(--motion-duration-loader) linear forwards;
 }
 
 @keyframes splashProgress {
@@ -453,8 +466,15 @@ img {
   .bottom-nav button,
   .primary-button,
   .ghost-button,
-  .action-button {
+  .action-button,
+  .editor-sheet,
+  .editor-sheet-backdrop,
+  .statement-upload-sheet,
+  .statement-upload-backdrop,
+  .rewarded-card,
+  .rewarded-backdrop {
     transition: none;
+    animation: none;
   }
 }
 
@@ -765,9 +785,9 @@ img {
   font-weight: 900;
   text-decoration: none;
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .legal-back-link {
@@ -784,9 +804,9 @@ img {
   font-weight: 900;
   text-decoration: none;
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .legal-contact-link:hover,
@@ -1420,9 +1440,11 @@ img {
   border-radius: 16px;
   font-weight: 800;
   transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background-color 180ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .primary-button {
@@ -1453,7 +1475,7 @@ img {
 .action-button:active,
 .icon-button:active,
 .text-action-button:active {
-  transform: translateY(0) scale(0.985);
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .auth-card,
@@ -1497,10 +1519,10 @@ img {
   background: var(--surface-bg);
   box-shadow: 0 6px 16px rgba(2, 6, 23, 0.09);
   transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    background-color 180ms ease;
+    transform var(--motion-duration-normal) var(--motion-ease-standard),
+    border-color var(--motion-duration-normal) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-normal) var(--motion-ease-standard),
+    background-color var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 @media (hover: hover) {
@@ -1942,7 +1964,7 @@ img {
 }
 
 .form-has-errors {
-  animation: formNudge 170ms ease-out;
+  animation: formNudge var(--motion-duration-fast) var(--motion-ease-decelerate);
 }
 
 @keyframes formNudge {
@@ -2025,9 +2047,9 @@ img {
   font-weight: 900;
   text-decoration: none;
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .app-legal-footer a:focus-visible,
@@ -2551,7 +2573,7 @@ img {
 
 .notification-center-summary > svg {
   color: var(--muted);
-  transition: transform 160ms ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .smart-notification-center.open .notification-center-summary > svg {
@@ -2741,7 +2763,7 @@ img {
 
 .section-focus-pulse {
   scroll-margin-top: 78px;
-  animation: sectionFocusPulse 1100ms ease both;
+  animation: sectionFocusPulse var(--motion-duration-attention) var(--motion-ease-standard) both;
 }
 
 #savings-goals-section,
@@ -3033,7 +3055,7 @@ img {
   .future-snapshot-section,
   .month-replay-card,
   .latest-report-card {
-    animation: premiumSurfaceIn 220ms ease both;
+    animation: premiumSurfaceIn var(--motion-duration-normal) var(--motion-ease-standard) both;
   }
 
   .pulse-chip,
@@ -3041,9 +3063,9 @@ img {
   .future-event-row,
   .trip-status-card {
     transition:
-      border-color 160ms ease,
-      box-shadow 160ms ease,
-      transform 160ms ease;
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+      transform var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
   .pulse-chip:hover,
@@ -3055,7 +3077,7 @@ img {
   }
 
   .trip-status-card b {
-    animation: premiumProgressFill 420ms ease both;
+    animation: premiumProgressFill var(--motion-duration-slow) var(--motion-ease-decelerate) both;
   }
 }
 
@@ -3580,7 +3602,8 @@ img {
 .bucket-progress span {
   display: block;
   background: linear-gradient(90deg, var(--primary), var(--success));
-  transition: width 640ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: left center;
+  transition: width var(--motion-duration-slow) var(--motion-ease-decelerate);
 }
 
 .insight-card {
@@ -3643,6 +3666,10 @@ img {
   color: var(--muted);
   background: transparent;
   font-weight: 800;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .segmented-control button.active {
@@ -3667,9 +3694,9 @@ img {
   background: var(--button-bg);
   box-shadow: 0 8px 20px rgba(2, 6, 23, 0.1);
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .profile-menu-trigger:hover {
@@ -3738,9 +3765,9 @@ img {
   background: rgba(245, 158, 11, 0.1);
   font-weight: 900;
   transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background-color 180ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .sign-out-button:hover {
@@ -3847,7 +3874,7 @@ img {
   border-radius: 999px;
   background: var(--success);
   box-shadow: 0 0 0 8px rgba(34, 197, 94, 0.12);
-  animation: listeningPulse 1s ease-in-out infinite alternate;
+  animation: listeningPulse var(--motion-duration-loader) var(--motion-ease-standard) infinite alternate;
 }
 
 @keyframes listeningPulse {
@@ -5330,9 +5357,9 @@ img {
   background: var(--card);
   padding: 10px;
   transition:
-    transform 150ms ease,
-    border-color 150ms ease,
-    background-color 150ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .money-book-entry:active {
@@ -5434,9 +5461,9 @@ img {
   font-size: 13px;
   font-weight: 900;
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .history-load-more:hover {
@@ -5533,7 +5560,7 @@ img {
   border-radius: 11px;
   color: var(--muted);
   background: var(--soft-bg);
-  transition: transform 160ms ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .history-related-header div {
@@ -5678,7 +5705,7 @@ img {
     12px
     calc(14px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
   background: rgba(2, 6, 23, 0.36);
-  animation: modalBackdropIn 160ms ease-out;
+  animation: modalBackdropIn var(--motion-duration-modal) var(--motion-ease-standard) both;
   backdrop-filter: blur(8px);
 }
 
@@ -5694,7 +5721,8 @@ img {
   -webkit-overflow-scrolling: touch;
   border-radius: 20px;
   box-shadow: 0 22px 58px rgba(2, 6, 23, 0.28);
-  animation: modalSheetIn 190ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: modalSheetIn var(--motion-duration-modal) var(--motion-ease-decelerate) both;
+  transform-origin: bottom center;
 }
 
 .quick-add-sheet {
@@ -6005,12 +6033,12 @@ img {
 @keyframes modalSheetIn {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.98);
+    transform: translate3d(0, var(--motion-rise-distance), 0);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -6105,7 +6133,7 @@ img {
 .home-about-toggle > svg {
   flex: 0 0 auto;
   color: var(--muted);
-  transition: transform 160ms ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .home-about-block.open .home-about-toggle > svg {
@@ -6204,10 +6232,10 @@ img {
   text-decoration: none;
   white-space: nowrap;
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease,
-    color 160ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .home-linkedin-button {
@@ -6316,8 +6344,8 @@ img {
   text-decoration-color: rgba(56, 189, 248, 0.42);
   text-underline-offset: 3px;
   transition:
-    color 160ms ease,
-    transform 160ms ease;
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .home-feedback-card a:hover {
@@ -6371,10 +6399,10 @@ img {
   font-weight: 900;
   text-decoration: none;
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease,
-    color 160ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .home-footer-links a:focus-visible,
@@ -6938,7 +6966,7 @@ img {
 
 .planner-details-panel summary svg {
   color: var(--muted);
-  transition: transform 160ms ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .planner-details-panel[open] summary svg {
@@ -7542,7 +7570,7 @@ img {
 
 .report-details-panel summary svg {
   color: var(--muted);
-  transition: transform 160ms ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .report-details-panel[open] summary svg {
@@ -7793,6 +7821,7 @@ img {
     max(12px, calc(env(safe-area-inset-right) + 12px))
     calc(12px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
   background: rgba(2, 6, 23, 0.32);
+  animation: modalBackdropIn var(--motion-duration-modal) var(--motion-ease-standard) both;
 }
 
 .statement-upload-sheet {
@@ -7807,6 +7836,8 @@ img {
   background: var(--surface-bg);
   box-shadow: 0 20px 48px rgba(2, 6, 23, 0.28);
   overflow-y: auto;
+  animation: modalSheetIn var(--motion-duration-modal) var(--motion-ease-decelerate) both;
+  transform-origin: top right;
 }
 
 .statement-sheet-header {
@@ -7883,6 +7914,10 @@ img {
   background: transparent;
   font-size: 12px;
   font-weight: 900;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .statement-mode-row button.active {
@@ -8298,7 +8333,7 @@ img {
   position: absolute;
   inset: 0;
   background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.12), transparent);
-  animation: skeletonSweep 1.4s ease-in-out infinite;
+  animation: skeletonSweep var(--motion-duration-skeleton) var(--motion-ease-standard) infinite;
 }
 
 .skeleton-text-group {
@@ -8467,9 +8502,10 @@ img {
   font-size: 12px;
   font-weight: 800;
   transition:
-    transform 160ms ease,
-    background-color 160ms ease,
-    color 160ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .bottom-nav button.active {
@@ -8478,7 +8514,7 @@ img {
 }
 
 .bottom-nav button:active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .bottom-nav button.active svg {
@@ -8501,6 +8537,7 @@ img {
     calc(18px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
   background: rgba(2, 6, 23, 0.58);
   backdrop-filter: blur(10px);
+  animation: modalBackdropIn var(--motion-duration-modal) var(--motion-ease-standard) both;
 }
 
 .rewarded-card {
@@ -8513,6 +8550,8 @@ img {
   color: var(--text);
   background: var(--surface-bg);
   box-shadow: 0 28px 80px rgba(2, 6, 23, 0.44);
+  animation: modalSheetIn var(--motion-duration-modal) var(--motion-ease-decelerate) both;
+  transform-origin: bottom center;
 }
 
 .rewarded-icon {
@@ -8552,7 +8591,8 @@ img {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--primary), var(--cyan));
-  transition: width 220ms ease;
+  transform-origin: left center;
+  transition: width var(--motion-duration-slow) var(--motion-ease-decelerate);
 }
 
 .reward-status-row,
@@ -9334,7 +9374,7 @@ img {
   max-height: min(78dvh, 720px);
   border-radius: 20px;
   transform-origin: top right;
-  animation: chromePopoverIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: chromePopoverIn var(--motion-duration-modal) var(--motion-ease-decelerate) both;
 }
 
 .notification-popover-sheet {
@@ -10130,7 +10170,8 @@ img {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--theme-primary), var(--theme-accent), var(--theme-cyan));
-  transition: width 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: left center;
+  transition: width var(--motion-duration-slow) var(--motion-ease-decelerate);
 }
 
 .v74-progress-note {
@@ -10299,6 +10340,14 @@ img {
   background: color-mix(in srgb, var(--theme-primary) 14%, var(--theme-card));
 }
 
+.v73-health-orb--danger {
+  background: color-mix(in srgb, var(--theme-danger) 16%, var(--theme-card));
+}
+
+.v73-health-orb--neutral {
+  background: color-mix(in srgb, var(--theme-muted) 14%, var(--theme-card));
+}
+
 .v73-insights-health > div {
   display: grid;
   gap: 2px;
@@ -10334,6 +10383,22 @@ img {
   font-size: 13px;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.v76-money-health-copy {
+  align-content: center;
+}
+
+.v76-money-health-track {
+  width: min(100%, 280px);
+  height: 5px;
+  margin-top: 8px;
+}
+
+.v73-insights-health .v74-progress-fill {
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
 }
 
 .v73-insights-section {
@@ -10918,7 +10983,7 @@ img {
 }
 
 .bucket-progress span {
-  transition: width var(--mos-motion-normal, 220ms ease);
+  transition: width var(--motion-duration-slow) var(--motion-ease-decelerate);
 }
 
 .bucket-editor-details {
@@ -10933,7 +10998,7 @@ img {
 
 .bucket-editor-details summary svg {
   color: var(--muted);
-  transition: transform var(--mos-motion-fast, 140ms ease);
+  transition: transform var(--mos-motion-fast);
 }
 
 .bucket-editor-details[open] summary svg {
@@ -11015,5 +11080,173 @@ img {
   .bucket-card,
   .app-shell .bucket-card {
     min-height: 0;
+  }
+}
+
+/* FBPLY V7.5 Premium Motion System. Presentation-only, CSS-first motion layer. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not(.fbply-legacy-motion) .app-shell :where(
+    .screen-content,
+    .money-os-home,
+    .money-os-daily-book,
+    .money-os-reports,
+    .money-os-people-hub,
+    .mos-profile-hub,
+    .v7-daily-entry,
+    .v7-insights-overview,
+    .v7-tools-hub,
+    .v7-profile-home,
+    .v72-daily-secondary,
+    .v73-insights-reports-details
+  ) {
+    animation: fbplyV75SurfaceIn var(--motion-duration-slow) var(--motion-ease-standard) both;
+  }
+
+  :root:not(.fbply-legacy-motion) .app-shell :where(
+    .mos-card,
+    .summary-card,
+    .savings-overview-item,
+    .activation-checklist-card,
+    .intent-shortcut-panel,
+    .today-available-card,
+    .today-insight-card,
+    .today-compact-section,
+    .financial-pulse-strip,
+    .future-snapshot-section,
+    .month-replay-card,
+    .latest-report-card,
+    .trip-status-card,
+    .shared-card,
+    .bucket-card,
+    .planner-reality-card,
+    .planner-goal-card,
+    .planner-summary-card,
+    .planner-empty-card,
+    .report-advisory-card,
+    .report-story-card,
+    .report-snapshot-card,
+    .report-section-card,
+    .chart-card,
+    .finance-donut-card,
+    .profile-hero-card,
+    .profile-quick-expense-card,
+    .money-book-entry,
+    .cashflow-strip,
+    .monthly-comparison-card,
+    .v74-progress-strip,
+    .v74-progress-metric
+  ) {
+    animation: fbplyV75SurfaceIn var(--motion-duration-normal) var(--motion-ease-standard) both;
+    backface-visibility: hidden;
+  }
+}
+
+:root:not(.fbply-legacy-motion) :where(
+  .activation-progress-bar span,
+  .setup-progress span,
+  .mos-home-progress-bar span,
+  .bucket-progress span,
+  .reward-progress span,
+  .v74-progress-fill,
+  .trip-status-card b
+) {
+  transform-origin: left center;
+  transition:
+    width var(--motion-duration-slow) var(--motion-ease-decelerate),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+:root:not(.fbply-legacy-motion) :where(
+  .bottom-nav button,
+  .segmented-control button,
+  .statement-mode-row button,
+  .activity-filter-row button,
+  .legend-grid button,
+  .timeline-control button,
+  .goal-type-strip button,
+  .theme-choice-button,
+  .preference-card,
+  .setup-chip
+) {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+:root:not(.fbply-legacy-motion) :where(
+  .activation-step-icon,
+  .bucket-progress-pill,
+  .mos-badge,
+  .notification-center-summary b,
+  .theme-choice-button svg
+) {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+@keyframes fbplyV75SurfaceIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-rise-distance), 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+:root.fbply-legacy-motion :where(
+  .app-shell,
+  .app-shell *,
+  .splash-screen,
+  .splash-screen *,
+  .editor-sheet,
+  .editor-sheet-backdrop,
+  .statement-upload-sheet,
+  .statement-upload-backdrop,
+  .rewarded-card,
+  .rewarded-backdrop
+) {
+  animation: none !important;
+  transition-duration: 0.01ms !important;
+}
+
+:root.fbply-legacy-motion :where(
+  .mos-loader__mark,
+  .mos-loader__orbit,
+  .mos-sheet,
+  .mos-sheet-backdrop
+) {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  :where(
+    .app-shell,
+    .app-shell *,
+    .splash-screen,
+    .splash-screen *,
+    .editor-sheet,
+    .editor-sheet-backdrop,
+    .statement-upload-sheet,
+    .statement-upload-backdrop,
+    .rewarded-card,
+    .rewarded-backdrop
+  ) {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
   }
 }

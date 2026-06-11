@@ -56,6 +56,7 @@ import {
   getProfileBalanceMessage,
 } from './lib/financeVisuals'
 import { buildFinancialHealthScore, buildSmartHomeInsights } from './lib/homeIntelligence'
+import { buildMoneyScore, ensureMoneyScoreRollbackFlag, isLegacyMoneyScoreEnabled } from './lib/moneyScore'
 import { buildUnifiedFinanceEngine } from './lib/financeEngine'
 import {
   buildCashflowTimeline,
@@ -243,12 +244,40 @@ const ReportsScreen = lazy(() => import('./components/ReportsScreen.jsx'))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen.jsx'))
 const TodayScreen = lazy(() => import('./screens/TodayScreen.jsx'))
 
-const fadeUp = {
-  initial: { opacity: 0, y: 18 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -14 },
-  transition: { duration: 0.22, ease: 'easeOut' },
+const v75Motion = Object.freeze({
+  durationFast: 0.15,
+  durationNormal: 0.2,
+  easingStandard: [0.2, 0, 0, 1],
+})
+
+function isLegacyMotion() {
+  return typeof window !== 'undefined' && Boolean(window.__FBPLY_LEGACY_MOTION__)
 }
+
+function syncLegacyMotionFlag() {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  document.documentElement.classList.toggle('fbply-legacy-motion', isLegacyMotion())
+}
+
+syncLegacyMotionFlag()
+ensureMoneyScoreRollbackFlag()
+
+const fadeUp = isLegacyMotion()
+  ? {
+      initial: false,
+      animate: { opacity: 1, y: 0 },
+      exit: { opacity: 1, y: 0 },
+      transition: { duration: 0 },
+    }
+  : {
+      initial: { opacity: 0, y: 8 },
+      animate: { opacity: 1, y: 0 },
+      exit: { opacity: 0, y: -6 },
+      transition: { duration: v75Motion.durationNormal, ease: v75Motion.easingStandard },
+    }
 
 function isLegacyAddExperience() {
   return typeof window !== 'undefined' && window.__FBPLY_LEGACY_ADD__
@@ -1594,6 +1623,11 @@ function App() {
   const normalizedCurrentPath = normalizeSeoPath(currentPath)
   const isPublicSeoPage = isPublicSeoRoute(normalizedCurrentPath)
   setActiveCurrency(activeCurrency)
+
+  useEffect(() => {
+    ensureMoneyScoreRollbackFlag()
+    syncLegacyMotionFlag()
+  })
 
   useEffect(() => {
     if (isPublicSeoPage || hasTrackedAppOpenedRef.current) {
@@ -3767,14 +3801,39 @@ function App() {
     [financialCalendarEvents],
   )
   const financialHealth = useMemo(
-    () => buildFinancialHealthScore({
-      expenses: financialEntries,
+    () => {
+      if (isLegacyMoneyScoreEnabled()) {
+        return buildFinancialHealthScore({
+          expenses: financialEntries,
+          financialState,
+          savingsBuckets,
+          recommendation,
+          moneyBookSummary: financialActivity.moneyBookSummary,
+        })
+      }
+
+      return buildMoneyScore({
+        expenses,
+        financialState,
+        savingsBuckets,
+        recommendation,
+        moneyBookSummary: financialActivity.moneyBookSummary,
+        moneyBookEntries,
+        sharedSummary,
+        sharedGroups,
+      })
+    },
+    [
+      expenses,
+      financialActivity.moneyBookSummary,
+      financialEntries,
       financialState,
-      savingsBuckets,
+      moneyBookEntries,
       recommendation,
-      moneyBookSummary: financialActivity.moneyBookSummary,
-    }),
-    [financialActivity.moneyBookSummary, financialEntries, financialState, recommendation, savingsBuckets],
+      savingsBuckets,
+      sharedGroups,
+      sharedSummary,
+    ],
   )
   const selectedCashflowTimeline = useMemo(
     () => buildCashflowTimeline(selectedMonthActivity.transactions),
@@ -6713,6 +6772,42 @@ function buildMonthlyStorySteps(financialState = {}, safeToSpend = {}, transacti
   ]
 }
 
+const MONEY_HEALTH_RANK = {
+  critical: 1,
+  attention_needed: 2,
+  moderate: 3,
+  healthy: 4,
+  excellent: 5,
+}
+
+function isMoneyHealthScore(financialHealth = {}) {
+  return financialHealth.system === 'v7.6-money-health' && !isLegacyMoneyScoreEnabled()
+}
+
+function moneyHealthChangeBucket(delta = 0) {
+  const absoluteDelta = Math.abs(Number(delta) || 0)
+
+  if (absoluteDelta >= 18) {
+    return 'large'
+  }
+
+  if (absoluteDelta >= 8) {
+    return 'medium'
+  }
+
+  return 'small'
+}
+
+function clampPercent(value) {
+  const number = Number(value)
+
+  if (!Number.isFinite(number)) {
+    return 0
+  }
+
+  return Math.min(Math.max(number, 0), 100)
+}
+
 function InsightsCompanionOverview({
   financialHealth = {},
   financialState = {},
@@ -6724,10 +6819,72 @@ function InsightsCompanionOverview({
   isGeneratingReport = false,
   legacyInsights = false,
 }) {
-  const health = buildInsightsHealthStatus(financialState, financialHealth)
-  const healthLabel = financialHealth.status === 'ready' ? financialHealth.label : 'Learning'
+  const hasMoneyHealth = isMoneyHealthScore(financialHealth)
+  const previousMoneyHealthRef = useRef(null)
+  const health = hasMoneyHealth
+    ? {
+        label: financialHealth.label,
+        detail: financialHealth.explanation,
+        tone: financialHealth.tone,
+        badge: financialHealth.badge || (financialHealth.status === 'ready' ? 'Ready' : 'Building'),
+        scorePercent: Number.isFinite(Number(financialHealth.scorePercent)) ? clampPercent(financialHealth.scorePercent) : null,
+      }
+    : buildInsightsHealthStatus(financialState, financialHealth)
+  const healthLabel = hasMoneyHealth
+    ? (financialHealth.status === 'ready' ? financialHealth.label : 'Building')
+    : (financialHealth.status === 'ready' ? financialHealth.label : 'Learning')
   const flowItems = buildInsightsFlow(financialState, safeToSpend, transactionSummary)
   const storySteps = buildMonthlyStorySteps(financialState, safeToSpend, transactionSummary)
+
+  useEffect(() => {
+    if (!hasMoneyHealth) {
+      previousMoneyHealthRef.current = null
+      return
+    }
+
+    const current = {
+      status: financialHealth.status,
+      score: Number.isFinite(Number(financialHealth.score)) ? Number(financialHealth.score) : null,
+      labelKey: financialHealth.labelKey || 'building',
+      primaryFactor: financialHealth.primaryFactor || 'moneyHealth',
+    }
+
+    trackEvent('money_health_viewed', {
+      surface: 'insights',
+      score_state: current.labelKey,
+      confidence_state: financialHealth.confidenceState || (current.status === 'ready' ? 'sufficient' : 'insufficient'),
+    })
+
+    const previous = previousMoneyHealthRef.current
+
+    if (previous?.status === 'ready' && current.status === 'ready' && previous.score !== null && current.score !== null) {
+      const previousRank = MONEY_HEALTH_RANK[previous.labelKey] || 0
+      const currentRank = MONEY_HEALTH_RANK[current.labelKey] || 0
+      const delta = current.score - previous.score
+      const eventPayload = {
+        surface: 'insights',
+        previous_state: previous.labelKey,
+        next_state: current.labelKey,
+        change_bucket: moneyHealthChangeBucket(delta),
+        primary_factor: current.primaryFactor,
+      }
+
+      if (currentRank > previousRank || delta >= 8) {
+        trackEvent('money_health_improved', eventPayload)
+      } else if (currentRank < previousRank || delta <= -8) {
+        trackEvent('money_health_declined', eventPayload)
+      }
+    }
+
+    previousMoneyHealthRef.current = current
+  }, [
+    financialHealth.confidenceState,
+    financialHealth.labelKey,
+    financialHealth.primaryFactor,
+    financialHealth.score,
+    financialHealth.status,
+    hasMoneyHealth,
+  ])
 
   if (legacyInsights) {
     return (
@@ -6783,10 +6940,15 @@ function InsightsCompanionOverview({
         <span className={`v73-health-orb v73-health-orb--${health.tone}`}>
           <ShieldCheck size={20} />
         </span>
-        <div>
+        <div className="v76-money-health-copy">
           <p>Money Health</p>
           <h2>{health.label}</h2>
           <span>{health.detail}</span>
+          {Number.isFinite(Number(health.scorePercent)) ? (
+            <div className="v74-progress-track v76-money-health-track" aria-label={`${health.label} Money Health`}>
+              <span className="v74-progress-fill" style={{ width: `${health.scorePercent}%` }} />
+            </div>
+          ) : null}
         </div>
         <StatusBadge tone={health.tone}>{health.badge}</StatusBadge>
       </section>
@@ -6830,9 +6992,9 @@ function InsightsCompanionOverview({
           </ol>
         </section>
 
-        <section className="v73-insights-section v73-report-access" aria-label="Report Access">
+        <section className="v73-insights-section v73-report-access" aria-label="Reports">
           <div className="v73-insights-section-header">
-            <span>Report Access</span>
+            <span>Reports</span>
             <StatusBadge>{reportHistory.length} saved</StatusBadge>
           </div>
           <div className="v73-report-actions">

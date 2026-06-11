@@ -43,8 +43,18 @@
   --mos-radius-lg: 8px;
   --mos-shadow-soft: 0 8px 22px color-mix(in srgb, var(--theme-shadow) 8%, transparent);
   --mos-shadow-medium: 0 14px 36px color-mix(in srgb, var(--theme-shadow) 12%, transparent);
-  --mos-motion-fast: 140ms ease;
-  --mos-motion-normal: 220ms ease;
+  --motion-duration-fast: 150ms;
+  --motion-duration-normal: 200ms;
+  --motion-duration-slow: 220ms;
+  --motion-duration-modal: 180ms;
+  --motion-duration-loader: 1600ms;
+  --motion-duration-attention: 900ms;
+  --motion-duration-skeleton: 1400ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-decelerate: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-rise-distance: 6px;
+  --mos-motion-fast: var(--motion-duration-fast) var(--motion-ease-standard);
+  --mos-motion-normal: var(--motion-duration-normal) var(--motion-ease-standard);
   color: var(--mos-neutral-900);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
@@ -513,7 +523,6 @@ button.mos-action-card {
   font-size: 13px;
   line-height: 18px;
   font-weight: 800;
-  perspective: 760px;
 }
 
 .mos-loader--inline {
@@ -528,40 +537,125 @@ button.mos-action-card {
   place-content: center;
 }
 
-.mos-loader__mark {
+.mos-loader__network {
+  position: relative;
   width: 44px;
   height: 44px;
   display: grid;
   place-items: center;
-  border: 0;
+  isolation: isolate;
+}
+
+.mos-loader__network::before,
+.mos-loader__network::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px solid color-mix(in srgb, var(--mos-accent-blue) 18%, transparent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.mos-loader__network::after {
+  inset: 12px;
+  border-color: color-mix(in srgb, var(--mos-success-green) 16%, transparent);
+  transform: rotate(45deg);
+}
+
+.mos-loader__mark {
+  position: relative;
+  z-index: 2;
+  width: 54%;
+  height: 54%;
+  display: grid;
+  place-items: center;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  transform-style: preserve-3d;
-  animation: mosLoaderFlip 1280ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: mosLoaderPulse var(--motion-duration-loader) var(--motion-ease-standard) infinite;
   will-change: transform;
 }
 
-.mos-loader--xs .mos-loader__mark {
-  width: 18px;
-  height: 18px;
-  border-radius: var(--mos-radius-sm);
+.mos-loader__orbit {
+  position: absolute;
+  inset: 2px;
+  z-index: 1;
+  border-radius: 50%;
+  animation: mosLoaderOrbit var(--motion-duration-loader) linear infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.mos-loader__orbit span {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mos-accent-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mos-accent-blue) 12%, transparent);
+  transform: translateX(-50%);
+}
+
+.mos-loader__orbit--two {
+  inset: 6px;
+  animation-duration: calc(var(--motion-duration-loader) * 1.18);
+  animation-direction: reverse;
+}
+
+.mos-loader__orbit--two span {
+  width: 4px;
+  height: 4px;
+  background: var(--mos-success-green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mos-success-green) 12%, transparent);
+}
+
+.mos-loader__orbit--three {
+  inset: 10px;
+  animation-duration: calc(var(--motion-duration-loader) * 0.86);
+}
+
+.mos-loader__orbit--three span {
+  width: 3px;
+  height: 3px;
+  background: var(--mos-neutral-500);
   box-shadow: none;
 }
 
-.mos-loader--sm .mos-loader__mark {
+.mos-loader--xs .mos-loader__network {
+  width: 18px;
+  height: 18px;
+}
+
+.mos-loader--sm .mos-loader__network {
   width: 30px;
   height: 30px;
 }
 
-.mos-loader--lg .mos-loader__mark {
+.mos-loader--lg .mos-loader__network {
   width: 58px;
   height: 58px;
 }
 
+.mos-loader--xs .mos-loader__network::before,
+.mos-loader--xs .mos-loader__network::after {
+  inset: 4px;
+}
+
+.mos-loader--xs .mos-loader__network::after {
+  inset: 6px;
+}
+
+.mos-loader--xs .mos-loader__orbit span {
+  width: 3px;
+  height: 3px;
+  box-shadow: none;
+}
+
 .mos-loader__mark img {
-  width: 72%;
-  height: 72%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   filter: drop-shadow(var(--mos-loader-shadow));
 }
@@ -570,20 +664,31 @@ button.mos-action-card {
   display: none;
 }
 
-@keyframes mosLoaderFlip {
+@keyframes mosLoaderPulse {
   0% {
-    transform: rotateY(0deg) scale(0.96);
-    opacity: 0.9;
+    transform: scale(0.96);
+    opacity: 0.86;
   }
 
-  48% {
-    transform: rotateY(180deg) scale(1.05);
+  45%,
+  58% {
+    transform: scale(1.03);
     opacity: 1;
   }
 
   100% {
-    transform: rotateY(360deg) scale(0.96);
-    opacity: 0.9;
+    transform: scale(0.96);
+    opacity: 0.86;
+  }
+}
+
+@keyframes mosLoaderOrbit {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -628,6 +733,7 @@ button.mos-action-card {
   align-items: end;
   padding: var(--mos-space-md);
   background: color-mix(in srgb, var(--theme-shadow) 38%, transparent);
+  animation: mosSheetBackdropIn var(--motion-duration-modal) var(--motion-ease-standard) both;
 }
 
 .mos-sheet {
@@ -641,6 +747,30 @@ button.mos-action-card {
   border-radius: var(--mos-radius-lg) var(--mos-radius-lg) 0 0;
   background: var(--mos-surface-base);
   box-shadow: var(--mos-shadow-medium);
+  animation: mosSheetIn var(--motion-duration-modal) var(--motion-ease-decelerate) both;
+  transform-origin: bottom center;
+}
+
+@keyframes mosSheetBackdropIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mosSheetIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-rise-distance), 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .mos-sheet__header,
@@ -1674,7 +1804,10 @@ button.mos-action-card {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mos-loader__mark {
+  .mos-loader__mark,
+  .mos-loader__orbit,
+  .mos-sheet,
+  .mos-sheet-backdrop {
     animation: none;
   }
 

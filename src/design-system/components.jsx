@@ -50,8 +50,19 @@ export function FLoader({
       aria-live="polite"
       {...props}
     >
-      <span className="mos-loader__mark" aria-hidden="true">
-        <img src="/fbply-f-mark.png" alt="" decoding="async" />
+      <span className="mos-loader__network" aria-hidden="true">
+        <span className="mos-loader__mark">
+          <img src="/fbply-f-mark.png" alt="" decoding="async" />
+        </span>
+        <span className="mos-loader__orbit mos-loader__orbit--one">
+          <span />
+        </span>
+        <span className="mos-loader__orbit mos-loader__orbit--two">
+          <span />
+        </span>
+        <span className="mos-loader__orbit mos-loader__orbit--three">
+          <span />
+        </span>
       </span>
       {label !== null && <span className="mos-loader__label">{label}</span>}
     </Element>
