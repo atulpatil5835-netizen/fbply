@@ -986,7 +986,7 @@ function parseClauseEntries(clause, memory, dateInfo, fullTranscript) {
         dateInfo,
       })
 
-      return {
+      const parsedEntry = {
         transcript: normalizeDigits(clauseText).trim(),
         fullTranscript: normalizeDigits(fullTranscript).trim(),
         amount: normalizeMoney(amountSequence.amount),
@@ -1007,8 +1007,80 @@ function parseClauseEntries(clause, memory, dateInfo, fullTranscript) {
         dateConfidence: dateInfo.dateConfidence,
         canQuickSave: confidenceInfo.confidence === 'high' && categoryMatch.category !== 'Other',
       }
+
+      return applyVoiceAmountConfidence(parsedEntry)
     })
     .filter(Boolean)
+}
+
+export function applyVoiceAmountConfidence(entry = {}) {
+  if (!entry || entry.amountConfidence !== 'low') {
+    return entry
+  }
+
+  return {
+    ...entry,
+    amount: 0,
+    canQuickSave: false,
+  }
+}
+
+function parseSimpleDescriptionAmount(transcript, memory, dateInfo, fullTranscript) {
+  const match = String(transcript || '').trim().match(/^(.+?)\s+(\d+(?:\.\d{1,2})?)$/i)
+
+  if (!match) {
+    return null
+  }
+
+  const label = titleCase(match[1].trim())
+  const amount = normalizeMoney(match[2])
+
+  if (!label || amount <= 0) {
+    return null
+  }
+
+  const memoryCategory = memoryCategoryForLabel(label, memory)
+  const merchantMatch = knownMerchantForText(label)
+  const incomeMatch = detectIncome(`${label} ${fullTranscript}`, label)
+  const categoryMatch = incomeMatch
+    ? {
+        category: incomeMatch.category,
+        confidence: incomeMatch.confidence,
+        source: incomeMatch.source,
+        reason: incomeMatch.reason,
+        matchedTerm: incomeMatch.matchedTerm,
+      }
+    : memoryCategory || merchantMatch || categoryFromRules(label, label)
+  const type = incomeMatch ? 'income' : 'daily'
+  const confidenceInfo = confidenceFrom({
+    amountInfo: { amount, hasDigit: true, usedMultiplier: false },
+    categoryConfidence: categoryMatch.confidence,
+    label,
+    type,
+    dateInfo,
+  })
+
+  return applyVoiceAmountConfidence({
+    transcript: normalizeDigits(match[0]).trim(),
+    fullTranscript: normalizeDigits(fullTranscript).trim(),
+    amount,
+    label,
+    category: categoryMatch.category,
+    categoryConfidence: categoryMatch.confidence,
+    confidence: confidenceInfo.confidence,
+    confidenceScore: confidenceInfo.score,
+    amountConfidence: confidenceInfo.amountConfidence,
+    labelConfidence: confidenceInfo.labelConfidence,
+    source: categoryMatch.source,
+    categoryReason: categoryMatch.reason,
+    matchedTerm: categoryMatch.matchedTerm,
+    merchant: categoryMatch.merchant || merchantMatch?.merchant || '',
+    type,
+    date: dateInfo.date,
+    dateLabel: dateInfo.dateLabel,
+    dateConfidence: dateInfo.dateConfidence,
+    canQuickSave: confidenceInfo.confidence === 'high' && categoryMatch.category !== 'Other',
+  })
 }
 
 export function parseVoiceExpenseEntries(transcript, memory = {}) {
@@ -1026,7 +1098,15 @@ export function parseVoiceExpenseEntries(transcript, memory = {}) {
     return clauseEntries
   }
 
-  return parseClauseEntries(cleanTranscript, memory, dateInfo, cleanTranscript)
+  const clauseEntriesFromFull = parseClauseEntries(cleanTranscript, memory, dateInfo, cleanTranscript)
+
+  if (clauseEntriesFromFull.length > 0) {
+    return clauseEntriesFromFull
+  }
+
+  const simpleEntry = parseSimpleDescriptionAmount(cleanTranscript, memory, dateInfo, cleanTranscript)
+
+  return simpleEntry ? [simpleEntry] : []
 }
 
 export function parseVoiceExpense(transcript, memory = {}) {

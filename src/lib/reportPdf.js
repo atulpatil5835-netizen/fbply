@@ -328,6 +328,10 @@ function percentLabel(value) {
 }
 
 function sectionLimit(meta = {}, standard = 8) {
+  if (meta.unlimitedSections) {
+    return 9999
+  }
+
   if (meta.template === 'compact') {
     return Math.min(standard, 5)
   }
@@ -337,6 +341,14 @@ function sectionLimit(meta = {}, standard = 8) {
   }
 
   return standard
+}
+
+function resolveSectionItemLimit(meta = {}, section = {}, standard = 8) {
+  if (Number.isFinite(section.limit)) {
+    return section.limit
+  }
+
+  return sectionLimit(meta, standard)
 }
 
 function sortedMoneyItems(items = [], valueKey = 'value') {
@@ -505,7 +517,7 @@ function drawExecutiveSummary(doc, y, { summary = '', snapshot = [], observation
 }
 
 function drawHorizontalBars(doc, y, section, meta = {}) {
-  const visible = (section.items || []).filter(Boolean).slice(0, sectionLimit(meta, section.limit || 8))
+  const visible = (section.items || []).filter(Boolean).slice(0, resolveSectionItemLimit(meta, section, section.limit || 8))
 
   if (visible.length === 0) {
     return y
@@ -564,7 +576,7 @@ function drawHorizontalBars(doc, y, section, meta = {}) {
 }
 
 function drawDocumentTable(doc, y, section, meta = {}) {
-  const visible = (section.items || []).filter(Boolean).slice(0, sectionLimit(meta, section.limit || 10))
+  const visible = (section.items || []).filter(Boolean).slice(0, resolveSectionItemLimit(meta, section, section.limit || 10))
 
   if (visible.length === 0) {
     return y
@@ -956,6 +968,7 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
   const settledAmount = sumMoney(settlements, (item) => item.settledAmount)
   const pendingAmount = sumMoney(settlements, (item) => item.remainingAmount)
   const members = group.people || []
+  const perPersonShare = safeAmount(group.share || totalCost / Math.max(members.length, 1))
   const paidBy = payments.reduce((map, payment) => {
     map[payment.paidBy] = safeAmount(map[payment.paidBy]) + safeAmount(payment.amount)
     return map
@@ -970,6 +983,23 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     ...item,
     detail: item.detail ? `Paid by ${displayPersonName(item.detail, profile)}` : item.detail,
   }))
+  const paymentDetailRows = payments.map((payment) => ({
+    label: payment.label || 'Trip payment',
+    value: currencyMoney(payment.amount, currency),
+    detail: `Paid by ${displayPersonName(payment.paidBy, profile)}`,
+  }))
+  const contributionRows = members.map((member) => {
+    const paid = safeAmount(paidBy[member])
+    const balance = paid - perPersonShare
+
+    return {
+      label: displayPersonName(member, profile),
+      value: currencyMoney(paid, currency),
+      detail: balance >= 0
+        ? `Share ${currencyMoney(perPersonShare, currency)} · Credit ${currencyMoney(balance, currency)}`
+        : `Share ${currencyMoney(perPersonShare, currency)} · Owes ${currencyMoney(Math.abs(balance), currency)}`,
+    }
+  })
   const settlementRows = settlements.map((item) => ({
     label: settlementReportLabel(item, profile),
     value: currencyMoney(item.remainingAmount || item.amount, currency),
@@ -980,6 +1010,16 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     value: member === whoPaidMost?.[0] ? 'Top payer' : 'Member',
     detail: paidBy[member] ? currencyMoney(paidBy[member], currency) : 'No upfront payment',
   }))
+  const balanceRows = members.map((member) => {
+    const paid = safeAmount(paidBy[member])
+    const netBalance = paid - perPersonShare
+
+    return {
+      label: displayPersonName(member, profile),
+      value: netBalance >= 0 ? currencyMoney(netBalance, currency) : `-${currencyMoney(Math.abs(netBalance), currency)}`,
+      detail: netBalance >= 0 ? 'Paid above share' : 'Below equal share',
+    }
+  })
   const observations = uniqueSentences([
     `The trip total is ${currencyMoney(totalCost, currency)} across ${members.length || 0} ${plural(members.length || 0, 'member')}.`,
     whoPaidMost ? `${displayPersonName(whoPaidMost[0], profile)} paid the most upfront at ${currencyMoney(whoPaidMost[1], currency)}.` : '',
@@ -998,16 +1038,55 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
       title: 'Expense Breakdown',
       subtitle: 'Trip payments are sorted by amount.',
       items: paymentBars,
+      limit: 9999,
+    },
+    {
+      title: 'Payment Details',
+      subtitle: 'Every saved trip payment with payer information.',
+      items: paymentDetailRows,
+      limit: 9999,
+      columns: [
+        { key: 'label', label: 'Payment', width: 58 },
+        { key: 'value', label: 'Amount', width: 34, align: 'right' },
+        { key: 'detail', label: 'Paid By', width: 90 },
+      ],
+    },
+    {
+      title: 'Contribution Details',
+      subtitle: 'Upfront payments compared with the equal-share estimate.',
+      items: contributionRows,
+      limit: 9999,
     },
     {
       title: 'Outstanding Balances',
       subtitle: 'Saved settlement state from the shared expense system.',
       items: settlementRows,
+      limit: 9999,
+    },
+    {
+      title: 'Member Balances',
+      subtitle: 'Net position against the equal split for each participant.',
+      items: balanceRows,
+      limit: 9999,
     },
     {
       title: 'Members',
       subtitle: 'Member list and upfront contribution signals.',
       items: memberRows,
+      limit: 9999,
+    },
+    {
+      title: 'Trip Summary',
+      subtitle: 'Quick reference totals for the full trip report.',
+      items: [
+        { label: 'Total Expense', value: currencyMoney(totalCost, currency), detail: `${payments.length} payment${payments.length === 1 ? '' : 's'}` },
+        { label: 'Participants', value: String(members.length || 0), detail: 'Saved trip members' },
+        { label: 'Per Person Share', value: currencyMoney(perPersonShare, currency), detail: 'Equal split estimate' },
+        { label: 'Settled', value: currencyMoney(settledAmount, currency), detail: 'Marked complete' },
+        { label: 'Pending', value: currencyMoney(pendingAmount, currency), detail: `${settlements.filter((item) => safeAmount(item.remainingAmount) > 0).length} open settlement${settlements.filter((item) => safeAmount(item.remainingAmount) > 0).length === 1 ? '' : 's'}` },
+        { label: 'Top Payer', value: whoPaidMost ? displayPersonName(whoPaidMost[0], profile) : 'None', detail: whoPaidMost ? currencyMoney(whoPaidMost[1], currency) : 'No payment yet' },
+      ],
+      limit: 9999,
     },
   ].filter((section) => section.items?.length)
 
@@ -1015,13 +1094,15 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     meta: {
       title: group.name ? `${group.name} Trip Report` : 'Trip Report',
       typeLabel: 'Trip Report',
-      subtitle: 'Shareable trip cost, member, payer, and settlement summary.',
+      subtitle: 'Complete trip cost, contribution, balance, and settlement documentation.',
       preparedFor: profile.name || profile.email || 'FBPly user',
       currency,
       period: reportMeta.period || group.date || currentMonthLabel(),
       reportId: reportMeta.reportId,
       generatedAt: reportMeta.generatedAt,
       template,
+      unlimitedSections: true,
+      reportType: 'trip',
     },
     executiveSummary: [
       `This trip report summarizes ${group.name || 'the selected trip'} from saved shared expense records.`,
@@ -1032,7 +1113,7 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     ].join(' '),
     executiveNumbers: [
       { label: 'Total Cost', value: currencyMoney(totalCost, currency), detail: 'All shared payments' },
-      { label: 'Members', value: String(members.length || 0), detail: members.map((member) => displayPersonName(member, profile)).join(', ') || 'No members added' },
+      { label: 'Members', value: String(members.length || 0), detail: members.length > 0 ? `${members.length} participant${members.length === 1 ? '' : 's'}` : 'No members added' },
       { label: 'Per Person', value: currencyMoney(group.share || totalCost / Math.max(members.length, 1), currency), detail: 'Equal split estimate' },
       { label: 'Settled', value: `${Math.round((settledAmount / Math.max(totalCost, 1)) * 100)}%`, detail: currencyMoney(settledAmount, currency), tone: COLORS.green },
       { label: 'Pending', value: `${Math.round((pendingAmount / Math.max(totalCost, 1)) * 100)}%`, detail: currencyMoney(pendingAmount, currency), tone: COLORS.orange },
@@ -1046,7 +1127,7 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
       { label: 'Top Payer', value: whoPaidMost ? displayPersonName(whoPaidMost[0], profile) : 'None', detail: whoPaidMost ? currencyMoney(whoPaidMost[1], currency) : 'No payment yet' },
     ],
     observations,
-    analysisSections: template === 'compact' ? analysisSections.filter((section) => section.title !== 'Members') : analysisSections,
+    analysisSections,
     recommendations,
     accuracy: { recognizedTransactions: payments.length, needsReviewCount: 0, confidenceScore: 100, userOverrides: 0, coverage: 100 },
     finalSummary: 'This trip report is built from saved shared expense records and settlement status. It is suitable for sharing with the group after the pending balances are reviewed.',

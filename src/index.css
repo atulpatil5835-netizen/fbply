@@ -2023,6 +2023,7 @@ img {
   width: min(100%, 1180px);
   flex: 1 0 auto;
   margin: 0 auto;
+  scroll-padding-bottom: var(--app-bottom-clearance);
 }
 
 .app-legal-footer {
@@ -8514,7 +8515,7 @@ img {
   position: fixed;
   left: 50%;
   bottom: calc(var(--bottom-nav-gap) + env(safe-area-inset-bottom) + var(--android-safe-bottom));
-  z-index: 11;
+  z-index: 20;
   width: min(calc(100vw - 28px), 720px);
   min-height: var(--bottom-nav-height);
   display: grid;
@@ -10162,6 +10163,171 @@ img {
   background: transparent;
 }
 
+.v72-daily-money-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.v84-daily-hero-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.v84-daily-balance-hero {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 14px;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 34%, var(--theme-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-card) 92%, transparent);
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--theme-shadow) 18%, transparent);
+}
+
+.v84-daily-balance-hero small {
+  color: var(--theme-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.v84-daily-balance-hero strong {
+  color: var(--theme-text);
+  font-size: clamp(34px, 8vw, 44px);
+  font-weight: 900;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.v84-daily-flow-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.v84-daily-flow-row .v73-flow-node,
+.v84-daily-balance-hero {
+  min-width: 0;
+}
+
+.v84-daily-flow-row .v73-flow-node {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-card) 88%, transparent);
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--theme-shadow) 18%, transparent);
+}
+
+.v84-daily-next-action,
+.v84-daily-smart-feedback {
+  min-width: 0;
+}
+
+.v85-daily-period-summaries {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.v85-daily-period-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-card) 88%, transparent);
+}
+
+.v85-daily-period-header span {
+  color: var(--theme-text);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.v85-daily-period-metrics {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.v85-daily-period-metrics > span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.v85-daily-period-metrics small {
+  color: var(--theme-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.v85-daily-period-metrics strong {
+  color: var(--theme-text);
+  font-size: 13px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.v85-quick-entry {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.v85-amount-entry {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px;
+}
+
+.v85-quick-entry-label {
+  grid-column: 1 / -1;
+  color: var(--theme-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.v85-amount-entry > span:not(.sr-only):not(.v85-quick-entry-label) {
+  display: none;
+}
+
+.v85-amount-entry input {
+  grid-column: 1 / -1;
+  font-size: clamp(34px, 8vw, 42px);
+}
+
+.v85-quick-entry .v72-entry-actions {
+  grid-column: 1 / -1;
+}
+
+.v85-quick-entry .v72-entry-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.v72-daily-money-strip .v73-flow-node {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-card) 88%, transparent);
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--theme-shadow) 18%, transparent);
+}
+
 .v72-quick-entry,
 .v72-daily-panel,
 .app-shell .v72-daily-secondary {
@@ -11165,8 +11331,30 @@ img {
   }
 
   .v72-quick-entry,
-  .v72-daily-viewport-grid {
+  .v72-daily-viewport-grid,
+  .v72-daily-money-strip,
+  .v84-daily-flow-row,
+  .v85-daily-period-summaries {
     grid-template-columns: 1fr;
+  }
+
+  .v85-quick-entry .v72-entry-action span {
+    font-size: 12px;
+  }
+
+  .shared-card-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .shared-card-top {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .v83-top-tools-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .v72-quick-entry {

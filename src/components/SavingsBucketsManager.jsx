@@ -182,8 +182,8 @@ export function SavingsBucketsManager({ buckets = [], addSavingsBucket, updateSa
       <div className="bucket-grid">
         {buckets.length === 0 ? (
           <EmptyState
-            title="Start your first goal"
-            detail="Emergency fund, bike, vacation, laptop, debt payoff."
+            title="Create your first savings goal"
+            detail="Emergency fund, bike, vacation, laptop, or debt payoff."
             actionLabel="Create Goal"
             onAction={() => handleAddGoal('empty_state')}
             icon={PiggyBank}

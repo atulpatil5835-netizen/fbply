@@ -10,7 +10,6 @@ import { normalizeMoney } from '../lib/money'
 import { trackEvent } from '../lib/analytics'
 import { titleCase } from '../lib/uiHelpers'
 
-const ProfileHub = lazy(() => import('../components/ProfileHub.jsx'))
 const ProductHealthDashboard = lazy(() => import('../components/ProductHealthDashboard.jsx'))
 
 function normalizeEmail(value = '') {
@@ -123,14 +122,6 @@ export default function SettingsScreen({
   const balanceMessage = getProfileBalanceMessage(financialState)
   const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
   const showProductHealthDashboard = canViewFounderDashboard({ authUser, profile, supportEmail })
-  const navigateFromHub = (tab, targetId) => {
-    onClose()
-    navigateToTarget?.(tab, targetId)
-  }
-  const openStatementImportFromHub = () => {
-    onClose()
-    openStatementImport?.()
-  }
 
   return (
     <AppModal
@@ -278,17 +269,6 @@ export default function SettingsScreen({
                 removeSchedule={removeRecurringSchedule}
                 toggleSchedule={toggleRecurringSchedule}
               />
-
-              <Suspense fallback={<FLoader label="Opening Profile Hub" />}>
-                <ProfileHub
-                  supportEmail={supportEmail}
-                  supportPaymentUrl={supportPaymentUrl}
-                  founderName={founderName}
-                  founderLinkedInUrl={founderLinkedInUrl}
-                  onNavigate={navigateFromHub}
-                  onOpenStatementAnalysis={openStatementImportFromHub}
-                />
-              </Suspense>
 
               {showProductHealthDashboard && (
                 <Suspense fallback={<FLoader label="Opening product health" />}>

@@ -69,7 +69,7 @@ import {
   buildSmartFeedback,
   ensureSmartFeedbackRollbackFlag,
 } from './lib/smartFeedback'
-import { buildUnifiedFinanceEngine } from './lib/financeEngine'
+import { buildUnifiedFinanceEngine, buildTransactionSummary } from './lib/financeEngine'
 import {
   buildCashflowTimeline,
   buildMonthlyComparison,
@@ -4492,10 +4492,16 @@ function App() {
     const savedEntries = validDrafts
       .map((draft) => {
         const label = String(draft.label || draft.category || '').trim()
+        const amount = draft.amountConfidence === 'low' ? 0 : normalizeMoney(draft.amount)
+
+        if (amount <= 0) {
+          return null
+        }
+
         return saveExpenseRecord({
           label,
           category: draft.category,
-          amount: draft.amount,
+          amount,
           note: label ? `${label} - Voice: ${draft.transcript}` : `Voice entry: ${draft.transcript}`,
           type: draft.type || 'daily',
           source: 'voice',
@@ -4757,7 +4763,7 @@ function App() {
     )
     setSelectedCategory(knownCategory ? knownCategory.label : 'Custom')
     setCustomExpenseName(voiceDraft.label || '')
-    setExpenseAmount(String(voiceDraft.amount || ''))
+    setExpenseAmount(voiceDraft.amountConfidence === 'low' || normalizeMoney(voiceDraft.amount) <= 0 ? '' : String(voiceDraft.amount))
     setExpenseNote(`${voiceDraft.label} - ${voiceDraft.transcript}`)
     setVoiceDraft(null)
     setVoiceDrafts([])
@@ -5281,13 +5287,22 @@ function App() {
     const reconciledGroups = sharedGroups.map((group) => reconcileSharedGroup(group, profile))
 
     if (type === 'trip') {
+      const tripGroups = reconciledGroups.filter((group) => group.amount > 0 || group.settlements?.length > 0)
+      const selectedGroup = overrides.groupId
+        ? tripGroups.find((group) => group.id === overrides.groupId) || tripGroups[0]
+        : tripGroups[0]
+
       return {
         type,
         reportId,
         payload: {
-          reportMeta,
+          reportMeta: {
+            ...reportMeta,
+            unlimitedSections: true,
+            reportType: 'trip',
+          },
           profile,
-          groups: reconciledGroups.filter((group) => group.amount > 0 || group.settlements?.length > 0),
+          groups: selectedGroup ? [selectedGroup] : [],
         },
       }
     }
@@ -6593,27 +6608,10 @@ function SetupCommitmentList({ items, onRemove, emptyText = 'No fixed item added
 
 function LoggedInLegalFooter() {
   return (
-    <footer className="app-legal-footer" aria-label="FBPLY legal and support links">
-      {appFooterLinks.map((link) => (
-        <a
-          href={link.href}
-          key={link.label}
-          target={link.external ? '_blank' : undefined}
-          rel={link.external ? 'noreferrer noopener' : undefined}
-        >
-          {link.label}
-        </a>
-      ))}
-    </footer>
-  )
-}
-
-function ProfileLegalFooter() {
-  return (
-    <footer className="v83-profile-legal-footer" aria-label="Legal information">
-      {legalLinks.slice(0, 4).map((link) => (
+    <footer className="app-legal-footer" aria-label="Legal links">
+      {legalLinks.map((link) => (
         <a href={link.href} key={link.href}>
-          {link.href === '/privacy' ? 'Privacy' : link.href === '/terms' ? 'Terms' : link.href === '/disclaimer' ? 'Disclaimer' : 'About'}
+          {link.label}
         </a>
       ))}
     </footer>
@@ -6876,6 +6874,8 @@ function DailyMonthProgress() {
 
 function DailyCompanionEntry({
   safeToSpend = {},
+  financialState = {},
+  transactionSummary = {},
   openAddSheet,
   openQuickEntry,
   todayTransactions = [],
@@ -6887,6 +6887,14 @@ function DailyCompanionEntry({
   legacyDailyHero = false,
 }) {
   const [heroAmount, setHeroAmount] = useState('')
+  const moneySnapshot = useMemo(
+    () => buildDailyMoneySnapshot(financialState, safeToSpend, transactionSummary),
+    [financialState, safeToSpend, transactionSummary],
+  )
+  const periodSummaries = useMemo(
+    () => buildDailyPeriodSummaries(todayTransactions, transactionSummary, safeToSpend, financialState),
+    [financialState, safeToSpend, todayTransactions, transactionSummary],
+  )
   const recentActivity = useMemo(() => buildDailyHeroActivity(todayTransactions), [todayTransactions])
   const legacyNextAction = buildDailyHeroNextAction(recommendation)
   const LegacyNextActionIcon = legacyNextAction.icon
@@ -6906,32 +6914,40 @@ function DailyCompanionEntry({
         <SectionHeader
           title="Daily"
           detail="Record money"
-          actions={<StatusBadge tone="success">{rupees(safeToSpend.comfortablyUsable || 0)} available</StatusBadge>}
+          actions={<StatusBadge tone="success">{moneySnapshot.balance.value}</StatusBadge>}
         />
+        <section className="v84-daily-hero-stack" aria-label="Daily summary">
+          <article className={`v84-daily-balance-hero v73-flow-node--${moneySnapshot.balance.tone}`}>
+            <small>{moneySnapshot.balance.label}</small>
+            <strong>{moneySnapshot.balance.value}</strong>
+          </article>
+          <div className="v84-daily-flow-row">
+            <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyIn.tone}`}>
+              <small>{moneySnapshot.moneyIn.label}</small>
+              <strong>{moneySnapshot.moneyIn.value}</strong>
+            </article>
+            <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyOut.tone}`}>
+              <small>{moneySnapshot.moneyOut.label}</small>
+              <strong>{moneySnapshot.moneyOut.value}</strong>
+            </article>
+          </div>
+        </section>
         <div className="v7-companion-grid v7-daily-entry-grid">
           <ActionCard
-            title="Expense"
-            detail="Quick expense entry"
+            title="Add Expense"
+            detail="Record money going out"
             actionLabel="Add"
             icon={Receipt}
             tone="danger"
             onClick={() => openAddSheet?.('expense')}
           />
           <ActionCard
-            title="Income"
-            detail="Monthly or extra income"
+            title="Add Received Money"
+            detail="Record money coming in"
             actionLabel="Add"
             icon={Wallet}
             tone="success"
             onClick={() => openAddSheet?.('income')}
-          />
-          <StatCard
-            label="Available"
-            value={rupees(safeToSpend.comfortablyUsable || 0)}
-            detail={`${rupees(safeToSpend.protectedAmount || 0)} protected`}
-            icon={Wallet}
-            tone="tint"
-            className="v7-daily-available-card"
           />
         </div>
       </MoneyOSProvider>
@@ -6940,12 +6956,56 @@ function DailyCompanionEntry({
 
   return (
     <MoneyOSProvider as="section" className="screen-content v7-daily-entry v72-daily-hero money-os-daily-companion">
-      <section className="v72-quick-entry" aria-label="Quick Money Entry">
-        <div className="v72-quick-entry-copy">
-          <p className="eyebrow">Quick Money Entry</p>
-          <h2>Daily</h2>
+      <section className="v84-daily-hero-stack" aria-label="Daily summary">
+        <article className={`v84-daily-balance-hero v73-flow-node--${moneySnapshot.balance.tone}`}>
+          <small>{moneySnapshot.balance.label}</small>
+          <strong>{moneySnapshot.balance.value}</strong>
+        </article>
+        <div className="v84-daily-flow-row">
+          <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyIn.tone}`}>
+            <small>{moneySnapshot.moneyIn.label}</small>
+            <strong>{moneySnapshot.moneyIn.value}</strong>
+          </article>
+          <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyOut.tone}`}>
+            <small>{moneySnapshot.moneyOut.label}</small>
+            <strong>{moneySnapshot.moneyOut.value}</strong>
+          </article>
         </div>
-        <label className="v72-amount-entry">
+        {nextBestAction ? (
+          <NextBestActionCard
+            action={nextBestAction}
+            surface="home"
+            onAction={onNextActionClick}
+            className="v84-daily-next-action"
+          />
+        ) : (
+          <MoneyCard
+            as={legacyNextAction.target === 'expense' ? 'button' : 'section'}
+            type={legacyNextAction.target === 'expense' ? 'button' : undefined}
+            eyebrow="Next Action"
+            title={legacyNextAction.title}
+            detail={legacyNextAction.detail}
+            meta={legacyNextAction.badge}
+            icon={LegacyNextActionIcon}
+            tone={legacyNextAction.tone}
+            className="v72-next-action-card v84-daily-next-action"
+            interactive={legacyNextAction.target === 'expense'}
+            onClick={legacyNextAction.target === 'expense' ? () => handleEntry('expense') : undefined}
+          />
+        )}
+        <SmartFeedbackCard
+          feedback={smartFeedback}
+          surface="home"
+          onFeedbackClick={onSmartFeedbackClick}
+          className="v84-daily-smart-feedback"
+        />
+      </section>
+
+      <DailyPeriodSummaries periods={periodSummaries} />
+
+      <section className="v72-quick-entry v85-quick-entry" aria-label="Quick Entry">
+        <label className="v72-amount-entry v85-amount-entry">
+          <span className="v85-quick-entry-label">Enter amount</span>
           <span className="sr-only">Amount</span>
           <span aria-hidden="true">{getCurrencySymbol()}</span>
           <input
@@ -6958,17 +7018,17 @@ function DailyCompanionEntry({
             onChange={(event) => setHeroAmount(event.target.value)}
           />
         </label>
-        <div className="v72-entry-actions" aria-label="Record money activity">
+        <div className="v72-entry-actions" aria-label="Choose how to record this amount">
           <button className="v72-entry-action v72-entry-action--expense" type="button" onClick={() => handleEntry('expense')}>
             <Receipt size={19} />
-            <span>Expense</span>
+            <span>Add Expense</span>
           </button>
           <button className="v72-entry-action v72-entry-action--income" type="button" onClick={() => handleEntry('income')}>
             <Wallet size={19} />
-            <span>Income</span>
+            <span>Add Received Money</span>
           </button>
         </div>
-        <p className="v72-entry-hint">{hasAmount ? 'Amount ready. Choose expense or income.' : 'Enter amount, then choose expense or income.'}</p>
+        <p className="v72-entry-hint">{hasAmount ? 'Amount ready. Choose expense or received money.' : 'Enter amount once, then choose expense or received money.'}</p>
       </section>
 
       <div className="v72-daily-viewport-grid">
@@ -7003,41 +7063,7 @@ function DailyCompanionEntry({
           )}
         </section>
 
-        <section className="v72-daily-side-stack" aria-label="Daily summary">
-          <StatCard
-            label="Available"
-            value={rupees(safeToSpend.comfortablyUsable || 0)}
-            detail={`${rupees(safeToSpend.protectedAmount || 0)} protected`}
-            icon={Wallet}
-            tone="tint"
-            className="v72-available-card"
-          />
-          {nextBestAction ? (
-            <NextBestActionCard
-              action={nextBestAction}
-              surface="home"
-              onAction={onNextActionClick}
-            />
-          ) : (
-            <MoneyCard
-              as={legacyNextAction.target === 'expense' ? 'button' : 'section'}
-              type={legacyNextAction.target === 'expense' ? 'button' : undefined}
-              eyebrow="Next Action"
-              title={legacyNextAction.title}
-              detail={legacyNextAction.detail}
-              meta={legacyNextAction.badge}
-              icon={LegacyNextActionIcon}
-              tone={legacyNextAction.tone}
-              className="v72-next-action-card"
-              interactive={legacyNextAction.target === 'expense'}
-              onClick={legacyNextAction.target === 'expense' ? () => handleEntry('expense') : undefined}
-            />
-          )}
-          <SmartFeedbackCard
-            feedback={smartFeedback}
-            surface="home"
-            onFeedbackClick={onSmartFeedbackClick}
-          />
+        <section className="v72-daily-side-stack" aria-label="Daily progress">
           <DailyMonthProgress />
         </section>
       </div>
@@ -7081,18 +7107,132 @@ function buildInsightsHealthStatus(financialState = {}, financialHealth = {}) {
   }
 }
 
+function buildDailyMoneySnapshot(financialState = {}, safeToSpend = {}, transactionSummary = {}) {
+  return {
+    balance: {
+      key: 'balance',
+      label: 'Balance',
+      value: rupees(safeToSpend.comfortablyUsable ?? financialState.safeToSpend ?? 0),
+      tone: 'tint',
+    },
+    moneyIn: {
+      key: 'in',
+      label: 'Money In',
+      value: rupees(transactionSummary.incoming || financialState.income || 0),
+      tone: 'success',
+    },
+    moneyOut: {
+      key: 'out',
+      label: 'Money Out',
+      value: rupees(transactionSummary.outgoing || financialState.committed || 0),
+      tone: 'danger',
+    },
+  }
+}
+
+function dailyTransactionDateKey(transaction = {}) {
+  return String(transaction.date || transaction.dateTime || '').slice(0, 10)
+}
+
+function shiftDailyDateKey(baseKey, days) {
+  const parsed = new Date(`${String(baseKey || '').slice(0, 10)}T12:00:00`)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  parsed.setDate(parsed.getDate() + days)
+  return parsed.toISOString().slice(0, 10)
+}
+
+function buildDailyPeriodMoneySnapshot(transactions = [], range = {}, balanceValue = null) {
+  const filtered = transactions.filter((transaction) => {
+    const dateKey = dailyTransactionDateKey(transaction)
+
+    return dateKey >= range.start && dateKey <= range.end
+  })
+  const summary = buildTransactionSummary(filtered)
+  const moneyIn = summary.incoming || 0
+  const moneyOut = summary.outgoing || 0
+  const balance = balanceValue ?? addMoney(moneyIn, -moneyOut)
+
+  return {
+    moneyIn: rupees(moneyIn),
+    moneyOut: rupees(moneyOut),
+    balance: rupees(balance),
+  }
+}
+
+function buildDailyPeriodSummaries(transactions = [], transactionSummary = {}, safeToSpend = {}, financialState = {}) {
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const weekStart = shiftDailyDateKey(todayKey, -6)
+  const monthBalance = safeToSpend.comfortablyUsable ?? financialState.safeToSpend ?? 0
+
+  return [
+    {
+      key: 'today',
+      label: 'Today',
+      ...buildDailyPeriodMoneySnapshot(transactions, { start: todayKey, end: todayKey }),
+    },
+    {
+      key: 'week',
+      label: 'This Week',
+      ...buildDailyPeriodMoneySnapshot(transactions, { start: weekStart, end: todayKey }),
+    },
+    {
+      key: 'month',
+      label: 'This Month',
+      moneyIn: rupees(transactionSummary.incoming || 0),
+      moneyOut: rupees(transactionSummary.outgoing || 0),
+      balance: rupees(monthBalance),
+    },
+  ]
+}
+
+function DailyPeriodSummaries({ periods = [] }) {
+  if (periods.length === 0) {
+    return null
+  }
+
+  return (
+    <section className="v85-daily-period-summaries" aria-label="Daily period summaries">
+      {periods.map((period) => (
+        <article className="v85-daily-period-card" key={period.key}>
+          <header className="v85-daily-period-header">
+            <span>{period.label}</span>
+          </header>
+          <div className="v85-daily-period-metrics">
+            <span>
+              <small>Money In</small>
+              <strong>{period.moneyIn}</strong>
+            </span>
+            <span>
+              <small>Money Out</small>
+              <strong>{period.moneyOut}</strong>
+            </span>
+            <span>
+              <small>Balance</small>
+              <strong>{period.balance}</strong>
+            </span>
+          </div>
+        </article>
+      ))}
+    </section>
+  )
+}
+
 function buildInsightsFlow(financialState = {}, safeToSpend = {}, transactionSummary = {}) {
   return [
     {
       key: 'income',
-      label: 'Income',
+      label: 'Money In',
       value: rupees(financialState.income || transactionSummary.incoming || 0),
       icon: Wallet,
       tone: 'success',
     },
     {
       key: 'spent',
-      label: 'Spent',
+      label: 'Money Out',
       value: rupees(transactionSummary.outgoing || financialState.committed || 0),
       icon: Receipt,
       tone: 'danger',
@@ -7106,7 +7246,7 @@ function buildInsightsFlow(financialState = {}, safeToSpend = {}, transactionSum
     },
     {
       key: 'available',
-      label: 'Available',
+      label: 'Balance',
       value: rupees(safeToSpend.comfortablyUsable ?? financialState.safeToSpend ?? 0),
       icon: CreditCard,
       tone: 'tint',
@@ -7407,13 +7547,14 @@ const V83_MORE_QUICK_TOOLS = V77_QUICK_TOOLS.filter((tool) => tool.key === 'perc
 
 const V83_TOP_TOOLS = [
   { key: 'calculator', label: 'Calculator', detail: 'Basic arithmetic', icon: Calculator, tone: 'tint', quickTool: 'calculator' },
-  { key: 'split', label: 'Split', detail: 'Split an amount', icon: Divide, tone: 'success', quickTool: 'split' },
-  { key: 'gst', label: 'GST', detail: 'Add or remove GST', icon: Receipt, tone: 'warning', quickTool: 'gst' },
-  { key: 'emi', label: 'EMI', detail: 'Monthly estimate', icon: CreditCard, tone: 'tint', quickTool: 'emi' },
+  { key: 'split', label: 'Split Amount', detail: 'Amount per person', icon: Divide, tone: 'success', quickTool: 'split' },
   { key: 'savings', label: 'Savings', detail: 'Goals and plans', icon: Target, tone: 'success', tab: 'planner', targetId: 'savings-goals-section' },
   { key: 'borrow', label: 'Borrow/Lend', detail: 'Money Book', icon: Wallet, tone: 'warning', tab: 'history', targetId: 'money-book-section' },
-  { key: 'shared', label: 'Shared', detail: 'Groups and splits', icon: Receipt, tone: 'success', tab: 'history', targetId: 'shared-expenses-section' },
-  { key: 'statement', label: 'Statement', detail: 'Analyze PDF or CSV', icon: Upload, tone: 'warning', statement: true },
+  { key: 'shared', label: 'Shared Expenses', detail: 'Groups and splits', icon: Receipt, tone: 'success', tab: 'history', targetId: 'shared-expenses-section' },
+  { key: 'trip', label: 'Trip Split', detail: 'Shared trips and settlements', icon: Plane, tone: 'tint', tab: 'history', targetId: 'shared-expenses-section' },
+  { key: 'gst', label: 'GST', detail: 'Add or remove GST', icon: Receipt, tone: 'warning', quickTool: 'gst' },
+  { key: 'emi', label: 'EMI', detail: 'Monthly estimate', icon: CreditCard, tone: 'tint', quickTool: 'emi' },
+  { key: 'statement', label: 'Statement Analysis', detail: 'Analyze PDF or CSV', icon: Upload, tone: 'warning', statement: true },
 ]
 
 function ToolsCompanionHub({ navigateToTarget, openStatementImport, openQuickTools }) {
@@ -7575,15 +7716,22 @@ function ToolsCompanionHub({ navigateToTarget, openStatementImport, openQuickToo
   )
 }
 
-function ProfileCompanionHome({ authUser, moneyTheme, openSettings, onEnableBackup }) {
+function ProfileCompanionHome({
+  authUser,
+  openSettings,
+  onEnableBackup,
+  supportEmail,
+  supportPaymentUrl,
+  founderName,
+  founderLinkedInUrl,
+}) {
   const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
-  const themeLabel = titleCase(String(moneyTheme || defaultMoneyOSTheme).replace(/-/g, ' '))
 
   return (
     <MoneyOSProvider as="section" className="screen-content v7-profile-home money-os-profile">
       <SectionHeader
         title="Account & Preferences"
-        detail="Identity, backup, theme, and support"
+        detail="Identity, backup, and settings"
         actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
       />
       <div className="v7-companion-grid">
@@ -7607,37 +7755,15 @@ function ProfileCompanionHome({ authUser, moneyTheme, openSettings, onEnableBack
             </button>
           )}
         />
-        <MoneyCard
-          title="Theme"
-          detail={themeLabel}
-          icon={Sparkles}
-          tone="success"
-          footer={(
-            <button className="ghost-button full" type="button" onClick={openSettings}>
-              Change Theme
-            </button>
-          )}
-        />
-        <ActionCard
-          title="Support"
-          detail="Support independent FBPly development."
-          actionLabel="Support"
-          icon={Coffee}
-          tone="neutral"
-          href={supportPaymentUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-        />
-        <ActionCard
-          title="About FBPLY"
-          detail="Founder, purpose, privacy posture, and contact."
-          actionLabel="Read"
-          icon={Sparkles}
-          tone="neutral"
-          href="/about"
-        />
       </div>
-      <ProfileLegalFooter />
+      <Suspense fallback={<FLoader label="Opening Help & Support" />}>
+        <ProfileHub
+          supportEmail={supportEmail}
+          supportPaymentUrl={supportPaymentUrl}
+          founderName={founderName}
+          founderLinkedInUrl={founderLinkedInUrl}
+        />
+      </Suspense>
     </MoneyOSProvider>
   )
 }
@@ -8135,6 +8261,8 @@ function MainApp(props) {
             {!useLegacyNavigation && (
               <DailyCompanionEntry
                 safeToSpend={safeToSpend}
+                financialState={financialState}
+                transactionSummary={transactionSummary}
                 openAddSheet={openAddSheet}
                 openQuickEntry={openDailyHeroEntry}
                 todayTransactions={todayTransactions}
@@ -8228,6 +8356,7 @@ function MainApp(props) {
                 onEditExpense={editExpense}
                 setActiveTab={setCompanionActiveTab}
                 openAddSheet={openAddSheet}
+                requestReportExport={requestReportExport}
               />
             </Suspense>
           </>
@@ -8300,8 +8429,11 @@ function MainApp(props) {
             {!useLegacyNavigation && (
               <ProfileCompanionHome
                 authUser={authUser}
-                moneyTheme={moneyTheme}
                 onEnableBackup={onEnableBackup}
+                supportEmail={supportEmail}
+                supportPaymentUrl={supportPaymentUrl}
+                founderName={founderName}
+                founderLinkedInUrl={founderLinkedInUrl}
                 openSettings={() => {
                   setIsSettingsOpen(true)
                   trackEvent('profile_viewed')
@@ -8432,7 +8564,7 @@ function MainApp(props) {
           </>
         )}
       </main>
-      {isLegacyFooterExperience() && <LoggedInLegalFooter />}
+      <LoggedInLegalFooter />
       {addSheetMode && (
         <QuickAddSheet
           mode={addSheetMode}
@@ -9592,9 +9724,7 @@ function HomeFooter() {
   ]
 
   return (
-    <footer className="home-footer" aria-label="FBPly legal and founder information">
-      <QuickFeedbackForm />
-
+    <footer className="home-footer" aria-label="FBPly founder information">
       <section className={`home-about-block ${isAboutOpen ? 'open' : ''}`} aria-labelledby="home-about-title">
         <button
           className="home-about-toggle"
@@ -9663,149 +9793,7 @@ function HomeFooter() {
           </span>
         ))}
       </div>
-
-      <nav className="home-footer-links" aria-label="Legal links">
-        {legalLinks.map((link) => (
-          <a href={link.href} key={link.href}>
-            {link.label}
-          </a>
-        ))}
-      </nav>
     </footer>
-  )
-}
-
-function QuickFeedbackForm() {
-  const [suggestion, setSuggestion] = useState('')
-  const [email, setEmail] = useState('')
-  const [errors, setErrors] = useState({})
-  const [status, setStatus] = useState('')
-  const [isSending, setIsSending] = useState(false)
-
-  const clearError = (field) => {
-    setErrors((current) => {
-      if (!current[field]) {
-        return current
-      }
-
-      const next = { ...current }
-      delete next[field]
-      return next
-    })
-  }
-
-  const sendViaMailto = (cleanSuggestion, cleanEmail) => {
-    const subject = encodeURIComponent('FBPly feedback')
-    const body = encodeURIComponent(`${cleanSuggestion}${cleanEmail ? `\n\nFrom: ${cleanEmail}` : ''}`)
-    window.location.href = `mailto:${supportEmail}?subject=${subject}&body=${body}`
-  }
-
-  const submitFeedback = async (event) => {
-    event.preventDefault()
-    const form = event.currentTarget
-    const cleanSuggestion = suggestion.trim()
-    const cleanEmail = email.trim()
-    const fieldErrors = {}
-
-    setStatus('')
-
-    if (cleanSuggestion.length < 4) {
-      fieldErrors.suggestion = 'Add a short note so the feedback is useful.'
-    }
-
-    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      fieldErrors.email = 'Use a valid email, or leave this blank.'
-    }
-
-    if (Object.keys(fieldErrors).length > 0) {
-      setErrors(fieldErrors)
-      focusInvalidField(form)
-      return
-    }
-
-    setIsSending(true)
-
-    try {
-      if (isSupabaseReady) {
-        const { error } = await supabase
-          .from('feedback')
-          .insert({
-            email: cleanEmail || null,
-            message: cleanSuggestion,
-            source: 'footer',
-            page: typeof window === 'undefined' ? '/' : window.location.pathname,
-          })
-
-        if (error) {
-          throw error
-        }
-
-        setStatus('Thanks for your feedback. It genuinely helps make FBPly clearer and better.')
-      } else {
-        sendViaMailto(cleanSuggestion, cleanEmail)
-        setStatus('Thanks for your feedback. Your note is ready to send, and it genuinely helps improve FBPly.')
-      }
-
-      setSuggestion('')
-      setEmail('')
-      setErrors({})
-    } catch {
-      sendViaMailto(cleanSuggestion, cleanEmail)
-      setStatus('Thanks for your feedback. Your note is ready to send, and it genuinely helps improve FBPly.')
-    } finally {
-      setIsSending(false)
-    }
-  }
-
-  return (
-    <form className={`home-feedback-card ${Object.keys(errors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={submitFeedback}>
-      <div className="home-feedback-heading">
-        <div>
-          <span className="mini-label">Quick feedback</span>
-          <strong>Tell us what felt unclear.</strong>
-        </div>
-        <MessageCircle size={17} />
-      </div>
-      <label>
-        <span className="input-label">Suggestion / feedback</span>
-        <textarea
-          className={`plain-input textarea-input ${errors.suggestion ? 'field-invalid' : ''}`}
-          value={suggestion}
-          placeholder="One thing FBPly should improve..."
-          rows={3}
-          aria-invalid={errors.suggestion ? 'true' : undefined}
-          onChange={(event) => {
-            setSuggestion(event.target.value)
-            clearError('suggestion')
-            setStatus('')
-          }}
-        />
-        {errors.suggestion && <small className="field-helper">{errors.suggestion}</small>}
-      </label>
-      <div className="home-feedback-actions">
-        <label>
-          <span className="input-label">Email optional</span>
-          <input
-            className={`plain-input ${errors.email ? 'field-invalid' : ''}`}
-            type="email"
-            value={email}
-            placeholder="you@example.com"
-            aria-invalid={errors.email ? 'true' : undefined}
-            onChange={(event) => {
-              setEmail(event.target.value)
-              clearError('email')
-              setStatus('')
-            }}
-          />
-          {errors.email && <small className="field-helper">{errors.email}</small>}
-        </label>
-        <button className="primary-button" type="submit" disabled={isSending}>
-          <Send size={15} />
-          {isSending ? 'Sending...' : 'Send'}
-        </button>
-      </div>
-      {status && <p className="form-message feedback-success">{status}</p>}
-    </form>
   )
 }
 
@@ -9840,7 +9828,7 @@ function VoiceExpenseBox({
   const transcriptOptions = Array.from(
     new Set((voiceTranscriptOptions || []).map((option) => String(option || '').trim()).filter(Boolean)),
   )
-  const voiceExamplePrompts = ['Swiggy 450', 'Uber 250', 'Salary 50000', 'Netflix 649', 'Dmart 2200']
+  const voiceExamplePrompts = ['Tea 20', 'Petrol 500', 'Salary 20000', 'Bus ticket 35', 'Recharge 299']
   const categoryChoices = Array.from(
     new Set([
       ...(voiceDraft?.category ? [voiceDraft.category] : []),
@@ -9972,7 +9960,7 @@ function VoiceExpenseBox({
                       type="number"
                       min="0"
                       inputMode="decimal"
-                      value={draft.amount || ''}
+                      value={draft.amountConfidence === 'low' || normalizeMoney(draft.amount) <= 0 ? '' : (draft.amount || '')}
                       onChange={(event) => {
                         const patch = { amount: event.target.value }
                         if (updateVoiceDraftAt) {
@@ -10003,7 +9991,7 @@ function VoiceExpenseBox({
                     }}
                   >
                     <option value="daily">Expense</option>
-                    <option value="income">Income</option>
+                    <option value="income">Received Money</option>
                   </select>
                 </label>
                 <label>
@@ -10242,17 +10230,6 @@ function ProfileScreen({
         updateSavingsBucket={updateSavingsBucket}
         removeSavingsBucket={removeSavingsBucket}
       />
-
-      <Suspense fallback={<FLoader label="Opening Profile Hub" />}>
-        <ProfileHub
-          supportEmail={supportEmail}
-          supportPaymentUrl={supportPaymentUrl}
-          founderName={founderName}
-          founderLinkedInUrl={founderLinkedInUrl}
-          onNavigate={navigateToTarget}
-          onOpenStatementAnalysis={openStatementImport}
-        />
-      </Suspense>
 
       {isLegacyFooterExperience() && <HomeFooter />}
 

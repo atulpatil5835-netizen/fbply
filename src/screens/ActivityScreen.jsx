@@ -269,6 +269,7 @@ export default function ActivityScreen({
   monthOptions,
   onEditExpense,
   openAddSheet,
+  requestReportExport,
 }) {
   const [moneyBookModalEntry, setMoneyBookModalEntry] = useState(null)
   const [expandedGroups, setExpandedGroups] = useState({})
@@ -456,6 +457,7 @@ export default function ActivityScreen({
         addSharedPayment={addSharedPayment}
         markSharedSettlementReceived={markSharedSettlementReceived}
         removeSharedGroup={removeSharedGroup}
+        onExportTripPdf={(groupId) => requestReportExport?.('trip', { groupId, template: 'standard' })}
         variant="activity"
       />
     </>
@@ -662,7 +664,8 @@ function PeopleHubPanel({
       >
         {receivableEntries.length === 0 && incomingSharedSettlements.length === 0 ? (
           <MoneyOSEmptyState
-            title="Nothing to receive"
+            title="Track money shared with friends"
+            detail="Add a borrow/lend entry when someone owes you money."
             icon={Wallet}
             action={{ label: 'Add borrow/lend', onClick: () => onAddMoneyBook?.('empty_state') }}
           />
@@ -696,9 +699,10 @@ function PeopleHubPanel({
       >
         {repayableEntries.length === 0 && outgoingSharedSettlements.length === 0 ? (
           <MoneyOSEmptyState
-            title="Nothing to repay"
-            detail="Borrowed money or shared expenses you owe will appear here."
+            title="Track money you owe"
+            detail="Add a borrow/lend entry when you need to repay someone."
             icon={CreditCard}
+            action={{ label: 'Add borrow/lend', onClick: () => onAddMoneyBook?.('empty_state') }}
           />
         ) : (
           <>
@@ -730,9 +734,10 @@ function PeopleHubPanel({
       >
         {reconciledGroups.length === 0 ? (
           <MoneyOSEmptyState
-            title="No shared groups"
+            title="Start your first trip"
+            detail="Create a group when travel or shared costs need splitting."
             icon={User}
-            action={{ label: 'Create group', onClick: openSharedGroupForm }}
+            action={{ label: 'Create trip', onClick: openSharedGroupForm }}
           />
         ) : (groupsRequiringAction.length > 0 ? groupsRequiringAction : reconciledGroups).slice(0, 4).map((group) => (
           <PeopleSharedGroupCard
@@ -750,8 +755,10 @@ function PeopleHubPanel({
       >
         {recentSettlementRows.length === 0 ? (
           <MoneyOSEmptyState
-            title="No settlements yet"
+            title="Track money shared with friends"
+            detail="Settlements appear after you add shared expenses or borrow/lend entries."
             icon={CheckCircle2}
+            action={{ label: 'Open shared expenses', onClick: () => openPeopleTools('shared-expenses-section') }}
           />
         ) : recentSettlementRows.map((item) => (
           item.type === 'money-book' ? (
@@ -820,11 +827,11 @@ function PeopleHubPanel({
             />
           ) : (
             <MoneyOSEmptyState
-              title="No people money yet"
-              detail="Add a person or group when money involves someone else."
+              title="Track money shared with friends"
+              detail="Add borrow/lend entries or create a trip group to get started."
               icon={User}
               action={{ label: 'Add borrow/lend', onClick: () => onAddMoneyBook?.('empty_state') }}
-              secondaryAction={{ label: 'Create group', onClick: openSharedGroupForm }}
+              secondaryAction={{ label: 'Create trip', onClick: openSharedGroupForm }}
             />
           )}
           {children}
@@ -1063,7 +1070,7 @@ function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete
         <MoneyOSEmptyState
           className="money-book-empty-state"
           title="Track your first borrow/lend entry"
-          detail="Add money given or taken so pending settlements stay visible."
+          detail="Record money given or taken so pending settlements stay visible."
           icon={Wallet}
           action={{ label: 'Add entry', onClick: () => onAdd?.('empty_state') }}
         />

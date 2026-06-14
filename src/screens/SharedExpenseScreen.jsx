@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Download, Plus, Trash2, User } from 'lucide-react'
+import { FileText, Plus, Share2, Trash2, User } from 'lucide-react'
 import { CurrencyInput } from '../components/AppPrimitives.jsx'
 import { EmptyState as MoneyOSEmptyState, SuccessState as MoneyOSSuccessState } from '../design-system'
 import {
@@ -129,47 +129,60 @@ function roundedCanvasRect(context, x, y, width, height, radius) {
   context.closePath()
 }
 
-async function downloadTripSummaryPng(group = {}, profile = {}) {
+function buildTripSettlementSummary(group = {}) {
+  const settlements = group.settlements || []
+  const pending = settlements.filter((settlement) => !isSharedSettlementComplete(settlement))
+  const pendingAmount = pending.reduce((total, settlement) => total + normalizeMoney(settlement.remainingAmount || settlement.amount), 0)
+
+  if (settlements.length === 0) {
+    return 'Add payments to calculate settlements'
+  }
+
+  if (pending.length === 0) {
+    return 'All settlements complete'
+  }
+
+  return `${pending.length} pending · ${rupees(pendingAmount)}`
+}
+
+async function downloadTripShareCardPng(group = {}, profile = {}) {
   if (typeof document === 'undefined') {
     return false
   }
 
   try {
     const members = group.people || []
-    const payments = group.payments || []
-    const settlements = group.settlements || []
-    const rowHeight = 58
-    const height = Math.max(1180, 430 + members.length * 34 + payments.length * rowHeight + settlements.length * rowHeight)
+    const settlementSummary = buildTripSettlementSummary(group)
+    const width = 1080
+    const height = 720
     const canvas = document.createElement('canvas')
-    canvas.width = 1080
+    canvas.width = width
     canvas.height = height
     const context = canvas.getContext('2d')
     const logo = await loadCanvasImage('/fbply-f-mark.png')
+    const cardX = 64
+    const cardWidth = width - cardX * 2
 
     context.fillStyle = '#F8FAFC'
-    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.fillRect(0, 0, width, height)
     context.fillStyle = '#0B1020'
-    context.fillRect(0, 0, canvas.width, 210)
+    context.fillRect(0, 0, width, 188)
 
     if (logo) {
       context.fillStyle = '#FFFFFF'
-      roundedCanvasRect(context, 64, 54, 86, 86, 22)
+      roundedCanvasRect(context, 64, 48, 78, 78, 20)
       context.fill()
-      context.drawImage(logo, 74, 64, 66, 66)
+      context.drawImage(logo, 74, 58, 58, 58)
     }
 
     context.fillStyle = '#FFFFFF'
-    context.font = '800 42px Inter, Segoe UI, sans-serif'
-    context.fillText(group.name || 'Shared trip', 176, 86)
+    context.font = '800 40px Inter, Segoe UI, sans-serif'
+    drawWrappedText(context, group.name || 'Shared trip', 164, 78, cardWidth - 120, 46, 2)
     context.fillStyle = '#94A3B8'
-    context.font = '600 23px Inter, Segoe UI, sans-serif'
-    context.fillText('FBPly shared money summary', 176, 122)
-    context.fillText(new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }), 176, 158)
+    context.font = '600 22px Inter, Segoe UI, sans-serif'
+    context.fillText('FBPly trip share card', 164, 132)
 
-    let y = 250
-    const cardX = 64
-    const cardWidth = 952
-
+    let y = 228
     const drawCard = (top, cardHeight) => {
       context.fillStyle = '#FFFFFF'
       context.strokeStyle = '#D8E1EF'
@@ -179,104 +192,36 @@ async function downloadTripSummaryPng(group = {}, profile = {}) {
       context.stroke()
     }
 
-    drawCard(y, 164)
+    drawCard(y, 250)
     const stats = [
-      ['Total cost', rupees(group.amount)],
-      ['Participants', String(members.length)],
-      ['Per person', rupees(group.share)],
-      ['Pending', rupees(group.settlements?.reduce((total, item) => total + normalizeMoney(item.remainingAmount), 0) || 0)],
+      ['Total Expense', rupees(group.amount || 0)],
+      ['Participants', String(members.length || 0)],
+      ['Settlement Summary', settlementSummary],
     ]
+
     stats.forEach(([label, value], index) => {
-      const x = cardX + 34 + index * 230
+      const statY = y + 34 + index * 72
       context.fillStyle = '#64748B'
-      context.font = '800 19px Inter, Segoe UI, sans-serif'
-      context.fillText(label.toUpperCase(), x, y + 48)
-      context.fillStyle = '#0F172A'
-      context.font = '900 32px Inter, Segoe UI, sans-serif'
-      drawWrappedText(context, value, x, y + 92, 190, 34, 1)
-    })
-
-    y += 214
-    drawCard(y, 70 + Math.ceil(members.length / 4) * 42)
-    context.fillStyle = '#0F172A'
-    context.font = '900 26px Inter, Segoe UI, sans-serif'
-    context.fillText('Participants', cardX + 30, y + 42)
-    members.forEach((member, index) => {
-      const x = cardX + 30 + (index % 4) * 225
-      const rowY = y + 78 + Math.floor(index / 4) * 42
-      context.fillStyle = '#EFF6FF'
-      roundedCanvasRect(context, x, rowY - 24, 198, 32, 16)
-      context.fill()
-      context.fillStyle = '#0F172A'
       context.font = '800 18px Inter, Segoe UI, sans-serif'
-      drawWrappedText(context, displayPersonName(member, profile), x + 14, rowY - 2, 170, 20, 1)
+      context.fillText(label.toUpperCase(), cardX + 30, statY)
+      context.fillStyle = '#0F172A'
+      context.font = index === 0 ? '900 40px Inter, Segoe UI, sans-serif' : '850 28px Inter, Segoe UI, sans-serif'
+      drawWrappedText(context, value, cardX + 30, statY + 34, cardWidth - 60, 34, index === 2 ? 2 : 1)
     })
 
-    y += 112 + Math.ceil(members.length / 4) * 42
-    drawCard(y, 68 + Math.max(payments.length, 1) * rowHeight)
+    y += 286
+    drawCard(y, 118)
+    context.fillStyle = '#64748B'
+    context.font = '800 18px Inter, Segoe UI, sans-serif'
+    context.fillText('GENERATED BY FBPLY', cardX + 30, y + 42)
     context.fillStyle = '#0F172A'
-    context.font = '900 26px Inter, Segoe UI, sans-serif'
-    context.fillText('Payments', cardX + 30, y + 42)
-    if (payments.length === 0) {
-      context.fillStyle = '#64748B'
-      context.font = '700 20px Inter, Segoe UI, sans-serif'
-      context.fillText('No payments added yet.', cardX + 30, y + 90)
-    }
-    payments.forEach((payment, index) => {
-      const rowY = y + 86 + index * rowHeight
-      context.fillStyle = '#0F172A'
-      context.font = '850 21px Inter, Segoe UI, sans-serif'
-      drawWrappedText(context, payment.label, cardX + 30, rowY, 520, 22, 1)
-      context.fillStyle = '#64748B'
-      context.font = '700 17px Inter, Segoe UI, sans-serif'
-      context.fillText(`Paid by ${displayPersonName(payment.paidBy, profile)}`, cardX + 30, rowY + 26)
-      context.fillStyle = '#0F172A'
-      context.font = '900 22px Inter, Segoe UI, sans-serif'
-      context.textAlign = 'right'
-      context.fillText(rupees(payment.amount), cardX + cardWidth - 32, rowY + 10)
-      context.textAlign = 'left'
-    })
-
-    y += 100 + Math.max(payments.length, 1) * rowHeight
-    drawCard(y, 72 + Math.max(settlements.length, 1) * rowHeight)
-    context.fillStyle = '#0F172A'
-    context.font = '900 26px Inter, Segoe UI, sans-serif'
-    context.fillText('Settlements', cardX + 30, y + 42)
-    if (settlements.length === 0) {
-      context.fillStyle = '#64748B'
-      context.font = '700 20px Inter, Segoe UI, sans-serif'
-      context.fillText('Add payments to calculate who pays whom.', cardX + 30, y + 90)
-    }
-    settlements.forEach((settlement, index) => {
-      const complete = ['received', 'paid', 'settled'].includes(settlement.status) || settlement.remainingAmount <= 0
-      const rowY = y + 88 + index * rowHeight
-
-      context.fillStyle = '#0F172A'
-      context.font = '850 21px Inter, Segoe UI, sans-serif'
-      drawWrappedText(
-        context,
-        `${displayPersonName(settlement.from, profile)} pays ${displayPersonName(settlement.to, profile)}`,
-        cardX + 30,
-        rowY,
-        560,
-        22,
-        1,
-      )
-      context.fillStyle = complete ? '#16A34A' : '#D97706'
-      context.font = '800 17px Inter, Segoe UI, sans-serif'
-      context.fillText(complete ? 'Paid' : 'Pending', cardX + 30, rowY + 26)
-      context.fillStyle = '#0F172A'
-      context.font = '900 22px Inter, Segoe UI, sans-serif'
-      context.textAlign = 'right'
-      context.fillText(rupees(settlement.remainingAmount || settlement.amount), cardX + cardWidth - 32, rowY + 10)
-      context.textAlign = 'left'
-    })
-
+    context.font = '850 24px Inter, Segoe UI, sans-serif'
+    context.fillText('fbply.com', cardX + 30, y + 78)
     context.fillStyle = '#64748B'
     context.font = '700 18px Inter, Segoe UI, sans-serif'
-    context.fillText('Generated with FBPly | fbply.com', cardX, canvas.height - 40)
+    context.fillText(new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }), cardX + 30, y + 108)
 
-    downloadCanvas(canvas, `FBPly-${slugify(group.name || 'shared-trip')}-summary.png`)
+    downloadCanvas(canvas, `FBPly-${slugify(group.name || 'shared-trip')}-share-card.png`)
     return true
   } catch {
     return false
@@ -291,6 +236,7 @@ export default function SharedExpensesPanel({
   addSharedPayment,
   markSharedSettlementReceived,
   removeSharedGroup,
+  onExportTripPdf,
   variant = 'default',
 }) {
   const [name, setName] = useState('')
@@ -481,12 +427,21 @@ export default function SharedExpensesPanel({
     }))
   }
 
-  const downloadTripCard = async (group) => {
-    const saved = await downloadTripSummaryPng(group, profile)
+  const downloadTripShareCard = async (group) => {
+    const saved = await downloadTripShareCardPng(group, profile)
 
     setMessage(saved
-      ? { text: `${group.name} PNG is ready to share.`, tone: 'success' }
-      : { text: 'Could not prepare the PNG. Please try again.', tone: 'error' })
+      ? { text: `${group.name} share card is ready.`, tone: 'success' }
+      : { text: 'Could not prepare the share card. Please try again.', tone: 'error' })
+  }
+
+  const exportTripPdf = (group) => {
+    if (!onExportTripPdf) {
+      setMessage({ text: 'Open Reports to export the full trip PDF.', tone: 'info' })
+      return
+    }
+
+    onExportTripPdf(group.id, group.name)
   }
 
   return (
@@ -603,10 +558,10 @@ export default function SharedExpensesPanel({
       <div className="shared-list">
         {groups.length === 0 && (
           <MoneyOSEmptyState
-            title="Split your first trip expense"
-            detail="Create a group, add people, then record the first payment when it happens."
+            title="Start your first trip"
+            detail="Create a group, add people, and record the first shared payment."
             icon={User}
-            action={{ label: 'Create trip group', onClick: () => focusSharedGroupName('empty_state') }}
+            action={{ label: 'Create trip', onClick: () => focusSharedGroupName('empty_state') }}
           />
         )}
         {reconciledGroups.map((group) => {
@@ -625,8 +580,11 @@ export default function SharedExpensesPanel({
                   </div>
                 </div>
                 <div className="shared-card-actions">
-                  <button className="icon-button mini-icon-button" type="button" aria-label={`Download ${group.name} PNG`} onClick={() => downloadTripCard(group)}>
-                    <Download size={15} />
+                  <button className="icon-button mini-icon-button" type="button" aria-label={`Share ${group.name} card`} onClick={() => downloadTripShareCard(group)}>
+                    <Share2 size={15} />
+                  </button>
+                  <button className="icon-button mini-icon-button" type="button" aria-label={`Export ${group.name} PDF`} onClick={() => exportTripPdf(group)}>
+                    <FileText size={15} />
                   </button>
                   <button className="icon-button mini-icon-button" type="button" aria-label={`Remove ${group.name}`} onClick={() => removeSharedGroup(group.id)}>
                     <Trash2 size={15} />

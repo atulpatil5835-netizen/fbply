@@ -194,10 +194,10 @@ export default function ProfileHub({
   className = '',
 }) {
   return (
-    <section className={`money-os mos-profile-hub ${className}`} aria-label="Profile Hub">
+    <section className={`money-os mos-profile-hub ${className}`} aria-label="Help and Support">
       <SectionHeader
-        title="Support & About"
-        detail="Help, feedback, and founder notes"
+        title="Help & Support"
+        detail="Feedback, support, and founder notes"
       />
 
       <ProfileHubSection
