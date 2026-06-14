@@ -6898,7 +6898,6 @@ function DailyCompanionEntry({
   const recentActivity = useMemo(() => buildDailyHeroActivity(todayTransactions), [todayTransactions])
   const legacyNextAction = buildDailyHeroNextAction(recommendation)
   const LegacyNextActionIcon = legacyNextAction.icon
-  const hasAmount = normalizeMoney(heroAmount) > 0
   const handleEntry = (mode) => {
     if (openQuickEntry) {
       openQuickEntry(mode, heroAmount)
@@ -6956,117 +6955,22 @@ function DailyCompanionEntry({
 
   return (
     <MoneyOSProvider as="section" className="screen-content v7-daily-entry v72-daily-hero money-os-daily-companion">
-      <section className="v84-daily-hero-stack" aria-label="Daily summary">
-        <article className={`v84-daily-balance-hero v73-flow-node--${moneySnapshot.balance.tone}`}>
-          <small>{moneySnapshot.balance.label}</small>
-          <strong>{moneySnapshot.balance.value}</strong>
-        </article>
-        <div className="v84-daily-flow-row">
-          <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyIn.tone}`}>
-            <small>{moneySnapshot.moneyIn.label}</small>
-            <strong>{moneySnapshot.moneyIn.value}</strong>
-          </article>
-          <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyOut.tone}`}>
-            <small>{moneySnapshot.moneyOut.label}</small>
-            <strong>{moneySnapshot.moneyOut.value}</strong>
-          </article>
-        </div>
-        {nextBestAction ? (
-          <NextBestActionCard
-            action={nextBestAction}
-            surface="home"
-            onAction={onNextActionClick}
-            className="v84-daily-next-action"
-          />
-        ) : (
-          <MoneyCard
-            as={legacyNextAction.target === 'expense' ? 'button' : 'section'}
-            type={legacyNextAction.target === 'expense' ? 'button' : undefined}
-            eyebrow="Next Action"
-            title={legacyNextAction.title}
-            detail={legacyNextAction.detail}
-            meta={legacyNextAction.badge}
-            icon={LegacyNextActionIcon}
-            tone={legacyNextAction.tone}
-            className="v72-next-action-card v84-daily-next-action"
-            interactive={legacyNextAction.target === 'expense'}
-            onClick={legacyNextAction.target === 'expense' ? () => handleEntry('expense') : undefined}
-          />
-        )}
-        <SmartFeedbackCard
-          feedback={smartFeedback}
-          surface="home"
-          onFeedbackClick={onSmartFeedbackClick}
-          className="v84-daily-smart-feedback"
-        />
-      </section>
-
-      <DailyPeriodSummaries periods={periodSummaries} />
-
-      <section className="v72-quick-entry v85-quick-entry" aria-label="Quick Entry">
-        <label className="v72-amount-entry v85-amount-entry">
-          <span className="v85-quick-entry-label">Enter amount</span>
-          <span className="sr-only">Amount</span>
-          <span aria-hidden="true">{getCurrencySymbol()}</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            aria-label="Amount"
-            value={heroAmount}
-            placeholder="0"
-            onChange={(event) => setHeroAmount(event.target.value)}
-          />
-        </label>
-        <div className="v72-entry-actions" aria-label="Choose how to record this amount">
-          <button className="v72-entry-action v72-entry-action--expense" type="button" onClick={() => handleEntry('expense')}>
-            <Receipt size={19} />
-            <span>Add Expense</span>
-          </button>
-          <button className="v72-entry-action v72-entry-action--income" type="button" onClick={() => handleEntry('income')}>
-            <Wallet size={19} />
-            <span>Add Received Money</span>
-          </button>
-        </div>
-        <p className="v72-entry-hint">{hasAmount ? 'Amount ready. Choose expense or received money.' : 'Enter amount once, then choose expense or received money.'}</p>
-      </section>
-
-      <div className="v72-daily-viewport-grid">
-        <section className="v72-daily-panel v72-recent-activity" aria-label="Recent Activity">
-          <div className="v72-panel-header">
-            <span>Recent Activity</span>
-            <StatusBadge>{recentActivity.length}</StatusBadge>
-          </div>
-          {recentActivity.length === 0 ? (
-            <p className="v72-empty-copy">No money activity yet.</p>
-          ) : (
-            <div className="v72-activity-list">
-              {recentActivity.map((item) => {
-                const ActivityIcon = item.icon
-
-                return (
-                  <article className="v72-activity-row" key={item.id}>
-                    <span className={`v72-activity-icon v72-activity-icon--${item.heroTone}`}>
-                      <ActivityIcon size={15} />
-                    </span>
-                    <span className="v72-activity-copy">
-                      <strong>{item.title || item.category || 'Money activity'}</strong>
-                      <small>{item.category || item.sourceModule || 'Daily'} - {item.timeLabel}</small>
-                    </span>
-                    <em className={`v72-activity-amount v72-activity-amount--${item.heroTone}`}>
-                      {item.amountLabel}
-                    </em>
-                  </article>
-                )
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="v72-daily-side-stack" aria-label="Daily progress">
-          <DailyMonthProgress />
-        </section>
-      </div>
+      <DailyPremiumViewport
+        balanceValue={moneySnapshot.balance.value}
+        balanceLabel={moneySnapshot.balance.label}
+        periods={periodSummaries}
+        heroAmount={heroAmount}
+        setHeroAmount={setHeroAmount}
+        onAddExpense={() => handleEntry('expense')}
+        onAddReceived={() => handleEntry('income')}
+        nextBestAction={nextBestAction}
+        legacyNextAction={legacyNextAction}
+        LegacyNextActionIcon={LegacyNextActionIcon}
+        onNextActionClick={onNextActionClick}
+        smartFeedback={smartFeedback}
+        onSmartFeedbackClick={onSmartFeedbackClick}
+        recentActivity={recentActivity}
+      />
     </MoneyOSProvider>
   )
 }
@@ -7167,56 +7071,199 @@ function buildDailyPeriodSummaries(transactions = [], transactionSummary = {}, s
   const todayKey = new Date().toISOString().slice(0, 10)
   const weekStart = shiftDailyDateKey(todayKey, -6)
   const monthBalance = safeToSpend.comfortablyUsable ?? financialState.safeToSpend ?? 0
+  const todaySnapshot = buildDailyPeriodMoneySnapshot(transactions, { start: todayKey, end: todayKey })
+  const weekSnapshot = buildDailyPeriodMoneySnapshot(transactions, { start: weekStart, end: todayKey })
 
   return [
     {
       key: 'today',
       label: 'Today',
-      ...buildDailyPeriodMoneySnapshot(transactions, { start: todayKey, end: todayKey }),
+      spent: todaySnapshot.moneyOut,
+      received: todaySnapshot.moneyIn,
+      netBalance: todaySnapshot.balance,
     },
     {
       key: 'week',
       label: 'This Week',
-      ...buildDailyPeriodMoneySnapshot(transactions, { start: weekStart, end: todayKey }),
+      spent: weekSnapshot.moneyOut,
+      received: weekSnapshot.moneyIn,
+      netBalance: weekSnapshot.balance,
     },
     {
       key: 'month',
       label: 'This Month',
-      moneyIn: rupees(transactionSummary.incoming || 0),
-      moneyOut: rupees(transactionSummary.outgoing || 0),
-      balance: rupees(monthBalance),
+      spent: rupees(transactionSummary.outgoing || 0),
+      received: rupees(transactionSummary.incoming || 0),
+      netBalance: rupees(monthBalance),
     },
   ]
 }
 
-function DailyPeriodSummaries({ periods = [] }) {
-  if (periods.length === 0) {
-    return null
-  }
+const DAILY_PERIOD_OPTIONS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+]
+
+function DailyPremiumViewport({
+  balanceValue,
+  balanceLabel = 'Balance',
+  periods = [],
+  heroAmount,
+  setHeroAmount,
+  onAddExpense,
+  onAddReceived,
+  nextBestAction,
+  legacyNextAction,
+  LegacyNextActionIcon,
+  onNextActionClick,
+  smartFeedback,
+  onSmartFeedbackClick,
+  recentActivity = [],
+}) {
+  const [selectedPeriodKey, setSelectedPeriodKey] = useState('today')
+  const selectedPeriod = periods.find((period) => period.key === selectedPeriodKey) || periods[0]
+  const hasAmount = normalizeMoney(heroAmount) > 0
 
   return (
-    <section className="v85-daily-period-summaries" aria-label="Daily period summaries">
-      {periods.map((period) => (
-        <article className="v85-daily-period-card" key={period.key}>
-          <header className="v85-daily-period-header">
-            <span>{period.label}</span>
+    <section className="v851-daily-premium" aria-label="Daily money book">
+      <article className="v851-daily-balance-card" aria-label="Available balance">
+        <span className="v851-daily-balance-label">{balanceLabel}</span>
+        <strong className="v851-daily-balance-value">{balanceValue}</strong>
+      </article>
+
+      <section className="v851-daily-action-area" aria-label="Record money">
+        <label className="v851-daily-amount-field">
+          <span className="v851-daily-amount-label">Amount optional</span>
+          <span className="v851-daily-amount-input">
+            <span aria-hidden="true">{getCurrencySymbol()}</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              aria-label="Amount"
+              value={heroAmount}
+              placeholder="0"
+              onChange={(event) => setHeroAmount(event.target.value)}
+            />
+          </span>
+        </label>
+        <div className="v851-daily-action-grid">
+          <button className="v851-daily-action v851-daily-action--expense" type="button" onClick={onAddExpense}>
+            <Receipt size={20} />
+            <span>Add Expense</span>
+          </button>
+          <button className="v851-daily-action v851-daily-action--received" type="button" onClick={onAddReceived}>
+            <Wallet size={20} />
+            <span>Add Received Money</span>
+          </button>
+        </div>
+        <p className="v851-daily-action-hint">
+          {hasAmount ? 'Amount ready. Choose expense or received money.' : 'Tap an action, or enter amount first.'}
+        </p>
+      </section>
+
+      <div className="v851-period-selector" role="tablist" aria-label="Select period">
+        {DAILY_PERIOD_OPTIONS.map((option) => {
+          const isActive = option.key === selectedPeriodKey
+
+          return (
+            <button
+              className={`v851-period-option ${isActive ? 'active' : ''}`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              key={option.key}
+              onClick={() => setSelectedPeriodKey(option.key)}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {selectedPeriod && (
+        <article className="v851-period-summary-card" aria-label={`${selectedPeriod.label} summary`}>
+          <header className="v851-period-summary-header">
+            <span>{selectedPeriod.label}</span>
           </header>
-          <div className="v85-daily-period-metrics">
-            <span>
-              <small>Money In</small>
-              <strong>{period.moneyIn}</strong>
-            </span>
-            <span>
-              <small>Money Out</small>
-              <strong>{period.moneyOut}</strong>
-            </span>
-            <span>
-              <small>Balance</small>
-              <strong>{period.balance}</strong>
-            </span>
+          <div className="v851-period-summary-metrics">
+            <div className="v851-period-metric v851-period-metric--spent">
+              <small>Spent</small>
+              <strong>{selectedPeriod.spent}</strong>
+            </div>
+            <div className="v851-period-metric v851-period-metric--received">
+              <small>Received</small>
+              <strong>{selectedPeriod.received}</strong>
+            </div>
+            <div className="v851-period-metric v851-period-metric--net">
+              <small>Net Balance</small>
+              <strong>{selectedPeriod.netBalance}</strong>
+            </div>
           </div>
         </article>
-      ))}
+      )}
+
+      {nextBestAction ? (
+        <NextBestActionCard
+          action={nextBestAction}
+          surface="home"
+          onAction={onNextActionClick}
+          className="v851-daily-next-action"
+        />
+      ) : (
+        <MoneyCard
+          as={legacyNextAction.target === 'expense' ? 'button' : 'section'}
+          type={legacyNextAction.target === 'expense' ? 'button' : undefined}
+          eyebrow="Next Action"
+          title={legacyNextAction.title}
+          detail={legacyNextAction.detail}
+          meta={legacyNextAction.badge}
+          icon={LegacyNextActionIcon}
+          tone={legacyNextAction.tone}
+          className="v851-daily-next-action"
+          interactive={legacyNextAction.target === 'expense'}
+          onClick={legacyNextAction.target === 'expense' ? onAddExpense : undefined}
+        />
+      )}
+
+      <SmartFeedbackCard
+        feedback={smartFeedback}
+        surface="home"
+        onFeedbackClick={onSmartFeedbackClick}
+        className="v851-daily-smart-feedback"
+      />
+
+      <section className="v851-recent-activity v72-daily-panel" aria-label="Recent Activity">
+        <div className="v72-panel-header">
+          <span>Recent Activity</span>
+          <StatusBadge>{recentActivity.length}</StatusBadge>
+        </div>
+        {recentActivity.length === 0 ? (
+          <p className="v72-empty-copy">No money activity yet.</p>
+        ) : (
+          <div className="v72-activity-list">
+            {recentActivity.map((item) => {
+              const ActivityIcon = item.icon
+
+              return (
+                <article className="v72-activity-row" key={item.id}>
+                  <span className={`v72-activity-icon v72-activity-icon--${item.heroTone}`}>
+                    <ActivityIcon size={15} />
+                  </span>
+                  <span className="v72-activity-copy">
+                    <strong>{item.title || item.category || 'Money activity'}</strong>
+                    <small>{item.category || item.sourceModule || 'Daily'} - {item.timeLabel}</small>
+                  </span>
+                  <em className={`v72-activity-amount v72-activity-amount--${item.heroTone}`}>
+                    {item.amountLabel}
+                  </em>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
     </section>
   )
 }

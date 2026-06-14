@@ -10320,6 +10320,309 @@ img {
   margin: 0;
 }
 
+/* V8.5.1 Premium Daily Experience */
+.v851-daily-premium {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.v851-daily-balance-card {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 20px 16px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 26%, var(--theme-border));
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--theme-accent) 14%, transparent) 0%, transparent 52%),
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-card) 96%, var(--theme-surface-tint)) 0%, var(--theme-card) 100%);
+  box-shadow: var(--premium-app-shadow);
+}
+
+.v851-daily-balance-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 46%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--theme-on-primary) 16%, transparent), transparent);
+  pointer-events: none;
+}
+
+.v851-daily-balance-label {
+  position: relative;
+  color: var(--theme-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.v851-daily-balance-value {
+  position: relative;
+  color: var(--theme-text);
+  font-size: clamp(36px, 9vw, 46px);
+  font-weight: 900;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.v851-daily-action-area {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--premium-app-border);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-card-soft) 42%, transparent), transparent 68%),
+    var(--premium-app-surface);
+  box-shadow: var(--premium-app-shadow-soft);
+}
+
+.v851-daily-amount-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.v851-daily-amount-label {
+  color: var(--theme-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.v851-daily-amount-input {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 24%, var(--theme-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--theme-card) 92%, transparent);
+}
+
+.v851-daily-amount-input > span:not(.sr-only) {
+  color: var(--theme-muted);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.v851-daily-amount-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--theme-text);
+  font: inherit;
+  font-size: clamp(28px, 7vw, 36px);
+  font-weight: 850;
+}
+
+.v851-daily-amount-input input::placeholder {
+  color: color-mix(in srgb, var(--theme-muted) 58%, transparent);
+}
+
+.v851-daily-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.v851-daily-action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--theme-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: 0;
+  cursor: pointer;
+  box-shadow: var(--premium-app-shadow-soft);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.v851-daily-action::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 58% 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--theme-on-primary) 22%, transparent), transparent);
+  pointer-events: none;
+}
+
+.v851-daily-action span {
+  position: relative;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v851-daily-action svg {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.v851-daily-action--expense {
+  border-color: color-mix(in srgb, var(--theme-danger) 28%, var(--theme-border));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--theme-danger) 18%, var(--theme-card)), var(--theme-card));
+}
+
+.v851-daily-action--received {
+  border-color: color-mix(in srgb, var(--theme-success) 28%, var(--theme-border));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--theme-success) 18%, var(--theme-card)), var(--theme-card));
+}
+
+.v851-daily-action:hover,
+.v851-daily-action:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: var(--premium-app-shadow);
+  outline: none;
+}
+
+.v851-daily-action:focus-visible {
+  box-shadow: var(--premium-app-shadow), var(--premium-app-focus);
+}
+
+.v851-daily-action-hint {
+  margin: 0;
+  color: var(--theme-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.v851-period-selector {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--premium-app-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--theme-card-soft) 55%, var(--theme-card));
+}
+
+.v851-period-option {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--theme-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.v851-period-option.active {
+  color: var(--theme-text);
+  background: var(--theme-card);
+  box-shadow: var(--premium-app-shadow-soft);
+}
+
+.v851-period-option:focus-visible {
+  outline: none;
+  box-shadow: var(--premium-app-focus);
+}
+
+.v851-period-summary-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--premium-app-border);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-surface-tint) 36%, transparent), transparent 72%),
+    var(--premium-app-surface);
+  box-shadow: var(--premium-app-shadow-soft);
+}
+
+.v851-period-summary-header span {
+  color: var(--theme-text);
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+}
+
+.v851-period-summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.v851-period-metric {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--theme-card) 90%, transparent);
+}
+
+.v851-period-metric small {
+  color: var(--theme-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.v851-period-metric strong {
+  color: var(--theme-text);
+  font-size: clamp(13px, 3.4vw, 15px);
+  font-weight: 850;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.v851-period-metric--spent strong {
+  color: var(--theme-danger);
+}
+
+.v851-period-metric--received strong {
+  color: var(--theme-success);
+}
+
+.v851-daily-next-action,
+.v851-daily-smart-feedback,
+.v851-recent-activity {
+  min-width: 0;
+}
+
+.v851-recent-activity {
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--theme-card) 88%, transparent);
+  box-shadow: var(--premium-app-shadow-soft);
+}
+
 .v72-daily-money-strip .v73-flow-node {
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
@@ -11336,6 +11639,56 @@ img {
   .v84-daily-flow-row,
   .v85-daily-period-summaries {
     grid-template-columns: 1fr;
+  }
+
+  .v851-daily-premium {
+    gap: 10px;
+  }
+
+  .v851-daily-balance-card {
+    padding: 16px 14px;
+    border-radius: 14px;
+  }
+
+  .v851-daily-balance-value {
+    font-size: clamp(32px, 8.5vw, 40px);
+  }
+
+  .v851-daily-action-area {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .v851-daily-action {
+    min-height: 60px;
+    padding-inline: 10px;
+    font-size: 13px;
+    border-radius: 12px;
+  }
+
+  .v851-daily-action span {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.15;
+  }
+
+  .v851-period-option {
+    min-height: 42px;
+    padding-inline: 4px;
+    font-size: 11px;
+  }
+
+  .v851-period-summary-card {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .v851-period-metric {
+    padding: 8px 6px;
+  }
+
+  .v851-period-metric strong {
+    font-size: 12px;
   }
 
   .v85-quick-entry .v72-entry-action span {
