@@ -111,12 +111,7 @@ export default function SettingsScreen({
   updateRecurringSchedule,
   removeRecurringSchedule,
   toggleRecurringSchedule,
-  navigateToTarget,
-  openStatementImport,
   supportEmail,
-  supportPaymentUrl,
-  founderName,
-  founderLinkedInUrl,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const balanceMessage = getProfileBalanceMessage(financialState)

@@ -145,7 +145,7 @@ function buildTripSettlementSummary(group = {}) {
   return `${pending.length} pending · ${rupees(pendingAmount)}`
 }
 
-async function downloadTripShareCardPng(group = {}, profile = {}) {
+async function downloadTripShareCardPng(group = {}) {
   if (typeof document === 'undefined') {
     return false
   }

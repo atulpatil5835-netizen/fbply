@@ -27,7 +27,6 @@ import {
   Receipt,
   ShoppingBag,
   ShieldCheck,
-  Send,
   Sparkles,
   Square,
   Trash2,
@@ -97,11 +96,6 @@ import {
   createReportId,
   normalizeReportHistory,
 } from './lib/reportHistory'
-import {
-  clampProgressPercent,
-  isLegacyProgressLayer,
-  trackProgressComponentsViewed,
-} from './lib/progressLayer'
 import {
   cloudRowToProfile,
   hasLocalProfileData,
@@ -235,7 +229,6 @@ import {
   MoneyOSProvider,
   SectionHeader,
   SecondaryButton,
-  StatCard,
   StatusBadge,
   SuccessState,
   defaultMoneyOSTheme,
@@ -376,21 +369,6 @@ const legalLinks = [
   { label: 'Disclaimer', href: '/disclaimer' },
   { label: 'About FBPly', href: '/about' },
   { label: 'Contact', href: '/contact' },
-]
-const appFooterLinks = [
-  { label: 'Privacy Policy', href: '/privacy' },
-  { label: 'Terms of Service', href: '/terms' },
-  { label: 'Disclaimer', href: '/disclaimer' },
-  { label: 'Budget Planner', href: '/budget-planner' },
-  { label: 'Trip Splitter', href: '/trip-expense-splitter' },
-  { label: 'Expense Tracker', href: '/expense-tracker' },
-  { label: 'Daily Expense Book', href: '/daily-expense-book' },
-  { label: 'Personal Expense Tracker', href: '/personal-expense-tracker' },
-  { label: 'Financial Reports', href: '/monthly-financial-report' },
-  { label: 'Statement Analysis', href: '/bank-statement-analysis' },
-  { label: 'Feedback', href: `mailto:${supportEmail}?subject=FBPly%20Feedback` },
-  { label: 'Support FBPly', href: supportPaymentUrl, external: true },
-  { label: 'About FBPly', href: '/about' },
 ]
 
 function buildReportExportPrompt(type, request, sharedGroups = []) {
@@ -6825,53 +6803,6 @@ function SmartFeedbackCard({ feedback, surface = 'home', onFeedbackClick, classN
   )
 }
 
-function buildMonthProgressView(now = new Date()) {
-  const fallbackDate = new Date()
-  const date = Number.isNaN(now?.getTime?.()) ? fallbackDate : now
-  const year = date.getFullYear()
-  const month = date.getMonth()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const currentDay = Math.min(date.getDate(), daysInMonth)
-  const daysRemaining = Math.max(daysInMonth - currentDay, 0)
-  const progress = clampProgressPercent((currentDay / daysInMonth) * 100)
-  const monthLabel = date.toLocaleDateString('en-IN', { month: 'long' })
-
-  return {
-    currentDay,
-    daysInMonth,
-    daysRemaining,
-    monthLabel,
-    progress,
-  }
-}
-
-function DailyMonthProgress() {
-  const monthProgress = useMemo(() => buildMonthProgressView(), [])
-
-  useEffect(() => {
-    trackProgressComponentsViewed('daily', ['month_progress'])
-  }, [])
-
-  if (isLegacyProgressLayer()) {
-    return null
-  }
-
-  return (
-    <div className="v74-progress-strip v74-daily-month-progress" aria-label={`${monthProgress.monthLabel} progress`}>
-      <div className="v74-progress-header">
-        <span>Month Progress</span>
-        <strong>{monthProgress.progress}%</strong>
-      </div>
-      <div className="v74-progress-track" aria-label={`${monthProgress.progress}% of the current month complete`}>
-        <span className="v74-progress-fill" style={{ width: `${monthProgress.progress}%` }} />
-      </div>
-      <p className="v74-progress-note">
-        {monthProgress.monthLabel} is {monthProgress.currentDay} of {monthProgress.daysInMonth}; {monthProgress.daysRemaining} day{monthProgress.daysRemaining === 1 ? '' : 's'} left.
-      </p>
-    </div>
-  )
-}
-
 function DailyCompanionEntry({
   safeToSpend = {},
   financialState = {},
@@ -10177,8 +10108,6 @@ function ProfileScreen({
   addExpense,
   quickExpenseChips,
   applyQuickExpense,
-  navigateToTarget,
-  openStatementImport,
 }) {
   const commitments = normalizeMonthlyBillsForEdit(profile)
   const greeting = getGreeting(profile.name)
