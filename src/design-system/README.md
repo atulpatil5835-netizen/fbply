@@ -4,6 +4,8 @@ Money OS V2 is an opt-in foundation layer for future FBPLY screen migrations. It
 
 FBPLY V10 Notebook Foundation is an additive notebook design layer for future migrations. It adds centralized notebook tokens, typography roles, theme objects, motion tokens, responsive rules, and presentation-only notebook components. It does not migrate existing pages.
 
+FBPLY V11 PPSP Phase 1 adds product-wide standardisation contracts for semantic tokens, typography roles, font policy, theme workspaces, icon usage, layout grid, component states, storage classifications, performance budgets, and release gates. The contract lives in `src/design-system/standardization.js`; semantic CSS aliases are defined in `src/index.css` and map to the existing theme variables without changing current screens.
+
 ## Rules
 
 - Import from `src/design-system` only in screens that are being migrated intentionally.
@@ -12,6 +14,9 @@ FBPLY V10 Notebook Foundation is an additive notebook design layer for future mi
 - Prefer the shared card, button, state, and form primitives before creating screen-specific UI.
 - Remove this folder to roll back the foundation; existing application screens do not depend on it.
 - Import notebook primitives from `src/design-system/notebook` when a screen is intentionally migrated to the V10 notebook experience. The root `src/design-system` barrel remains unchanged for current Money OS screens.
+- Import PPSP contracts directly from `src/design-system/standardization.js` for new foundation-aware work. The root barrel intentionally avoids pulling this audit-sized contract into current production screens.
+- Use semantic tokens such as `--surface-primary`, `--text-primary`, `--border-default`, `--spacing-md`, `--radius-md`, `--shadow-card`, `--duration-normal`, and the typography role variables instead of adding new raw values.
+- Financial values must use the Money or Numeric typography roles with tabular numbers. Handwriting accents are presentation-only and must not be used for amounts, totals, reports, or exports.
 
 ## Exports
 
@@ -21,6 +26,22 @@ FBPLY V10 Notebook Foundation is an additive notebook design layer for future mi
 - Status and actions: `StatusBadge`, `PrimaryButton`, `SecondaryButton`
 - Shells and states: `MoneyOSProvider`, `BottomSheet`, `EmptyState`, `SuccessState`, `SectionHeader`, `PageHeader`
 - Forms: `AmountInput`, `TextInput`, `CategorySelector`, `DateSelector`, `NotesInput`
+
+## V11 PPSP Foundation
+
+- Contract: `productStandardization`, `productStandardizationVersion`
+- Tokens: `productSemanticTokens`
+- Typography: `productTypographyRoles`, `getTypographyRole`
+- Fonts: `productFontStrategy`
+- Themes: `themeWorkspaces`, `themeWorkspaceIds`, `getThemeWorkspace`
+- Density: `densityScale`, `normalizeDensity`
+- Icons: `iconSystem`
+- Layout: `layoutGrid`
+- Components: `componentContracts`, `componentContractStates`
+- Storage: `storageClassifications`, `storageLifecyclePolicies`, `classifyStoredValue`, `getStorageLifecycle`
+- Release controls: `performanceBudgets`, `qualityGates`
+
+PPSP Phase 1 is intentionally additive. It standardizes the product foundation and documents migration contracts, but it does not migrate existing pages, change theme selection behavior, alter Supabase/auth/API code, or rewrite business logic.
 
 ## V10 Notebook Foundation
 

@@ -201,11 +201,11 @@ export default function RecurringScheduleManager({
         <div className="recurring-form-actions">
           <button className="primary-button" type="submit">
             <Plus size={17} />
-            {isEditing ? 'Save' : 'Add'}
+            {isEditing ? 'Save schedule' : 'Add schedule'}
           </button>
           {isEditing && (
             <button className="ghost-button" type="button" onClick={resetForm}>
-              Cancel
+              Close
             </button>
           )}
         </div>

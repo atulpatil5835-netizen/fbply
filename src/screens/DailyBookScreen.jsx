@@ -356,6 +356,7 @@ function RangeFilters({ selectedFilter, onSelect }) {
           className={selectedFilter === filter.key ? 'active' : ''}
           key={filter.key}
           type="button"
+          aria-label={`Show ${filter.label} expenses`}
           aria-pressed={selectedFilter === filter.key}
           onClick={() => onSelect(filter.key)}
         >
@@ -547,7 +548,7 @@ export default function DailyBookScreen({ expenses = [], openAddSheet }) {
           </div>
           <button className="primary-button small-button daily-book-add-button" type="button" onClick={openExpenseFromDailyBook}>
             <Plus size={16} />
-            Add Expense
+            Add expense
           </button>
         </div>
 
@@ -646,7 +647,7 @@ export default function DailyBookScreen({ expenses = [], openAddSheet }) {
         actions={(
           <button className="primary-button small-button daily-book-add-button" type="button" onClick={openExpenseFromDailyBook}>
             <Plus size={16} />
-            Add Expense
+            Add expense
           </button>
         )}
       />

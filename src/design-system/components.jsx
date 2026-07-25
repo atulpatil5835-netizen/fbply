@@ -1,6 +1,7 @@
-import { forwardRef, useEffect, useId } from 'react'
+import { forwardRef, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, ChevronRight, Sparkles, X } from 'lucide-react'
+import { isMotionReduced, motionTokens, useReducedMotion } from './motion.js'
 import { cx, renderIcon } from './utils.js'
 import './money-os.css'
 
@@ -18,6 +19,149 @@ function IconFrame({ icon, tone = 'default' }) {
 
 function cardTone(tone) {
   return tone && tone !== 'neutral' ? `mos-card--${tone}` : null
+}
+
+function clampNumberRevealDuration(value) {
+  const duration = Number(value ?? motionTokens.duration.numberReveal)
+
+  if (!Number.isFinite(duration)) {
+    return motionTokens.duration.numberReveal
+  }
+
+  return Math.min(
+    Math.max(duration, motionTokens.numberReveal.minDuration),
+    motionTokens.numberReveal.maxDuration,
+  )
+}
+
+function cleanMotionDelay(value) {
+  const delay = Number(value ?? motionTokens.delay.none)
+
+  return Number.isFinite(delay) ? Math.max(delay, motionTokens.delay.none) : motionTokens.delay.none
+}
+
+function easeOutCubic(progress) {
+  return 1 - Math.pow(1 - progress, 3)
+}
+
+function parseRevealText(value) {
+  const text = String(value ?? '')
+  const match = text.match(/-?\d[\d,]*(?:\.\d+)?/)
+
+  if (!match) {
+    return { text, canAnimate: false }
+  }
+
+  const numberText = match[0]
+  const target = Number(numberText.replace(/,/g, ''))
+
+  if (!Number.isFinite(target) || target === 0) {
+    return { text, canAnimate: false }
+  }
+
+  const decimalText = numberText.split('.')[1] || ''
+  const fractionDigits = decimalText.length
+
+  return {
+    text,
+    canAnimate: true,
+    prefix: text.slice(0, match.index),
+    suffix: text.slice(match.index + numberText.length),
+    target,
+    fractionDigits,
+    formatter: new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }),
+  }
+}
+
+function formatRevealText(parts, amount) {
+  const normalizedAmount = parts.fractionDigits > 0 ? amount : Math.round(amount)
+
+  return `${parts.prefix}${parts.formatter.format(normalizedAmount)}${parts.suffix}`
+}
+
+export function AnimatedNumber({
+  as: Element = 'span',
+  value,
+  duration = motionTokens.duration.numberReveal,
+  delay = motionTokens.delay.numberReveal,
+  className = '',
+  reveal = true,
+  ...props
+}) {
+  const currentText = String(value ?? '')
+  const [initialParts] = useState(() => parseRevealText(currentText))
+  const reducedMotion = useReducedMotion()
+  const currentParts = useMemo(() => parseRevealText(currentText), [currentText])
+  const [displayText, setDisplayText] = useState(() => {
+    return reveal && initialParts.canAnimate && !isMotionReduced()
+      ? formatRevealText(initialParts, 0)
+      : currentText
+  })
+  const [isRevealing, setIsRevealing] = useState(false)
+  const hasAnimatedRef = useRef(false)
+
+  useEffect(() => {
+    const valueChangedAfterMount = currentText !== initialParts.text
+
+    if (!reveal || reducedMotion || !initialParts.canAnimate || valueChangedAfterMount || hasAnimatedRef.current) {
+      hasAnimatedRef.current = true
+      setIsRevealing(false)
+      setDisplayText(currentText)
+      return undefined
+    }
+
+    let frameId = 0
+    let delayId = 0
+    const durationMs = clampNumberRevealDuration(duration)
+    const delayMs = cleanMotionDelay(delay)
+
+    const startReveal = () => {
+      const startedAt = performance.now()
+      setIsRevealing(true)
+
+      const tick = (now) => {
+        const progress = Math.min((now - startedAt) / durationMs, 1)
+        const nextAmount = initialParts.target * easeOutCubic(progress)
+
+        setDisplayText(formatRevealText(initialParts, nextAmount))
+
+        if (progress < 1) {
+          frameId = window.requestAnimationFrame(tick)
+          return
+        }
+
+        hasAnimatedRef.current = true
+        setIsRevealing(false)
+        setDisplayText(initialParts.text)
+      }
+
+      frameId = window.requestAnimationFrame(tick)
+    }
+
+    delayId = window.setTimeout(startReveal, delayMs)
+
+    return () => {
+      window.clearTimeout(delayId)
+
+      if (frameId) {
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+  }, [currentText, delay, duration, initialParts, reducedMotion, reveal])
+
+  return (
+    <Element
+      className={cx('fbply-animated-number', className)}
+      data-revealing={isRevealing ? 'true' : undefined}
+      aria-label={currentParts.canAnimate ? currentText : undefined}
+      {...props}
+    >
+      {displayText}
+    </Element>
+  )
 }
 
 export function MoneyOSProvider({ as: Element = 'div', children, className = '', ...props }) {
@@ -128,6 +272,7 @@ export function StatCard({
   trend = '',
   icon = null,
   tone = 'neutral',
+  animatedValue = false,
   className = '',
   ...props
 }) {
@@ -140,7 +285,11 @@ export function StatCard({
       tone={tone}
       {...props}
     >
-      <strong className="mos-stat-card__value">{value}</strong>
+      {animatedValue ? (
+        <AnimatedNumber as="strong" className="mos-stat-card__value" value={value} />
+      ) : (
+        <strong className="mos-stat-card__value">{value}</strong>
+      )}
       {trend && <span className="mos-stat-card__trend">{trend}</span>}
     </MoneyCard>
   )
@@ -365,6 +514,7 @@ export function BottomSheet({
 }) {
   const generatedTitleId = useId()
   const titleId = labelledBy || generatedTitleId
+  const sheetRef = useRef(null)
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') {
@@ -372,6 +522,15 @@ export function BottomSheet({
     }
 
     const previousOverflow = document.body.style.overflow
+    const focusFrame = window.requestAnimationFrame(() => {
+      const focusable = sheetRef.current?.querySelector(
+        '.mos-sheet__body [data-autofocus="true"], .mos-sheet__body button:not(:disabled), .mos-sheet__body [href], .mos-sheet__body input:not(:disabled), .mos-sheet__body select:not(:disabled), .mos-sheet__body textarea:not(:disabled), .mos-sheet__body [tabindex]:not([tabindex="-1"])',
+      )
+
+      if (focusable && !sheetRef.current?.contains(document.activeElement)) {
+        focusable.focus()
+      }
+    })
 
     function handleKeyDown(event) {
       if (event.key === 'Escape' && onClose) {
@@ -383,6 +542,7 @@ export function BottomSheet({
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
+      window.cancelAnimationFrame(focusFrame)
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
@@ -395,6 +555,7 @@ export function BottomSheet({
   return createPortal(
     <div className="money-os mos-sheet-backdrop" role="presentation" onClick={onClose}>
       <section
+        ref={sheetRef}
         className={cx('mos-sheet', className)}
         role="dialog"
         aria-modal="true"

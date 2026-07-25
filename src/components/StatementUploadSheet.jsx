@@ -558,7 +558,7 @@ export default function StatementUploadSheet({
                 Continue
               </button>
               <button className="ghost-button" type="button" onClick={cancelProtectedPdf}>
-                Cancel
+                Close
               </button>
             </div>
           </form>
@@ -650,10 +650,10 @@ export default function StatementUploadSheet({
                 ))}
                 <div className="statement-preview-actions">
                   <button className="primary-button" type="button" onClick={confirmPreview}>
-                    Confirm preview
+                    Save preview
                   </button>
                   <button className="ghost-button" type="button" onClick={generateStatementReport}>
-                    Generate statement report
+                    Download statement report
                   </button>
                 </div>
               </div>

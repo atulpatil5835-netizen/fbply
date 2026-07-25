@@ -3,60 +3,86 @@
   --mos-primary-navy: var(--theme-primary);
   --mos-primary-navy-strong: var(--theme-primary-strong);
   --mos-accent-blue: var(--theme-accent);
-  --mos-accent-blue-soft: color-mix(in srgb, var(--theme-accent) 14%, var(--theme-card));
+  --mos-accent-blue-soft: color-mix(in srgb, var(--theme-accent) 14%, var(--theme-paper));
   --mos-success-green: var(--theme-success);
-  --mos-success-green-soft: color-mix(in srgb, var(--theme-success) 13%, var(--theme-card));
+  --mos-success-green-soft: color-mix(in srgb, var(--theme-success) 13%, var(--theme-paper));
   --mos-warning-amber: var(--theme-warning);
-  --mos-warning-amber-soft: color-mix(in srgb, var(--theme-warning) 14%, var(--theme-card));
+  --mos-warning-amber-soft: color-mix(in srgb, var(--theme-warning) 14%, var(--theme-paper));
   --mos-error-red: var(--theme-danger);
-  --mos-error-red-soft: color-mix(in srgb, var(--theme-danger) 12%, var(--theme-card));
+  --mos-error-red-soft: color-mix(in srgb, var(--theme-danger) 12%, var(--theme-paper));
   --mos-neutral-50: var(--theme-bg);
   --mos-neutral-100: var(--theme-card-soft);
-  --mos-neutral-200: color-mix(in srgb, var(--theme-muted) 22%, var(--theme-card));
+  --mos-neutral-200: color-mix(in srgb, var(--theme-muted) 22%, var(--theme-paper));
   --mos-neutral-500: var(--theme-muted);
   --mos-neutral-600: color-mix(in srgb, var(--theme-muted) 82%, var(--theme-text));
   --mos-neutral-700: color-mix(in srgb, var(--theme-muted) 42%, var(--theme-text));
   --mos-neutral-900: var(--theme-text);
   --mos-neutral-950: var(--theme-primary-strong);
-  --mos-surface-base: var(--theme-card);
+  --mos-surface-base: var(--theme-paper);
   --mos-surface-raised: var(--theme-card);
   --mos-surface-muted: var(--theme-bg);
   --mos-surface-tint: var(--theme-card-soft);
-  --mos-font-hero-size: 34px;
-  --mos-font-hero-line: 40px;
-  --mos-font-section-size: 22px;
-  --mos-font-section-line: 28px;
-  --mos-font-body-size: 15px;
-  --mos-font-body-line: 23px;
-  --mos-font-caption-size: 12px;
-  --mos-font-caption-line: 16px;
-  --mos-border-subtle: color-mix(in srgb, var(--theme-text) 12%, transparent);
+  --mos-font-heading-family: var(--experience-font-heading, var(--font-notebook-accent));
+  --mos-font-section-family: var(--experience-font-section, var(--font-notebook-accent));
+  --mos-font-body-family: var(--experience-font-body, var(--font-primary-ui));
+  --mos-font-note-family: var(--experience-font-note, var(--font-notebook-accent));
+  --mos-font-amount-family: var(--experience-font-amount, var(--font-monospace));
+  --mos-font-hero-size: var(--font-size-display-l);
+  --mos-font-hero-line: var(--line-height-display-l);
+  --mos-font-money-size: var(--type-money-display-size);
+  --mos-font-money-line: var(--type-money-display-line);
+  --mos-font-section-size: var(--type-section-title-size);
+  --mos-font-section-line: var(--type-section-title-line);
+  --mos-font-card-title-size: var(--type-card-title-size);
+  --mos-font-card-title-line: var(--type-card-title-line);
+  --mos-font-body-size: var(--type-body-size);
+  --mos-font-body-line: var(--type-body-line);
+  --mos-font-caption-size: var(--type-caption-size);
+  --mos-font-caption-line: var(--type-caption-line);
+  --mos-font-meta-size: var(--type-meta-size);
+  --mos-font-meta-line: var(--type-meta-line);
+  --mos-border-subtle: var(--theme-border);
   --mos-border-strong: color-mix(in srgb, var(--theme-primary) 24%, transparent);
   --mos-focus-ring: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 18%, transparent);
-  --mos-space-xs: 4px;
-  --mos-space-sm: 8px;
-  --mos-space-md: 12px;
-  --mos-space-lg: 16px;
-  --mos-space-xl: 24px;
-  --mos-radius-sm: 4px;
-  --mos-radius-md: 6px;
-  --mos-radius-lg: 8px;
-  --mos-shadow-soft: 0 8px 22px color-mix(in srgb, var(--theme-shadow) 8%, transparent);
-  --mos-shadow-medium: 0 14px 36px color-mix(in srgb, var(--theme-shadow) 12%, transparent);
+  --mos-space-xs: var(--notebook-space-xs);
+  --mos-space-sm: var(--notebook-space-sm);
+  --mos-space-md: var(--notebook-space-md);
+  --mos-space-lg: var(--notebook-space-lg);
+  --mos-space-xl: var(--notebook-space-xl);
+  --mos-radius-sm: var(--radius-sm);
+  --mos-radius-md: var(--notebook-radius-control);
+  --mos-radius-lg: var(--notebook-radius-card);
+  --mos-radius-card: var(--notebook-radius-card);
+  --mos-shadow-soft: var(--notebook-shadow-card);
+  --mos-shadow-medium: var(--notebook-shadow-elevated);
   --motion-duration-fast: 150ms;
   --motion-duration-normal: 200ms;
   --motion-duration-slow: 220ms;
   --motion-duration-modal: 180ms;
+  --motion-duration-card: 180ms;
+  --motion-duration-number-reveal: 560ms;
+  --motion-duration-home-entry: 360ms;
   --motion-duration-loader: 1600ms;
   --motion-duration-attention: 900ms;
   --motion-duration-skeleton: 1400ms;
+  --motion-delay-home-header: 0ms;
+  --motion-delay-home-cards: 80ms;
+  --motion-delay-number-reveal: 150ms;
+  --motion-delay-quick-actions: 300ms;
+  --motion-delay-recent-activity: 470ms;
+  --motion-delay-stagger: 70ms;
+  --motion-delay-compact-stagger: 45ms;
   --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --motion-ease-decelerate: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-soft-out: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-rise-distance: 6px;
+  --motion-entry-distance: 10px;
+  --motion-hover-lift: -1px;
+  --motion-press-scale: 0.985;
   --mos-motion-fast: var(--motion-duration-fast) var(--motion-ease-standard);
   --mos-motion-normal: var(--motion-duration-normal) var(--motion-ease-standard);
   color: var(--mos-neutral-900);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--mos-font-body-family), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
 }
 
@@ -123,6 +149,7 @@
 
 .mos-page-header h1 {
   color: var(--mos-primary-navy-strong);
+  font-family: var(--mos-font-heading-family), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: var(--mos-font-hero-size);
   line-height: var(--mos-font-hero-line);
   font-weight: 850;
@@ -167,19 +194,41 @@
 
 .mos-section-header h2 {
   color: var(--mos-primary-navy-strong);
+  font-family: var(--mos-font-section-family), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: var(--mos-font-section-size);
   line-height: var(--mos-font-section-line);
   font-weight: 800;
 }
 
 .mos-card {
+  position: relative;
   display: grid;
-  gap: var(--mos-space-xs);
-  padding: var(--mos-space-sm) var(--mos-space-md);
+  gap: var(--mos-space-sm);
+  overflow: hidden;
+  padding: var(--notebook-card-padding);
   border: 1px solid var(--mos-border-subtle);
-  border-radius: var(--mos-radius-lg);
-  background: var(--mos-surface-raised);
+  border-radius: var(--experience-card-radius, var(--mos-radius-card));
+  background: var(--experience-card-bg, var(--notebook-card-bg));
   box-shadow: var(--mos-shadow-soft);
+}
+
+.mos-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 calc(var(--notebook-rule-size) - 1px),
+      color-mix(in srgb, var(--theme-line) 44%, transparent) calc(var(--notebook-rule-size) - 1px) var(--notebook-rule-size)
+    );
+  opacity: 0.54;
+}
+
+.mos-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 button.mos-card {
@@ -226,14 +275,27 @@ button.mos-card:disabled {
 .mos-card--interactive {
   transition:
     border-color var(--mos-motion-fast),
+    background-color var(--mos-motion-fast),
     box-shadow var(--mos-motion-fast),
     transform var(--mos-motion-fast);
 }
 
-.mos-card--interactive:hover {
+@media (hover: hover) {
+  .mos-card--interactive:hover {
+    border-color: var(--mos-border-strong);
+    box-shadow: var(--mos-shadow-medium);
+    transform: translate3d(0, var(--motion-hover-lift), 0);
+  }
+}
+
+.mos-card--interactive:active {
+  transform: translate3d(0, 0, 0) scale(var(--motion-press-scale));
+}
+
+.mos-card--interactive:focus-visible {
+  outline: none;
   border-color: var(--mos-border-strong);
-  box-shadow: var(--mos-shadow-medium);
-  transform: translateY(-1px);
+  box-shadow: var(--mos-focus-ring), var(--mos-shadow-medium);
 }
 
 .mos-card__header {
@@ -251,9 +313,10 @@ button.mos-card:disabled {
 
 .mos-card h3 {
   color: var(--mos-primary-navy-strong);
-  font-size: 15px;
-  line-height: 20px;
-  font-weight: 800;
+  font-family: var(--mos-font-section-family), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: var(--mos-font-card-title-size);
+  line-height: var(--mos-font-card-title-line);
+  font-weight: 850;
   overflow-wrap: anywhere;
 }
 
@@ -266,9 +329,9 @@ button.mos-card:disabled {
 .mos-timeline-card__meta,
 .mos-field__helper {
   color: var(--mos-neutral-500);
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 700;
+  font-size: var(--mos-font-meta-size);
+  line-height: var(--mos-font-meta-line);
+  font-weight: 800;
 }
 
 .mos-icon-frame {
@@ -299,9 +362,11 @@ button.mos-card:disabled {
 
 .mos-stat-card__value {
   color: var(--mos-primary-navy-strong);
-  font-size: 22px;
-  line-height: 27px;
-  font-weight: 850;
+  font-family: var(--mos-font-amount-family), ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: var(--mos-font-money-size);
+  line-height: var(--mos-font-money-line);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
@@ -440,14 +505,14 @@ button.mos-action-card {
 }
 
 .mos-button {
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--mos-space-sm);
   padding: 0 var(--mos-space-lg);
   border: 1px solid transparent;
-  border-radius: var(--mos-radius-lg);
+  border-radius: var(--experience-button-radius, var(--mos-radius-lg));
   font-size: 14px;
   line-height: 18px;
   font-weight: 850;
@@ -461,7 +526,11 @@ button.mos-action-card {
 }
 
 .mos-button:hover {
-  transform: translateY(-1px);
+  transform: translate3d(0, var(--motion-hover-lift), 0);
+}
+
+.mos-button:active {
+  transform: translate3d(0, 0, 0) scale(var(--motion-press-scale));
 }
 
 .mos-button:focus-visible,
@@ -504,7 +573,7 @@ button.mos-action-card {
 }
 
 .mos-button--sm {
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 var(--mos-space-md);
   font-size: 13px;
 }
@@ -693,14 +762,42 @@ button.mos-action-card {
 }
 
 .mos-state {
+  position: relative;
   display: grid;
   justify-items: center;
   gap: var(--mos-space-md);
   padding: var(--mos-space-xl);
   border: 1px solid var(--mos-border-subtle);
-  border-radius: var(--mos-radius-lg);
-  background: var(--mos-surface-base);
+  border-radius: var(--mos-radius-card);
+  background: var(--theme-empty);
+  box-shadow: var(--mos-shadow-soft);
   text-align: center;
+}
+
+.mos-state::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0 var(--notebook-margin-size),
+      color-mix(in srgb, var(--theme-danger) 14%, transparent) var(--notebook-margin-size) calc(var(--notebook-margin-size) + 1px),
+      transparent calc(var(--notebook-margin-size) + 1px)
+    ),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 calc(var(--notebook-rule-size) - 1px),
+      color-mix(in srgb, var(--theme-line) 42%, transparent) calc(var(--notebook-rule-size) - 1px) var(--notebook-rule-size)
+    );
+  opacity: 0.72;
+}
+
+.mos-state > * {
+  position: relative;
+  z-index: 1;
 }
 
 .mos-state__visual {
@@ -708,7 +805,8 @@ button.mos-action-card {
   height: 48px;
   display: grid;
   place-items: center;
-  border-radius: var(--mos-radius-lg);
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: var(--mos-radius-card);
   color: var(--mos-accent-blue);
   background: var(--mos-accent-blue-soft);
 }
@@ -744,10 +842,10 @@ button.mos-action-card {
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
   border: 1px solid var(--mos-border-subtle);
-  border-radius: var(--mos-radius-lg) var(--mos-radius-lg) 0 0;
-  background: var(--mos-surface-base);
+  border-radius: var(--mos-radius-sheet) var(--mos-radius-sheet) 0 0;
+  background: var(--notebook-paper-bg);
   box-shadow: var(--mos-shadow-medium);
-  animation: mosSheetIn var(--motion-duration-modal) var(--motion-ease-decelerate) both;
+  animation: mosSheetIn var(--motion-duration-fab-open) var(--motion-ease-decelerate) both;
   transform-origin: bottom center;
 }
 
@@ -765,6 +863,18 @@ button.mos-action-card {
   from {
     opacity: 0;
     transform: translate3d(0, var(--motion-rise-distance), 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes mosCardEntrance {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-entry-distance), 0);
   }
 
   to {
@@ -838,6 +948,438 @@ button.mos-action-card {
   gap: var(--mos-space-md);
 }
 
+.money-inbox-capture {
+  display: grid;
+  gap: var(--mos-space-md);
+  padding: var(--mos-space-md);
+  border: 1px solid color-mix(in srgb, var(--mos-accent-blue) 16%, transparent);
+  border-radius: var(--mos-radius-lg);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--mos-surface-tint) 72%, transparent),
+      color-mix(in srgb, var(--mos-surface-base) 96%, transparent)
+    );
+}
+
+.money-inbox-capture-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--mos-space-sm);
+}
+
+.money-inbox-capture-header h3 {
+  margin: 0;
+  color: var(--mos-primary-navy-strong);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 850;
+}
+
+.money-inbox-live {
+  max-width: 180px;
+  color: var(--mos-success-green);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.money-inbox-universal {
+  display: grid;
+  gap: var(--mos-space-sm);
+}
+
+.money-inbox-universal label {
+  min-width: 0;
+  display: grid;
+  gap: var(--mos-space-xs);
+}
+
+.money-inbox-universal-input-shell {
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--mos-space-sm);
+  padding: 0 var(--mos-space-sm);
+  border: 1px solid color-mix(in srgb, var(--mos-accent-blue) 24%, var(--mos-border-subtle));
+  border-radius: var(--mos-radius-lg);
+  background: var(--mos-surface-base);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--mos-primary-navy) 8%, transparent);
+}
+
+.money-inbox-universal-input-shell svg {
+  color: var(--mos-accent-blue);
+}
+
+.money-inbox-universal-input-shell:focus-within {
+  border-color: var(--mos-accent-blue);
+  box-shadow: var(--mos-focus-ring);
+}
+
+.money-inbox-universal-input-shell input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--mos-primary-navy-strong);
+  background: transparent;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 850;
+}
+
+.money-inbox-key-hint {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--mos-space-xs);
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: var(--mos-radius-sm);
+  color: var(--mos-neutral-500);
+  background: var(--mos-surface-tint);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 850;
+}
+
+.money-inbox-template-row,
+.money-inbox-suggestion-list,
+.money-inbox-kind-row,
+.money-inbox-bulk-preview,
+.money-inbox-choice-row {
+  display: flex;
+  align-items: center;
+  gap: var(--mos-space-sm);
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.money-inbox-template,
+.money-inbox-suggestion,
+.money-inbox-kind-row button,
+.money-inbox-bulk-preview button,
+.money-inbox-choice-row button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: var(--mos-space-xs);
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: var(--mos-radius-lg);
+  color: var(--mos-primary-navy);
+  background: var(--mos-surface-base);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    border-color var(--mos-motion-fast),
+    background-color var(--mos-motion-fast),
+    color var(--mos-motion-fast),
+    transform var(--mos-motion-fast);
+}
+
+.money-inbox-template,
+.money-inbox-suggestion {
+  padding: 0 var(--mos-space-sm);
+}
+
+.money-inbox-template strong,
+.money-inbox-suggestion strong,
+.money-inbox-bulk-preview strong {
+  color: var(--mos-neutral-500);
+  font-weight: 850;
+}
+
+.money-inbox-template--income,
+.money-inbox-template--lend {
+  border-color: color-mix(in srgb, var(--mos-success-green) 18%, transparent);
+  background: var(--mos-success-green-soft);
+}
+
+.money-inbox-template--borrow,
+.money-inbox-template--transfer {
+  border-color: color-mix(in srgb, var(--mos-warning-amber) 18%, transparent);
+  background: var(--mos-warning-amber-soft);
+}
+
+.money-inbox-kind-row button {
+  padding: 0 var(--mos-space-sm);
+}
+
+.money-inbox-kind-row button.active {
+  color: var(--theme-on-primary);
+  border-color: var(--mos-primary-navy);
+  background: var(--mos-primary-navy);
+}
+
+.money-inbox-suggestion.active,
+.money-inbox-choice-row button.active {
+  border-color: var(--mos-accent-blue);
+  color: var(--mos-primary-navy-strong);
+  background: color-mix(in srgb, var(--mos-accent-blue) 12%, var(--mos-surface-base));
+}
+
+.money-inbox-template:hover,
+.money-inbox-suggestion:hover,
+.money-inbox-kind-row button:hover,
+.money-inbox-bulk-preview button:hover,
+.money-inbox-choice-row button:hover,
+.money-inbox-edit-button:hover {
+  border-color: var(--mos-border-strong);
+  transform: translate3d(0, var(--motion-hover-lift), 0);
+}
+
+.money-inbox-template:focus-visible,
+.money-inbox-suggestion:focus-visible,
+.money-inbox-kind-row button:focus-visible,
+.money-inbox-bulk-preview button:focus-visible,
+.money-inbox-prepare-button:focus-visible,
+.money-inbox-continue-button:focus-visible,
+.money-inbox-choice-row button:focus-visible,
+.money-inbox-edit-button:focus-visible,
+.money-inbox-secondary-capture summary:focus-visible,
+.money-inbox-bulk summary:focus-visible {
+  outline: none;
+  box-shadow: var(--mos-focus-ring);
+}
+
+.money-inbox-review-card {
+  display: grid;
+  gap: var(--mos-space-sm);
+  padding: var(--mos-space-sm);
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: var(--mos-radius-lg);
+  background: color-mix(in srgb, var(--mos-surface-base) 92%, var(--mos-surface-tint));
+}
+
+.money-inbox-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mos-space-sm);
+}
+
+.money-inbox-intent-badge,
+.money-inbox-confidence {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mos-space-xs);
+  padding: 0 var(--mos-space-sm);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 900;
+}
+
+.money-inbox-intent-badge {
+  color: var(--mos-primary-navy-strong);
+  background: var(--mos-surface-tint);
+}
+
+.money-inbox-intent-badge--income,
+.money-inbox-intent-badge--lend,
+.money-inbox-confidence--high {
+  color: var(--mos-success-green);
+  background: var(--mos-success-green-soft);
+}
+
+.money-inbox-intent-badge--borrow,
+.money-inbox-intent-badge--transfer,
+.money-inbox-confidence--medium {
+  color: var(--mos-warning-amber);
+  background: var(--mos-warning-amber-soft);
+}
+
+.money-inbox-intent-badge--unknown,
+.money-inbox-confidence--low {
+  color: var(--mos-error-red);
+  background: var(--mos-error-red-soft);
+}
+
+.money-inbox-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mos-space-sm);
+  margin: 0;
+}
+
+.money-inbox-review-grid div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.money-inbox-review-grid dt {
+  color: var(--mos-neutral-500);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.money-inbox-review-grid dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--mos-primary-navy-strong);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.money-inbox-review-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr);
+  gap: var(--mos-space-sm);
+}
+
+.money-inbox-edit-button,
+.money-inbox-continue-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mos-space-xs);
+}
+
+.money-inbox-edit-button {
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: var(--mos-radius-lg);
+  color: var(--mos-primary-navy);
+  background: var(--mos-surface-base);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    border-color var(--mos-motion-fast),
+    transform var(--mos-motion-fast);
+}
+
+.money-inbox-continue-button:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.money-inbox-secondary-capture {
+  display: grid;
+  gap: var(--mos-space-sm);
+}
+
+.money-inbox-secondary-capture > summary {
+  width: max-content;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mos-space-sm);
+  color: var(--mos-neutral-700);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 850;
+  cursor: pointer;
+  list-style: none;
+}
+
+.money-inbox-secondary-capture > summary::-webkit-details-marker {
+  display: none;
+}
+
+.money-inbox-secondary-capture[open] {
+  gap: var(--mos-space-md);
+}
+
+.money-inbox-manual-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.56fr);
+  gap: var(--mos-space-sm);
+  align-items: end;
+}
+
+.money-inbox-manual-grid label,
+.money-inbox-bulk label {
+  min-width: 0;
+  display: grid;
+  gap: var(--mos-space-xs);
+}
+
+.money-inbox-note-field {
+  grid-column: 1 / -1;
+}
+
+.money-inbox-amount-input {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--mos-space-xs);
+  padding: 0 var(--mos-space-sm);
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: var(--mos-radius-lg);
+  background: var(--mos-surface-base);
+}
+
+.money-inbox-amount-input span {
+  color: var(--mos-neutral-500);
+  font-weight: 850;
+}
+
+.money-inbox-amount-input input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--mos-primary-navy-strong);
+  background: transparent;
+  font-weight: 850;
+}
+
+.money-inbox-prepare-button {
+  grid-column: 1 / -1;
+}
+
+.money-inbox-prepare-button:disabled,
+.money-inbox-bulk-preview button:disabled {
+  cursor: default;
+  opacity: 0.58;
+  transform: none;
+}
+
+.money-inbox-bulk {
+  display: grid;
+  gap: var(--mos-space-sm);
+}
+
+.money-inbox-bulk > summary {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mos-space-sm);
+  color: var(--mos-neutral-700);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 850;
+  cursor: pointer;
+  list-style: none;
+}
+
+.money-inbox-bulk > summary::-webkit-details-marker {
+  display: none;
+}
+
+.money-inbox-bulk textarea {
+  width: 100%;
+  resize: vertical;
+  padding: var(--mos-space-sm);
+}
+
 .mos-add-hub-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -848,8 +1390,29 @@ button.mos-action-card {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.mos-add-hub-grid--v16-primary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .mos-add-hub-grid .mos-action-card {
   min-height: 86px;
+  animation: mosCardEntrance var(--motion-duration-card) var(--motion-ease-soft-out) both;
+}
+
+.mos-add-hub-grid .mos-action-card:nth-child(2) {
+  animation-delay: var(--motion-delay-compact-stagger);
+}
+
+.mos-add-hub-grid .mos-action-card:nth-child(3) {
+  animation-delay: calc(var(--motion-delay-compact-stagger) * 2);
+}
+
+.mos-add-hub-grid .mos-action-card:nth-child(4) {
+  animation-delay: calc(var(--motion-delay-compact-stagger) * 3);
+}
+
+.mos-add-hub-grid .mos-action-card:nth-child(5) {
+  animation-delay: calc(var(--motion-delay-compact-stagger) * 4);
 }
 
 .mos-add-hub-grid .mos-card__header {
@@ -887,6 +1450,14 @@ button.mos-action-card {
 
 .mos-add-hub-more > summary::-webkit-details-marker {
   display: none;
+}
+
+.mos-add-hub-more--v16 > summary {
+  border-radius: var(--experience-button-radius, 999px);
+}
+
+.mos-add-hub-more--v16[open] > summary svg {
+  transform: rotate(90deg);
 }
 
 .mos-add-hub-success,
@@ -1245,6 +1816,57 @@ button.mos-action-card {
 
 .mos-report-template-select {
   margin: 0;
+}
+
+.mos-report-smart-download-grid {
+  grid-template-columns: minmax(0, 1.15fr) repeat(2, minmax(190px, 0.9fr));
+}
+
+.mos-report-advanced-downloads {
+  overflow: hidden;
+  border: 1px solid var(--mos-border-subtle);
+  border-radius: var(--mos-radius-card);
+  background: var(--notebook-card-bg);
+  box-shadow: var(--mos-shadow-soft);
+}
+
+.mos-report-advanced-downloads summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mos-space-sm);
+  padding: 0 var(--mos-space-lg);
+  color: var(--mos-neutral-700);
+  font-size: var(--mos-font-meta-size);
+  line-height: var(--mos-font-meta-line);
+  font-weight: 850;
+  list-style: none;
+  cursor: pointer;
+}
+
+.mos-report-advanced-downloads summary::-webkit-details-marker {
+  display: none;
+}
+
+.mos-report-advanced-downloads summary svg {
+  transition: transform var(--motion-duration-fab-open) var(--motion-ease-standard);
+}
+
+.mos-report-advanced-downloads[open] summary svg {
+  transform: rotate(90deg);
+}
+
+.mos-report-advanced-downloads summary:focus-visible {
+  outline: 0;
+  box-shadow: var(--mos-focus-ring);
+}
+
+.mos-report-advanced-downloads-body {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.6fr) minmax(220px, 1fr);
+  gap: var(--mos-space-md);
+  padding: 0 var(--mos-space-lg) var(--mos-space-lg);
 }
 
 .mos-report-legacy-button {
@@ -1698,6 +2320,7 @@ button.mos-action-card {
   .mos-report-v4-grid,
   .mos-report-library-grid,
   .mos-report-export-grid,
+  .mos-report-advanced-downloads-body,
   .mos-people-priority-grid,
   .mos-people-action-grid,
   .mos-people-group-metrics {
@@ -1743,6 +2366,32 @@ button.mos-action-card {
   .mos-add-hub-grid {
     grid-template-columns: 1fr;
     gap: var(--mos-space-sm);
+  }
+
+  .money-inbox-capture-header,
+  .money-inbox-manual-grid,
+  .money-inbox-review-grid,
+  .money-inbox-review-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .money-inbox-live {
+    max-width: none;
+    text-align: left;
+  }
+
+  .money-inbox-universal-input-shell {
+    min-height: 54px;
+  }
+
+  .money-inbox-key-hint {
+    display: none;
+  }
+
+  .money-inbox-suggestion,
+  .money-inbox-choice-row button,
+  .money-inbox-bulk-preview button {
+    min-height: 42px;
   }
 
   .mos-add-hub-grid .mos-action-card {
@@ -1807,13 +2456,18 @@ button.mos-action-card {
   .mos-loader__mark,
   .mos-loader__orbit,
   .mos-sheet,
-  .mos-sheet-backdrop {
+  .mos-sheet-backdrop,
+  .mos-add-hub-grid .mos-action-card {
     animation: none;
   }
 
   .mos-card--interactive,
   .mos-button,
-  .mos-field__control {
+  .mos-field__control,
+  .money-inbox-suggestion,
+  .money-inbox-kind-row button,
+  .money-inbox-choice-row button,
+  .money-inbox-edit-button {
     transition: none;
   }
 }

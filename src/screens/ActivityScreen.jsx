@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronRight,
   CreditCard,
+  Download,
   Pencil,
   PiggyBank,
   Plane,
@@ -19,12 +20,15 @@ import {
 import { AppModal, CurrencyInput } from '../components/AppPrimitives.jsx'
 import {
   ActionCard,
+  AnimatedNumber,
   EmptyState as MoneyOSEmptyState,
   InsightCard,
   MoneyCard,
   SectionHeader,
   StatCard,
   StatusBadge,
+  defaultMoneyOSTheme,
+  getMoneyOSThemeExperience,
 } from '../design-system'
 import { buildRelatedTransactionGroups } from '../lib/financeIntelligence'
 import { addMoney, normalizeMoney, sumMoney } from '../lib/money'
@@ -61,6 +65,39 @@ function formatPeopleDate(value) {
     day: 'numeric',
     month: 'short',
   })
+}
+
+function formatLedgerNotebookPage(value) {
+  const cleanValue = String(value || '').slice(0, 10)
+  const parsed = cleanValue ? new Date(`${cleanValue}T12:00:00`) : null
+
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return {
+      dateLabel: 'Notebook page',
+      dayName: 'Day not set',
+      monthLabel: 'Current notebook',
+      footerDate: cleanValue || 'No date',
+    }
+  }
+
+  return {
+    dateLabel: parsed.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+    }),
+    dayName: parsed.toLocaleDateString('en-IN', {
+      weekday: 'long',
+    }),
+    monthLabel: parsed.toLocaleDateString('en-IN', {
+      month: 'long',
+      year: 'numeric',
+    }),
+    footerDate: parsed.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+  }
 }
 
 function settlementSortDate(item = {}) {
@@ -192,7 +229,7 @@ const activityFilterOptions = [
   { key: 'expense', label: 'Expense', icon: Receipt },
   { key: 'income', label: 'Income', icon: Wallet },
   { key: 'borrow', label: 'Borrow', icon: CreditCard },
-  { key: 'transfer', label: 'Transfer', icon: PiggyBank },
+  { key: 'transfer', label: 'Savings', icon: PiggyBank },
   { key: 'shared', label: 'Shared', icon: Plane },
 ]
 
@@ -236,8 +273,31 @@ function matchesActivityFilter(transaction = {}, filter = 'all') {
   return true
 }
 
-function filterActivityGroup(group = {}, filter = 'all') {
-  const items = (group.items || []).filter((transaction) => matchesActivityFilter(transaction, filter))
+function matchesActivitySearch(transaction = {}, query = '') {
+  const cleanQuery = String(query || '').trim().toLowerCase()
+
+  if (!cleanQuery) {
+    return true
+  }
+
+  return [
+    transaction.title,
+    transaction.label,
+    transaction.category,
+    transaction.sourceModule,
+    transaction.note,
+    transaction.person,
+    transaction.date,
+    transaction.amount,
+  ]
+    .filter((value) => value !== null && typeof value !== 'undefined')
+    .some((value) => String(value).toLowerCase().includes(cleanQuery))
+}
+
+function filterActivityGroup(group = {}, filter = 'all', query = '') {
+  const items = (group.items || []).filter((transaction) => (
+    matchesActivityFilter(transaction, filter) && matchesActivitySearch(transaction, query)
+  ))
 
   return {
     ...group,
@@ -245,6 +305,27 @@ function filterActivityGroup(group = {}, filter = 'all') {
     incoming: sumMoney(items.filter((transaction) => transaction.tone === 'incoming'), (transaction) => transaction.amount),
     outgoing: sumMoney(items.filter((transaction) => transaction.tone === 'outgoing'), (transaction) => transaction.amount),
     transfers: sumMoney(items.filter((transaction) => transaction.tone === 'transfer'), (transaction) => transaction.amount),
+  }
+}
+
+function ledgerEmptyStateCopy({ deferredSearch, effectiveActivityFilter, themeExperience }) {
+  if (deferredSearch) {
+    return {
+      title: 'No matching notebook entries.',
+      detail: 'Clear search or choose another filter.',
+    }
+  }
+
+  if (effectiveActivityFilter !== 'all') {
+    return {
+      title: `No ${effectiveActivityFilter} entries yet.`,
+      detail: 'Choose another page filter or write a new expense line.',
+    }
+  }
+
+  return {
+    title: themeExperience?.copy?.emptyLedger || 'This page is waiting for your first expense.',
+    detail: 'Add one expense to start the ledger. Trips and borrow/lend entries will appear here too.',
   }
 }
 
@@ -270,26 +351,46 @@ export default function ActivityScreen({
   onEditExpense,
   openAddSheet,
   requestReportExport,
+  moneyTheme = defaultMoneyOSTheme,
+  view = 'people',
 }) {
   const [moneyBookModalEntry, setMoneyBookModalEntry] = useState(null)
   const [expandedGroups, setExpandedGroups] = useState({})
   const [activityFilter, setActivityFilter] = useState('all')
+  const [activitySearch, setActivitySearch] = useState('')
   const [historyWindow, setHistoryWindow] = useState({ key: '', count: HISTORY_GROUP_BATCH_SIZE })
   const deferredGroups = useDeferredValue(groups)
+  const deferredSearch = useDeferredValue(activitySearch)
+  const isLedgerView = view === 'ledger'
+  const themeExperience = useMemo(() => getMoneyOSThemeExperience(moneyTheme), [moneyTheme])
+  const effectiveActivityFilter = isLedgerView && activityFilter === 'income' ? 'all' : activityFilter
+  const visibleActivityFilterOptions = useMemo(
+    () => isLedgerView
+      ? activityFilterOptions.filter((option) => option.key !== 'income')
+      : activityFilterOptions,
+    [isLedgerView],
+  )
   const filteredGroups = useMemo(
     () => deferredGroups
-      .map((group) => filterActivityGroup(group, activityFilter))
+      .map((group) => filterActivityGroup(group, effectiveActivityFilter, deferredSearch))
       .filter((group) => group.items.length > 0),
-    [activityFilter, deferredGroups],
+    [deferredGroups, deferredSearch, effectiveActivityFilter],
   )
-  const historyWindowKey = `${selectedMonthKey}-${activityFilter}-${filteredGroups.length}`
+  const historyWindowKey = `${selectedMonthKey}-${effectiveActivityFilter}-${deferredSearch}-${filteredGroups.length}`
   const visibleGroupCount = historyWindow.key === historyWindowKey ? historyWindow.count : HISTORY_GROUP_BATCH_SIZE
   const visibleGroups = useMemo(
     () => filteredGroups.slice(0, visibleGroupCount),
     [filteredGroups, visibleGroupCount],
   )
+  const filteredItemCount = useMemo(
+    () => filteredGroups.reduce((total, group) => total + group.items.length, 0),
+    [filteredGroups],
+  )
   const hasMoreHistory = visibleGroupCount < filteredGroups.length
   const hasHistory = filteredGroups.some((group) => group.items.length > 0)
+  const hasSearchQuery = activitySearch.trim().length > 0
+  const hasCustomLedgerFilter = effectiveActivityFilter !== 'all' || hasSearchQuery
+  const selectedMonthLabel = monthOptions?.find((month) => month.key === selectedMonthKey)?.label || selectedMonthKey || 'Current month'
   const expensesById = useMemo(
     () => new Map(expenses.map((expense) => [String(expense.id), expense])),
     [expenses],
@@ -298,6 +399,24 @@ export default function ActivityScreen({
     () => new Map(visibleGroups.map((group) => [group.date, buildRelatedTransactionGroups(group.items)])),
     [visibleGroups],
   )
+  const todayLedgerGroup = useMemo(
+    () => groups.find((group) => group.date === todayDateKey()) || null,
+    [groups],
+  )
+  const ledgerTodaySummary = useMemo(() => {
+    const incoming = todayLedgerGroup?.incoming || 0
+    const outgoing = todayLedgerGroup?.outgoing || 0
+    const transfers = todayLedgerGroup?.transfers || 0
+
+    return {
+      incoming,
+      outgoing,
+      transfers,
+      balance: addMoney(incoming, -outgoing),
+      dailyTotal: outgoing || incoming || transfers || 0,
+      lineCount: todayLedgerGroup?.items?.length || 0,
+    }
+  }, [todayLedgerGroup])
 
   const getExpenseEditHandler = useCallback((transaction) => {
     if (!transaction.meta?.expenseId || !onEditExpense) {
@@ -331,11 +450,11 @@ export default function ActivityScreen({
   const openExpenseFromEmptyState = useCallback(() => {
     trackEvent('empty_state_cta_clicked', {
       surface: 'activity',
-      empty_state: activityFilter === 'all' ? 'activity_timeline' : `${activityFilter}_timeline`,
+      empty_state: effectiveActivityFilter === 'all' ? 'activity_timeline' : `${effectiveActivityFilter}_timeline`,
       target: 'add_expense',
     })
     openAddSheet?.('expense')
-  }, [activityFilter, openAddSheet])
+  }, [effectiveActivityFilter, openAddSheet])
   const openMoneyBookFromDiscovery = useCallback((source = 'header') => {
     trackEvent(source === 'empty_state' ? 'empty_state_cta_clicked' : 'feature_discovery_click', {
       surface: 'activity',
@@ -347,18 +466,70 @@ export default function ActivityScreen({
     setMoneyBookModalEntry({ kind: 'given', date: todayDateKey() })
   }, [])
   const useLegacyPeople = isLegacyPeopleExperience()
+  const emptyStateCopy = ledgerEmptyStateCopy({ deferredSearch, effectiveActivityFilter, themeExperience })
+  const ledgerDailySummaryContent = isLedgerView ? (
+    <section className="v16-ledger-summary-grid" aria-label="Today's ledger summary">
+      <HistorySummaryCard label="Today's Balance" value={ledgerTodaySummary.balance} tone={ledgerTodaySummary.balance >= 0 ? 'incoming' : 'outgoing'} />
+      <HistorySummaryCard label="Money In" value={ledgerTodaySummary.incoming} tone="incoming" />
+      <HistorySummaryCard label="Money Out" value={ledgerTodaySummary.outgoing} tone="outgoing" />
+      <HistorySummaryCard label="Daily Total" value={ledgerTodaySummary.dailyTotal} tone="transfer" />
+      <article className="v16-ledger-today-note">
+        <span>Today&apos;s page</span>
+        <strong>{ledgerTodaySummary.lineCount} line{ledgerTodaySummary.lineCount === 1 ? '' : 's'} written</strong>
+        <small>Search and filters stay below the daily page summary.</small>
+      </article>
+    </section>
+  ) : null
+
   const activityTimelineContent = (
     <>
+      <div className="ledger-search-cluster">
+        <label className="ledger-search-field">
+          <span className="sr-only">Search ledger</span>
+          <input
+            type="search"
+            value={activitySearch}
+            placeholder="Search ledger"
+            autoComplete="off"
+            aria-label="Search ledger entries"
+            onChange={(event) => setActivitySearch(event.target.value)}
+          />
+        </label>
+        {hasSearchQuery && (
+          <button className="ledger-search-clear" type="button" onClick={() => setActivitySearch('')} aria-label="Clear ledger search">
+            <X size={14} />
+            <span>Clear</span>
+          </button>
+        )}
+      </div>
+
+      <div className="ledger-result-meta" aria-live="polite">
+        <span>
+          {filteredItemCount} entr{filteredItemCount === 1 ? 'y' : 'ies'}
+          {effectiveActivityFilter !== 'all' ? ` in ${effectiveActivityFilter}` : ''}
+          {hasSearchQuery ? ` for "${activitySearch.trim()}"` : ''}
+        </span>
+        {hasCustomLedgerFilter && (
+          <button type="button" onClick={() => {
+            setActivitySearch('')
+            setActivityFilter('all')
+          }}>
+            Reset
+          </button>
+        )}
+      </div>
+
       <div className="activity-filter-row" aria-label="Activity filters">
-        {activityFilterOptions.map((option) => {
+        {visibleActivityFilterOptions.map((option) => {
           const Icon = option.icon
 
           return (
             <button
-              className={activityFilter === option.key ? 'active' : ''}
+              className={effectiveActivityFilter === option.key ? 'active' : ''}
               key={option.key}
               type="button"
-              aria-pressed={activityFilter === option.key}
+              aria-label={`Show ${option.label} ledger entries`}
+              aria-pressed={effectiveActivityFilter === option.key}
               onClick={() => setActivityFilter(option.key)}
             >
               <Icon size={14} />
@@ -368,24 +539,37 @@ export default function ActivityScreen({
         })}
       </div>
 
-      <section className="history-feed" aria-label="Unified financial activity timeline">
+      <section className={`history-feed${isLedgerView ? ' v16-ledger-pages' : ''}`} aria-label={isLedgerView ? 'Daily notebook pages' : 'Unified financial activity timeline'}>
         {!hasHistory ? (
           <MoneyOSEmptyState
-            title={activityFilter === 'all' ? 'Track your first spending move' : `No ${activityFilter} activity yet`}
-            detail="Add one expense to start the timeline. Income, goals, trips, and borrow/lend activity will appear as they are added."
-            action={{ label: 'Add expense', onClick: openExpenseFromEmptyState }}
+            title={emptyStateCopy.title}
+            detail={emptyStateCopy.detail}
+            action={hasCustomLedgerFilter ? { label: 'Reset ledger', onClick: () => {
+              setActivitySearch('')
+              setActivityFilter('all')
+            } } : { label: 'Add expense', onClick: openExpenseFromEmptyState }}
+            secondaryAction={hasCustomLedgerFilter ? { label: 'Add expense', onClick: openExpenseFromEmptyState } : null}
             icon={CalendarDays}
           />
         ) : visibleGroups.map((group) => {
           const relatedNodes = relatedGroupsByDate.get(group.date) || []
+          const pageMeta = formatLedgerNotebookPage(group.date)
 
           return (
-            <article className="history-day-group" key={group.date}>
+            <article className={`history-day-group${isLedgerView ? ' v16-ledger-page v17-notebook-page' : ''}`} key={group.date}>
               <div className="history-day-heading">
-                <div>
-                  <span>{group.label}</span>
-                  <strong>{group.items.length} move{group.items.length === 1 ? '' : 's'}</strong>
-                </div>
+                {isLedgerView ? (
+                  <div className="v17-page-date-stack">
+                    <span>{pageMeta.monthLabel}</span>
+                    <strong>{pageMeta.dateLabel}</strong>
+                    <small>{pageMeta.dayName}</small>
+                  </div>
+                ) : (
+                  <div>
+                    <span>{group.label}</span>
+                    <strong>{group.items.length} move{group.items.length === 1 ? '' : 's'}</strong>
+                  </div>
+                )}
                 <small>{group.outgoing > 0 ? `${shortRupees(group.outgoing)} out` : `${shortRupees(group.incoming || group.transfers)} ${group.incoming > 0 ? 'in' : 'shifted'}`}</small>
               </div>
               <div className="history-item-list">
@@ -407,6 +591,18 @@ export default function ActivityScreen({
                   )
                 ))}
               </div>
+              {isLedgerView && (
+                <>
+                  <div className="v17-page-footer">
+                    <span>{themeExperience.copy.pageFooter}</span>
+                    <small>{group.items.length} line{group.items.length === 1 ? '' : 's'} written on {pageMeta.footerDate}</small>
+                  </div>
+                  <div className="v16-daily-total-row">
+                    <span>Daily Total</span>
+                    <strong>{group.outgoing > 0 ? `${rupees(group.outgoing)} out` : `${rupees(group.incoming || group.transfers || 0)} ${group.incoming > 0 ? 'in' : 'shifted'}`}</strong>
+                  </div>
+                </>
+              )}
             </article>
           )
         })}
@@ -430,20 +626,43 @@ export default function ActivityScreen({
         )}
       </section>
 
-      <section className="history-summary-grid" aria-label="Money activity summary">
-        <HistorySummaryCard label="Earned" value={summary.incoming} tone="incoming" />
-        <HistorySummaryCard label="Spent" value={summary.outgoing} tone="outgoing" />
-        <HistorySummaryCard label="Shifted" value={summary.transfers} tone="transfer" />
-      </section>
+      {isLedgerView ? (
+        <details className="ledger-secondary-details">
+          <summary>
+            <span>
+              <strong>Month totals</strong>
+              <small>Income, spending, and transfers for the selected month</small>
+            </span>
+            <StatusBadge>Summary</StatusBadge>
+          </summary>
+          <div className="ledger-secondary-stack">
+            <section className="history-summary-grid" aria-label="Money activity summary">
+              <HistorySummaryCard label="Earned" value={summary.incoming} tone="incoming" />
+              <HistorySummaryCard label="Spent" value={summary.outgoing} tone="outgoing" />
+              <HistorySummaryCard label="Shifted" value={summary.transfers} tone="transfer" />
+            </section>
+          </div>
+        </details>
+      ) : (
+        <>
+          <section className="history-summary-grid" aria-label="Money activity summary">
+            <HistorySummaryCard label="Earned" value={summary.incoming} tone="incoming" />
+            <HistorySummaryCard label="Spent" value={summary.outgoing} tone="outgoing" />
+            <HistorySummaryCard label="Shifted" value={summary.transfers} tone="transfer" />
+          </section>
 
-      <CashflowStrip events={cashflowTimeline} />
+          <CashflowStrip events={cashflowTimeline} />
+        </>
+      )}
     </>
   )
   const peopleToolsContent = (
     <>
       <MoneyBookPanel
         summary={moneyBookSummary}
+        themeExperience={themeExperience}
         onAdd={openMoneyBookFromDiscovery}
+        onDownloadSettlement={() => requestReportExport?.('settlement', { template: 'standard' })}
         onEdit={(entry) => setMoneyBookModalEntry(entry)}
         onToggleSettled={onToggleMoneyBookSettlement}
         onDelete={onDeleteMoneyBookEntry}
@@ -458,10 +677,38 @@ export default function ActivityScreen({
         markSharedSettlementReceived={markSharedSettlementReceived}
         removeSharedGroup={removeSharedGroup}
         onExportTripPdf={(groupId) => requestReportExport?.('trip', { groupId, template: 'standard' })}
+        experienceCopy={themeExperience.copy}
         variant="activity"
       />
     </>
   )
+
+  if (isLedgerView) {
+    return (
+      <section className="screen-content history-screen ledger-screen money-os">
+        <div className="screen-heading">
+          <div>
+            <p className="eyebrow">Notebook</p>
+            <h1>Ledger</h1>
+          </div>
+          <MonthSelector
+            monthOptions={monthOptions}
+            selectedMonthKey={selectedMonthKey}
+            setSelectedMonthKey={setSelectedMonthKey}
+          />
+        </div>
+
+        <article className="v17-month-notebook-banner" aria-label="Monthly notebook">
+          <span>{themeExperience.copy.monthNotebook}</span>
+          <strong>{selectedMonthLabel}</strong>
+          <small>{filteredItemCount} line{filteredItemCount === 1 ? '' : 's'} in this notebook section.</small>
+        </article>
+
+        {ledgerDailySummaryContent}
+        {activityTimelineContent}
+      </section>
+    )
+  }
 
   return (
     <section className="screen-content history-screen">
@@ -635,12 +882,13 @@ function PeopleHubPanel({
             detail={peoplePriority.detail}
             icon={peoplePriority.icon}
             tone={peoplePriority.tone}
+            animatedValue
           />
         </div>
       ) : (
         <MoneyCard
           className="mos-people-settled-card"
-          title="You're all settled"
+          title="Everything is settled."
           detail="No balances need action."
           icon={CheckCircle2}
           tone="success"
@@ -664,7 +912,7 @@ function PeopleHubPanel({
       >
         {receivableEntries.length === 0 && incomingSharedSettlements.length === 0 ? (
           <MoneyOSEmptyState
-            title="Track money shared with friends"
+            title="No money to receive."
             detail="Add a borrow/lend entry when someone owes you money."
             icon={Wallet}
             action={{ label: 'Add borrow/lend', onClick: () => onAddMoneyBook?.('empty_state') }}
@@ -699,7 +947,7 @@ function PeopleHubPanel({
       >
         {repayableEntries.length === 0 && outgoingSharedSettlements.length === 0 ? (
           <MoneyOSEmptyState
-            title="Track money you owe"
+            title="No money to repay."
             detail="Add a borrow/lend entry when you need to repay someone."
             icon={CreditCard}
             action={{ label: 'Add borrow/lend', onClick: () => onAddMoneyBook?.('empty_state') }}
@@ -734,7 +982,7 @@ function PeopleHubPanel({
       >
         {reconciledGroups.length === 0 ? (
           <MoneyOSEmptyState
-            title="Start your first trip"
+            title="Create your first trip."
             detail="Create a group when travel or shared costs need splitting."
             icon={User}
             action={{ label: 'Create trip', onClick: openSharedGroupForm }}
@@ -755,7 +1003,7 @@ function PeopleHubPanel({
       >
         {recentSettlementRows.length === 0 ? (
           <MoneyOSEmptyState
-            title="Track money shared with friends"
+            title="Everything is settled."
             detail="Settlements appear after you add shared expenses or borrow/lend entries."
             icon={CheckCircle2}
             action={{ label: 'Open shared expenses', onClick: () => openPeopleTools('shared-expenses-section') }}
@@ -800,15 +1048,15 @@ function PeopleHubPanel({
             <ActionCard
               title="Borrow / Lend"
               detail="Money given or taken"
-              actionLabel="Add"
+              actionLabel="Add entry"
               icon={Wallet}
               tone="tint"
               onClick={() => onAddMoneyBook?.('people_hub')}
             />
             <ActionCard
-              title="Shared Group"
+              title="Trip group"
               detail="Trip, rent, food, or bill"
-              actionLabel="Create"
+              actionLabel="Create trip"
               icon={User}
               tone="success"
               onClick={openSharedGroupForm}
@@ -827,7 +1075,7 @@ function PeopleHubPanel({
             />
           ) : (
             <MoneyOSEmptyState
-              title="Track money shared with friends"
+              title="Everything is settled."
               detail="Add borrow/lend entries or create a trip group to get started."
               icon={User}
               action={{ label: 'Add borrow/lend', onClick: () => onAddMoneyBook?.('empty_state') }}
@@ -1038,21 +1286,27 @@ function HistoryRelatedGroup({ group, isOpen, onToggle, getExpenseEditHandler })
   )
 }
 
-function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete }) {
+function MoneyBookPanel({ summary = {}, themeExperience = {}, onAdd, onDownloadSettlement, onEdit, onToggleSettled, onDelete }) {
   const entries = summary.visibleEntries || []
   const hasEntries = entries.length > 0
 
   return (
-    <section className="money-book-panel" id="money-book-section" aria-label="Money Book">
+    <section className="money-book-panel" id="money-book-section" aria-label="Borrow/lend records">
       <div className="money-book-header">
         <div>
-          <p className="eyebrow">Money Book</p>
+          <p className="eyebrow">Borrow/Lend</p>
           <h2>Borrow & lend</h2>
         </div>
-        <button className="primary-button small-button" type="button" onClick={() => onAdd?.('header')}>
-          <Plus size={15} />
-          Add Entry
-        </button>
+        <div className="money-book-header-actions">
+          <button className="ghost-button small-button" type="button" onClick={onDownloadSettlement}>
+            <Download size={15} />
+            Download settlement sheet
+          </button>
+          <button className="primary-button small-button" type="button" onClick={() => onAdd?.('header')}>
+            <Plus size={15} />
+            Add entry
+          </button>
+        </div>
       </div>
 
       <div className="money-book-summary-grid">
@@ -1061,7 +1315,7 @@ function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete
         <HistorySummaryCard label="Borrowed" value={summary.totalBorrowed} tone="incoming" />
         <article className="history-summary-card transfer">
           <span>Pending</span>
-          <strong>{shortRupees(summary.pendingSettlements || 0)}</strong>
+          <AnimatedNumber as="strong" value={shortRupees(summary.pendingSettlements || 0)} />
           <small>{summary.pendingCount || 0} open</small>
         </article>
       </div>
@@ -1069,8 +1323,8 @@ function MoneyBookPanel({ summary = {}, onAdd, onEdit, onToggleSettled, onDelete
       {!hasEntries ? (
         <MoneyOSEmptyState
           className="money-book-empty-state"
-          title="Track your first borrow/lend entry"
-          detail="Record money given or taken so pending settlements stay visible."
+          title={themeExperience.copy?.emptyBorrowLend || 'No borrow/lend entries yet.'}
+          detail="Record money given or taken when it needs a note."
           icon={Wallet}
           action={{ label: 'Add entry', onClick: () => onAdd?.('empty_state') }}
         />
@@ -1109,8 +1363,8 @@ function MoneyBookEntryCard({ entry, onEdit, onToggleSettled, onDelete }) {
         <small>{isSettled ? 'Settled' : `${rupees(due)} pending${entry.dueDate ? ` by ${entry.dueDate}` : ''}`}</small>
       </div>
       <div className="money-book-entry-actions">
-        <button className="text-action-button" type="button" onClick={onToggleSettled}>
-          {isSettled ? 'Reopen' : 'Settle'}
+        <button className="ghost-button money-book-settle-button" type="button" onClick={onToggleSettled}>
+          {isSettled ? 'Reopen' : 'Mark settled'}
         </button>
         <button className="icon-button mini-icon-button" type="button" aria-label={`Edit ${entry.person}`} onClick={onEdit}>
           <Pencil size={14} />
@@ -1199,15 +1453,15 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
       <form className={`money-book-form ${Object.keys(errors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={submitEntry}>
         <div className="editor-sheet-header">
           <div>
-            <p className="eyebrow">Money Book</p>
+            <p className="eyebrow">Borrow/Lend</p>
             <h2 id="money-book-entry-title">{entry.id ? 'Edit udhar entry' : 'Add udhar entry'}</h2>
           </div>
-          <button className="icon-button" type="button" aria-label="Close money book form" onClick={onClose}>
+          <button className="icon-button" type="button" aria-label="Close borrow/lend form" onClick={onClose}>
             <X size={17} />
           </button>
         </div>
 
-        <div className="segmented-control money-book-kind-toggle" aria-label="Money book entry type">
+        <div className="segmented-control money-book-kind-toggle" aria-label="Borrow/lend entry type">
           <button className={kind === 'given' ? 'active' : ''} type="button" onClick={() => setKind('given')}>
             Given
           </button>
@@ -1294,10 +1548,10 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
 
         <div className="editor-sheet-footer money-book-form-actions">
           <button className="ghost-button full" type="button" onClick={onClose}>
-            Cancel
+            Close
           </button>
           <button className="primary-button full" type="submit">
-            Save
+            Save entry
           </button>
         </div>
       </form>
@@ -1309,7 +1563,7 @@ function HistorySummaryCard({ label, value = 0, tone }) {
   return (
     <article className={`history-summary-card ${tone}`}>
       <span>{label}</span>
-      <strong>{shortRupees(value)}</strong>
+      <AnimatedNumber as="strong" value={shortRupees(value)} />
     </article>
   )
 }

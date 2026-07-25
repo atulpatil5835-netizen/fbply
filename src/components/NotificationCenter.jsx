@@ -143,7 +143,7 @@ function buildNotifications({
       type: 'ACTION REQUIRED',
       priority: 'Medium',
       title: 'Borrow/lend settlement pending',
-      message: `${rupees(moneyBookSummary.pendingSettlements)} remains open in Money Book.`,
+      message: `${rupees(moneyBookSummary.pendingSettlements)} remains open in Borrow/Lend.`,
       icon: Wallet,
       tab: 'history',
       targetId: 'money-book-section',

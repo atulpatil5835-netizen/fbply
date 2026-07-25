@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { forwardRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Sparkles } from 'lucide-react'
 import { getCurrencySymbol } from '../lib/money'
@@ -74,7 +74,21 @@ export function HeaderLogo() {
   )
 }
 
-export function CurrencyInput({ label, value, onChange, placeholder = '0', id = slugify(label), ariaLabel = label, error = '' }) {
+export const CurrencyInput = forwardRef(function CurrencyInput(
+  {
+    label,
+    value,
+    onChange,
+    placeholder = '0',
+    id = slugify(label),
+    ariaLabel = label,
+    error = '',
+    inputMode = 'decimal',
+    autoComplete = 'off',
+    ...props
+  },
+  ref,
+) {
   return (
     <>
       <label className="input-label" htmlFor={id}>
@@ -84,15 +98,19 @@ export function CurrencyInput({ label, value, onChange, placeholder = '0', id = 
         <span>{getCurrencySymbol()}</span>
         <input
           id={id}
+          ref={ref}
           min="0"
           type="number"
+          inputMode={inputMode}
+          autoComplete={autoComplete}
           aria-label={ariaLabel}
           value={value}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
+          {...props}
         />
       </div>
       {error && <small className="field-helper">{error}</small>}
     </>
   )
-}
+})

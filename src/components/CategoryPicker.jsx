@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, Search } from 'lucide-react'
 
 const defaultSuggestions = [
@@ -36,6 +36,7 @@ export default function CategoryPicker({
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const searchRef = useRef(null)
   const displayValue = selectedCategory === 'Custom' && customExpenseName ? 'Other' : selectedCategory
   const knownCategories = useMemo(() => new Set(categories.map((category) => category.label)), [categories])
   const options = useMemo(() => {
@@ -94,6 +95,10 @@ export default function CategoryPicker({
       return undefined
     }
 
+    window.requestAnimationFrame(() => {
+      searchRef.current?.focus()
+    })
+
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
         setIsOpen(false)
@@ -107,7 +112,13 @@ export default function CategoryPicker({
   return (
     <section className={`compact-category-picker ${error ? 'field-invalid-wrap' : ''}`}>
       <span className="input-label">Expense category</span>
-      <button className={`category-picker-trigger ${error ? 'field-invalid' : ''}`} type="button" onClick={() => setIsOpen(true)}>
+      <button
+        className={`category-picker-trigger ${error ? 'field-invalid' : ''}`}
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        onClick={() => setIsOpen(true)}
+      >
         <span>{displayValue || 'Choose category'}</span>
         <ChevronRight size={17} />
       </button>
@@ -117,6 +128,7 @@ export default function CategoryPicker({
           <div className="category-search">
             <Search size={17} />
             <input
+              ref={searchRef}
               value={query}
               placeholder="Search category or label"
               onChange={(event) => setQuery(event.target.value)}
@@ -132,7 +144,7 @@ export default function CategoryPicker({
           </div>
           <div className="category-dropdown-footer">
             <button className="ghost-button category-sheet-close" type="button" onClick={() => setIsOpen(false)}>
-              Done
+              Close
             </button>
           </div>
         </div>

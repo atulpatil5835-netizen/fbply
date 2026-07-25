@@ -1,4 +1,6 @@
 export * from './tokens.js'
+export * from './motion.js'
+export * from './exportFoundation.js'
 export * from './components.jsx'
 export * from './forms.jsx'
 import './money-os.css'

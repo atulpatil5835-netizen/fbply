@@ -80,7 +80,10 @@ function ThemePreference({ moneyTheme, setMoneyTheme }) {
               }}
             >
               <span className="theme-choice-swatch" aria-hidden="true" />
-              <span>{theme.label}</span>
+              <span className="theme-choice-copy">
+                <strong>{theme.label}</strong>
+                <small>{theme.detail}</small>
+              </span>
               {isSelected && <CheckCircle2 size={14} aria-hidden="true" />}
             </button>
           )

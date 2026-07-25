@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Plus, Share2, Trash2, User } from 'lucide-react'
 import { CurrencyInput } from '../components/AppPrimitives.jsx'
-import { EmptyState as MoneyOSEmptyState, SuccessState as MoneyOSSuccessState } from '../design-system'
+import { AnimatedNumber, EmptyState as MoneyOSEmptyState, SuccessState as MoneyOSSuccessState } from '../design-system'
 import {
   displayPersonName,
   normalizePersonName,
@@ -237,6 +237,7 @@ export default function SharedExpensesPanel({
   markSharedSettlementReceived,
   removeSharedGroup,
   onExportTripPdf,
+  experienceCopy = {},
   variant = 'default',
 }) {
   const [name, setName] = useState('')
@@ -246,6 +247,8 @@ export default function SharedExpensesPanel({
   const [groupErrors, setGroupErrors] = useState({})
   const [paymentErrors, setPaymentErrors] = useState({})
   const [message, setMessage] = useState({ text: '', tone: 'info' })
+  const pendingPaymentFocusRef = useRef(false)
+  const previousGroupCountRef = useRef(groups.length)
   const currentUserName = resolveCurrentUserName(profile)
   const reconciledGroups = useMemo(
     () => groups.map((group) => reconcileSharedGroup(group, profile)),
@@ -258,6 +261,23 @@ export default function SharedExpensesPanel({
       trackProgressComponentsViewed('shared_expenses', ['shared_expense_progress'])
     }
   }, [groupsWithSettlementProgress])
+
+  useEffect(() => {
+    const groupWasCreated = groups.length > previousGroupCountRef.current
+    previousGroupCountRef.current = groups.length
+
+    if (!pendingPaymentFocusRef.current || !groupWasCreated || typeof window === 'undefined') {
+      return undefined
+    }
+
+    pendingPaymentFocusRef.current = false
+
+    const frameId = window.requestAnimationFrame(() => {
+      document.querySelector('[data-trip-payment-label="true"]')?.focus()
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [groups.length])
 
   const clearGroupError = (field) => {
     setGroupErrors((current) => {
@@ -355,11 +375,13 @@ export default function SharedExpensesPanel({
       return
     }
 
+    pendingPaymentFocusRef.current = true
     setMessage({
       text: rawPeopleList.length !== peopleList.length
-        ? 'Group created. Your name stayed separate from participants.'
-        : 'Group created. Add the first shared payment when it happens.',
+        ? 'Trip ready. Your name stayed separate from participants.'
+        : 'Trip ready. Add the first payment below.',
       tone: 'success',
+      compact: true,
     })
     setName('')
     setPeople('')
@@ -431,13 +453,13 @@ export default function SharedExpensesPanel({
     const saved = await downloadTripShareCardPng(group, profile)
 
     setMessage(saved
-      ? { text: `${group.name} share card is ready.`, tone: 'success' }
+      ? { text: `${group.name} share card is ready.`, tone: 'success', compact: true }
       : { text: 'Could not prepare the share card. Please try again.', tone: 'error' })
   }
 
   const exportTripPdf = (group) => {
     if (!onExportTripPdf) {
-      setMessage({ text: 'Open Reports to export the full trip PDF.', tone: 'info' })
+      setMessage({ text: 'Trip download is available from this trip after expenses are added.', tone: 'info', compact: true })
       return
     }
 
@@ -449,21 +471,26 @@ export default function SharedExpensesPanel({
       <div className="screen-heading compact-heading">
         <div>
           <p className="eyebrow">Shared money</p>
-          <h1>{variant === 'planner' ? 'Split costs clearly.' : 'Track who paid and who owes.'}</h1>
-          <p className="section-note shared-panel-note">Your name is handled separately. Add only the other people in the group.</p>
+          <h1>{variant === 'planner' ? 'Split costs clearly.' : 'Trips, people, payments, settlement.'}</h1>
+          <p className="section-note shared-panel-note">Your name is added automatically.</p>
         </div>
       </div>
 
       <form className={`shared-form ${Object.keys(groupErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={submitGroup}>
+        <ol className="v16-trip-flow" aria-label="Trip split flow">
+          {['Trip', 'Members', 'Expenses', 'Settlement', 'Share'].map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
         <div className="shared-identity-note">
           <User size={16} />
           <span>
-            <strong>You are added automatically.</strong>
-            <small>Participants should be friends, flatmates, or teammates only.</small>
+            <strong>Trip, people, payment, settlement</strong>
+            <small>Add only the other people in the group.</small>
           </span>
         </div>
         <label>
-          <span className="input-label">Group / Trip Name *</span>
+          <span className="input-label">Trip *</span>
           <input
             className={`plain-input ${groupErrors.name ? 'field-invalid' : ''}`}
             id="shared-group-name"
@@ -478,7 +505,7 @@ export default function SharedExpensesPanel({
           {groupErrors.name && <small className="field-helper">{groupErrors.name}</small>}
         </label>
         <label>
-          <span className="input-label">Your Name *</span>
+          <span className="input-label">You *</span>
           <input
             className={`plain-input ${groupErrors.ownerName ? 'field-invalid' : ''}`}
             id="shared-owner-name"
@@ -493,7 +520,7 @@ export default function SharedExpensesPanel({
           {groupErrors.ownerName && <small className="field-helper">{groupErrors.ownerName}</small>}
         </label>
         <label>
-          <span className="input-label">Participants *</span>
+          <span className="input-label">People *</span>
           <input
             className={`plain-input ${groupErrors.people ? 'field-invalid' : ''}`}
             id="shared-participants"
@@ -505,17 +532,17 @@ export default function SharedExpensesPanel({
             }}
             placeholder="Rahul, Priya, Sam"
           />
-          <small className="field-hint">Separate names with commas. Do not add your own name here.</small>
+          <small className="field-hint">Comma separated. Your name stays separate.</small>
           {groupErrors.people && <small className="field-helper">{groupErrors.people}</small>}
         </label>
         <button className="primary-button full" type="submit">
-          Create group
+          Save trip
         </button>
         {message.text && (
-          message.tone === 'success' && !message.text.includes('PNG') ? (
+          message.tone === 'success' && !message.compact && !message.text.includes('PNG') ? (
             <MoneyOSSuccessState
               title={message.text}
-              detail="Successfully added."
+              detail="Saved to your notebook."
               actions={[
                 {
                   label: 'Add another',
@@ -538,19 +565,19 @@ export default function SharedExpensesPanel({
         <div className="shared-metrics-strip" aria-label="Shared expense summary">
           <span>
             <small>You paid first</small>
-            <strong>{rupees(sharedSummary.totalPaidByYou)}</strong>
+            <AnimatedNumber as="strong" value={rupees(sharedSummary.totalPaidByYou)} />
           </span>
           <span>
             <small>Friends owe you</small>
-            <strong>{rupees(sharedSummary.pendingRecoverable)}</strong>
+            <AnimatedNumber as="strong" value={rupees(sharedSummary.pendingRecoverable)} />
           </span>
           <span>
             <small>Got back</small>
-            <strong>{rupees(sharedSummary.receivedRecoveries)}</strong>
+            <AnimatedNumber as="strong" value={rupees(sharedSummary.receivedRecoveries)} />
           </span>
           <span>
             <small>Month impact</small>
-            <strong>{rupees(sharedSummary.netSharedImpact)}</strong>
+            <AnimatedNumber as="strong" value={rupees(sharedSummary.netSharedImpact)} />
           </span>
         </div>
       )}
@@ -558,7 +585,7 @@ export default function SharedExpensesPanel({
       <div className="shared-list">
         {groups.length === 0 && (
           <MoneyOSEmptyState
-            title="Start your first trip"
+            title={experienceCopy.emptyTrip || 'Create your first trip.'}
             detail="Create a group, add people, and record the first shared payment."
             icon={User}
             action={{ label: 'Create trip', onClick: () => focusSharedGroupName('empty_state') }}
@@ -580,11 +607,13 @@ export default function SharedExpensesPanel({
                   </div>
                 </div>
                 <div className="shared-card-actions">
-                  <button className="icon-button mini-icon-button" type="button" aria-label={`Share ${group.name} card`} onClick={() => downloadTripShareCard(group)}>
+                  <button className="ghost-button shared-action-button" type="button" aria-label={`Share ${group.name}`} onClick={() => downloadTripShareCard(group)}>
                     <Share2 size={15} />
+                    <span>Share</span>
                   </button>
-                  <button className="icon-button mini-icon-button" type="button" aria-label={`Export ${group.name} PDF`} onClick={() => exportTripPdf(group)}>
+                  <button className="ghost-button shared-action-button" type="button" aria-label={`Download ${group.name} trip card`} onClick={() => exportTripPdf(group)}>
                     <FileText size={15} />
+                    <span>Download trip card</span>
                   </button>
                   <button className="icon-button mini-icon-button" type="button" aria-label={`Remove ${group.name}`} onClick={() => removeSharedGroup(group.id)}>
                     <Trash2 size={15} />
@@ -599,7 +628,7 @@ export default function SharedExpensesPanel({
                   <span>Participant</span>
                   <span>Purpose</span>
                   <span>Amount</span>
-                  <span>Add</span>
+                  <span>Action</span>
                 </div>
                 {peopleList.map((person) => {
                   const draftKey = paymentDraftKey(group.id, person)
@@ -619,6 +648,7 @@ export default function SharedExpensesPanel({
                       <label>
                         <span className="input-label">Purpose</span>
                         <input
+                          data-trip-payment-label="true"
                           className={`plain-input ${errors.label ? 'field-invalid' : ''}`}
                           value={draft.label || ''}
                           placeholder="Hotel, cab, dinner"
@@ -645,7 +675,7 @@ export default function SharedExpensesPanel({
                       </div>
                       <button className="primary-button participant-add-button" type="submit">
                         <Plus size={15} />
-                        Add
+                        Add payment
                       </button>
                       <small className="participant-split-note">Split with all participants in this group.</small>
                     </form>

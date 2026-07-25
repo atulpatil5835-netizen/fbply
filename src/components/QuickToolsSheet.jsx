@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calculator, CreditCard, Divide, Percent, Receipt } from 'lucide-react'
+import { Calculator, CreditCard, Divide, Receipt } from 'lucide-react'
 import {
   AmountInput,
   BottomSheet,
@@ -28,31 +28,24 @@ const QUICK_TOOLS = [
     tone: 'tint',
   },
   {
-    key: 'split',
-    label: 'Split Amount',
-    detail: 'Amount per person',
-    icon: Divide,
+    key: 'gst',
+    label: 'GST',
+    detail: 'Add or exclude GST',
+    icon: Receipt,
     tone: 'success',
   },
   {
-    key: 'percentage',
-    label: 'Percentage',
-    detail: 'Value, add, reduce',
-    icon: Percent,
-    tone: 'warning',
-  },
-  {
     key: 'emi',
-    label: 'EMI Estimate',
+    label: 'EMI',
     detail: 'Monthly estimate',
     icon: CreditCard,
     tone: 'tint',
   },
   {
-    key: 'gst',
-    label: 'GST Add/Remove',
-    detail: 'Add and exclude GST',
-    icon: Receipt,
+    key: 'split',
+    label: 'Split Calculator',
+    detail: 'Amount per person',
+    icon: Divide,
     tone: 'success',
   },
 ]
@@ -356,13 +349,13 @@ export default function QuickToolsSheet({ open = false, initialTool = 'calculato
     <BottomSheet
       open={open}
       onClose={onClose}
-      title="Quick Tools"
+      title="Quick Calculators"
       description="Fast local money calculations."
       className="quick-tools-sheet"
       bodyClassName="quick-tools-sheet__body"
     >
-      <section className="quick-tools-shell" aria-label="Smart Quick Tools">
-        <div className="quick-tools-tabs" role="tablist" aria-label="Quick tools">
+      <section className="quick-tools-shell" aria-label="Quick calculators">
+        <div className="quick-tools-tabs" role="tablist" aria-label="Quick calculators">
           {QUICK_TOOLS.map((tool) => {
             const ToolIcon = tool.icon
             const selected = activeTool === tool.key

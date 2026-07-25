@@ -23,6 +23,7 @@ import { normalizeMoney, sumMoney } from '../lib/money'
 import { normalizeCommitments, rupees } from '../lib/ruleEngine'
 import { trackEvent, trackFeatureUsage } from '../lib/analytics'
 import {
+  AnimatedNumber,
   EmptyState,
   InsightCard,
   MoneyCard,
@@ -826,8 +827,8 @@ function buildActivationItems({ expenses = [], savingsBuckets = [], reportHistor
     },
     {
       key: 'first_report',
-      title: 'Generate first report',
-      detail: 'Turn activity into a share-ready monthly view.',
+      title: 'Download first report',
+      detail: 'Turn activity into a share-ready notebook view.',
       cta: 'Open reports',
       completed: reportHistory.length > 0,
       icon: FileText,
@@ -892,8 +893,8 @@ const intentShortcuts = [
   },
   {
     key: 'generate_report',
-    label: 'Generate Report',
-    detail: 'Monthly PDF',
+    label: 'Download report',
+    detail: 'Monthly notebook',
     icon: FileText,
     feature: 'reports',
     tab: 'reports',
@@ -1135,8 +1136,8 @@ export default function TodayScreen({
 
   if (HOME_PRESENTATION_VERSION === 'legacy') {
     return (
-    <section className={`screen-content today-screen today-${status.tone}`}>
-      <div className="today-v2-header">
+    <section className={`screen-content today-screen today-${status.tone} v10-home-entry`}>
+      <div className="today-v2-header v10-home-header">
         <div className="today-header-copy">
           <p className="eyebrow">{smartHeader.eyebrow}</p>
           <h1>{smartHeader.title}</h1>
@@ -1149,20 +1150,20 @@ export default function TodayScreen({
         </div>
       </div>
 
-      <article className="today-available-card premium-money-hero">
+      <article className="today-available-card premium-money-hero v10-summary-card">
         <div>
           <span>Available this month</span>
-          <strong>{rupees(safeToSpend.comfortablyUsable)}</strong>
+          <AnimatedNumber as="strong" value={rupees(safeToSpend.comfortablyUsable)} />
           <p>{status.detail}</p>
         </div>
         <div className="hero-money-metrics" aria-label="Money status summary">
           <span>
             <small>Protected</small>
-            <b>{rupees(safeToSpend.protectedAmount)}</b>
+            <AnimatedNumber as="b" value={rupees(safeToSpend.protectedAmount)} />
           </span>
           <span>
             <small>Used</small>
-            <b>{financialState.usagePercent || 0}%</b>
+            <AnimatedNumber as="b" value={`${financialState.usagePercent || 0}%`} />
           </span>
         </div>
       </article>
@@ -1197,7 +1198,7 @@ export default function TodayScreen({
                     <strong>{item.title}</strong>
                     <small>{item.detail}</small>
                   </span>
-                  <b>{item.completed ? 'Done' : 'Start'}</b>
+                  <b>{item.completed ? 'Complete' : 'Start'}</b>
                 </button>
               )
             })}
@@ -1243,7 +1244,7 @@ export default function TodayScreen({
         </section>
       )}
 
-      <div className="today-action-chips" aria-label="Action center">
+      <div className="today-action-chips v10-home-quick-actions" aria-label="Action center">
         {actionChips.map((chip) => {
           const Icon = chip.icon
           return (
@@ -1308,13 +1309,13 @@ export default function TodayScreen({
           <div className="future-snapshot-grid">
             <article>
               <span>Next 7 Days</span>
-              <strong className="incoming"><ArrowDownLeft size={15} /> {rupees(futureSnapshot.next7.inflow || 0)}</strong>
-              <strong className="outgoing"><ArrowUpRight size={15} /> {rupees(futureSnapshot.next7.outflow || 0)}</strong>
+              <strong className="incoming"><ArrowDownLeft size={15} /> <AnimatedNumber value={rupees(futureSnapshot.next7.inflow || 0)} /></strong>
+              <strong className="outgoing"><ArrowUpRight size={15} /> <AnimatedNumber value={rupees(futureSnapshot.next7.outflow || 0)} /></strong>
             </article>
             <article>
               <span>Next 30 Days</span>
-              <strong className="incoming"><ArrowDownLeft size={15} /> {rupees(futureSnapshot.next30.inflow || 0)}</strong>
-              <strong className="outgoing"><ArrowUpRight size={15} /> {rupees(futureSnapshot.next30.outflow || 0)}</strong>
+              <strong className="incoming"><ArrowDownLeft size={15} /> <AnimatedNumber value={rupees(futureSnapshot.next30.inflow || 0)} /></strong>
+              <strong className="outgoing"><ArrowUpRight size={15} /> <AnimatedNumber value={rupees(futureSnapshot.next30.outflow || 0)} /></strong>
             </article>
           </div>
           {futureSnapshot.events.length > 0 && (
@@ -1363,11 +1364,11 @@ export default function TodayScreen({
           <div className="month-replay-grid">
             <article>
               <span>Income</span>
-              <strong>{rupees(monthlyReplay.income)}</strong>
+              <AnimatedNumber as="strong" value={rupees(monthlyReplay.income)} />
             </article>
             <article>
               <span>Expenses</span>
-              <strong>{rupees(monthlyReplay.expenses)}</strong>
+              <AnimatedNumber as="strong" value={rupees(monthlyReplay.expenses)} />
             </article>
             <article>
               <span>Top Category</span>
@@ -1376,7 +1377,7 @@ export default function TodayScreen({
             </article>
             <article>
               <span>Goal Progress</span>
-              <strong>{monthlyReplay.goalProgress}%</strong>
+              <AnimatedNumber as="strong" value={`${monthlyReplay.goalProgress}%`} />
             </article>
             {monthlyReplay.biggestPurchase && (
               <article className="wide">
@@ -1388,7 +1389,7 @@ export default function TodayScreen({
             {monthlyReplay.settlementAmount > 0 && (
               <article className="wide">
                 <span>Settlement Activity</span>
-                <strong>{rupees(monthlyReplay.settlementAmount)}</strong>
+                <AnimatedNumber as="strong" value={rupees(monthlyReplay.settlementAmount)} />
                 <small>Pending or active shared/borrow-lend money</small>
               </article>
             )}
@@ -1410,7 +1411,7 @@ export default function TodayScreen({
         </section>
       )}
 
-      <section className="today-feed-section money-feed-section" aria-label="Money Feed">
+      <section className="today-feed-section money-feed-section v10-home-recent" aria-label="Money Feed">
         <div className="section-heading-row">
           <div>
             <p className="eyebrow">Money Feed</p>
@@ -1502,8 +1503,8 @@ export default function TodayScreen({
   }
 
   return (
-    <MoneyOSProvider as="section" className={`screen-content today-screen today-${status.tone} money-os-home`}>
-      <section className="mos-home-priority-grid mos-home-v4-grid" aria-label="Primary money status">
+    <MoneyOSProvider as="section" className={`screen-content today-screen today-${status.tone} money-os-home v10-home-entry`}>
+      <section className="mos-home-priority-grid mos-home-v4-grid v10-home-summary" aria-label="Primary money status">
         <StatCard
           label="Available"
           value={rupees(safeToSpend.comfortablyUsable)}
@@ -1511,7 +1512,8 @@ export default function TodayScreen({
           icon={Wallet}
           tone={moneyOSCardTone(status.tone)}
           elevated
-          className="mos-home-hero-card"
+          animatedValue
+          className="mos-home-hero-card v10-summary-card"
         />
 
         <StatCard
@@ -1519,7 +1521,8 @@ export default function TodayScreen({
           value={rupees(safeToSpend.protectedAmount)}
           icon={PiggyBank}
           tone="success"
-          className="mos-home-protected-card"
+          animatedValue
+          className="mos-home-protected-card v10-summary-card"
         />
 
         <MoneyCard
@@ -1531,7 +1534,7 @@ export default function TodayScreen({
           meta={nextBestAction.badge}
           icon={nextBestAction.icon}
           tone={nextBestAction.tone}
-          className="mos-home-next-action-card"
+          className="mos-home-next-action-card v10-summary-card"
           interactive={Boolean(nextBestAction.onClick)}
           onClick={nextBestAction.onClick}
         />
@@ -1570,7 +1573,7 @@ export default function TodayScreen({
                   onClick={() => handleActivationClick(item, 'step_row')}
                   disabled={item.completed}
                   interactive={!item.completed}
-                  actions={<StatusBadge tone={item.completed ? 'success' : 'neutral'}>{item.completed ? 'Done' : 'Start'}</StatusBadge>}
+                  actions={<StatusBadge tone={item.completed ? 'success' : 'neutral'}>{item.completed ? 'Complete' : 'Start'}</StatusBadge>}
                 />
               )
             })}
@@ -1609,7 +1612,7 @@ export default function TodayScreen({
         </section>
       )}
 
-      <section className="mos-home-section" aria-label="Action center">
+      <section className="mos-home-section v10-home-quick-actions" aria-label="Action center">
         <SectionHeader eyebrow="Action Center" title="Move money work forward" />
         <div className="mos-home-action-grid">
           {actionChips.map((chip) => (
@@ -1713,7 +1716,7 @@ export default function TodayScreen({
         </section>
       )}
 
-      <section className="mos-home-section" aria-label="Recent Activity">
+      <section className="mos-home-section v10-home-recent" aria-label="Recent Activity">
         <SectionHeader
           eyebrow="Recent Activity"
           title="Latest money moves"
@@ -1808,6 +1811,7 @@ export default function TodayScreen({
                   detail={`Out: ${rupees(futureSnapshot.next7.outflow || 0)}`}
                   icon={ArrowDownLeft}
                   tone="success"
+                  animatedValue
                 />
                 <StatCard
                   label="Next 30 Days In"
@@ -1815,6 +1819,7 @@ export default function TodayScreen({
                   detail={`Out: ${rupees(futureSnapshot.next30.outflow || 0)}`}
                   icon={ArrowUpRight}
                   tone="warning"
+                  animatedValue
                 />
               </div>
               {futureSnapshot.events.length > 0 && (
@@ -1862,15 +1867,15 @@ export default function TodayScreen({
               <TrendingUp size={18} />
             </summary>
             <div className="mos-home-stat-grid">
-              <StatCard label="Income" value={rupees(monthlyReplay.income)} icon={Wallet} tone="success" />
-              <StatCard label="Expenses" value={rupees(monthlyReplay.expenses)} icon={Receipt} tone="danger" />
+              <StatCard label="Income" value={rupees(monthlyReplay.income)} icon={Wallet} tone="success" animatedValue />
+              <StatCard label="Expenses" value={rupees(monthlyReplay.expenses)} icon={Receipt} tone="danger" animatedValue />
               <StatCard
                 label="Top Category"
                 value={monthlyReplay.topCategory?.name || 'Review'}
                 detail={monthlyReplay.topCategory ? rupees(monthlyReplay.topCategory.amount) : ''}
                 icon={ChartPie}
               />
-              <StatCard label="Goal Progress" value={`${monthlyReplay.goalProgress}%`} icon={Target} tone="success" />
+              <StatCard label="Goal Progress" value={`${monthlyReplay.goalProgress}%`} icon={Target} tone="success" animatedValue />
               {monthlyReplay.biggestPurchase && (
                 <StatCard
                   label="Biggest Purchase"
@@ -1887,6 +1892,7 @@ export default function TodayScreen({
                   detail="Pending or active shared/borrow-lend money"
                   icon={Plane}
                   tone="warning"
+                  animatedValue
                 />
               )}
             </div>

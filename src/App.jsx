@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Coffee,
   CreditCard,
-  Divide,
   Download,
   ExternalLink,
   House,
@@ -19,7 +18,6 @@ import {
   Mic,
   MoreVertical,
   Pencil,
-  Percent,
   PiggyBank,
   Plane,
   Plus,
@@ -31,11 +29,9 @@ import {
   Square,
   Trash2,
   Target,
-  Upload,
   User,
   Utensils,
   Wallet,
-  Wrench,
   X,
 } from 'lucide-react'
 import {
@@ -68,6 +64,9 @@ import {
   buildSmartFeedback,
   ensureSmartFeedbackRollbackFlag,
 } from './lib/smartFeedback'
+import {
+  ensureMoneyInboxRollbackFlag,
+} from './lib/moneyInbox'
 import { buildUnifiedFinanceEngine, buildTransactionSummary } from './lib/financeEngine'
 import {
   buildCashflowTimeline,
@@ -223,6 +222,7 @@ import { CommitmentsEditor, CurrencyPreference } from './components/ProfileSetti
 import { SavingsBucketsManager } from './components/SavingsBucketsManager.jsx'
 import {
   ActionCard,
+  AnimatedNumber,
   BottomSheet,
   FLoader,
   MoneyCard,
@@ -232,6 +232,7 @@ import {
   StatusBadge,
   SuccessState,
   defaultMoneyOSTheme,
+  getMoneyOSThemeExperience,
   normalizeMoneyOSTheme,
 } from './design-system'
 import { focusInvalidField, slugify, titleCase } from './lib/uiHelpers'
@@ -266,6 +267,7 @@ syncLegacyMotionFlag()
 ensureMoneyScoreRollbackFlag()
 ensureNextActionRollbackFlag()
 ensureSmartFeedbackRollbackFlag()
+ensureMoneyInboxRollbackFlag()
 
 function ensureAuthRequiredRollbackFlag() {
   if (typeof window === 'undefined') {
@@ -436,10 +438,10 @@ const legacyNavItems = [
 ]
 
 const companionNavItems = [
-  { key: 'home', label: 'Daily', ariaLabel: 'Daily - Record Money', icon: Receipt },
-  { key: 'reports', label: 'Insights', ariaLabel: 'Insights - Understand Money', icon: ChartPie },
-  { key: 'history', label: 'Tools', ariaLabel: 'Tools - Solve Money Problems', icon: Wrench },
-  { key: 'profile', label: 'Profile', ariaLabel: 'Profile - Settings and Backup', icon: User },
+  { key: 'home', label: 'Home', ariaLabel: 'Home - Daily money notebook', icon: House },
+  { key: 'ledger', label: 'Ledger', ariaLabel: 'Ledger - Money activity timeline', icon: Receipt },
+  { key: 'people', label: 'People', ariaLabel: 'People - Borrow, lend, and trips', icon: User },
+  { key: 'account', label: 'Account', ariaLabel: 'Account - Profile, backup, and support', icon: Wallet },
 ]
 
 const LEGACY_TAB_VIEW_EVENTS = {
@@ -452,6 +454,9 @@ const LEGACY_TAB_VIEW_EVENTS = {
 
 const COMPANION_TAB_VIEW_EVENTS = {
   home: 'daily_viewed',
+  ledger: 'reports_viewed',
+  people: 'people_viewed',
+  account: 'profile_viewed',
   reports: 'insights_viewed',
   history: 'tools_viewed',
   profile: 'profile_viewed',
@@ -459,6 +464,9 @@ const COMPANION_TAB_VIEW_EVENTS = {
 
 const COMPANION_COMPAT_VIEW_EVENTS = {
   home: 'home_viewed',
+  ledger: 'reports_viewed',
+  people: 'people_viewed',
+  account: 'profile_viewed',
   reports: 'reports_viewed',
   history: 'people_viewed',
 }
@@ -469,16 +477,24 @@ function resolveNavigationTab(tab, useLegacyNavigation = isLegacyNavigation()) {
   }
 
   return {
+    account: 'account',
     daily: 'home',
-    insights: 'reports',
-    tools: 'history',
-    planner: 'history',
-    savings: 'history',
-    people: 'history',
+    home: 'home',
+    insights: 'account',
+    ledger: 'ledger',
+    people: 'people',
+    planner: 'account',
+    profile: 'account',
+    reports: 'account',
+    review: 'account',
+    savings: 'account',
+    tools: 'home',
+    history: 'people',
   }[tab] || tab
 }
 
 const fixedExpenseSuggestions = ['Rent', 'Electricity', 'Internet', 'Petrol', 'Shopping', 'Food', 'Subscription']
+const QUICK_AMOUNT_PRESETS = [50, 100, 200, 500]
 
 const emiSuggestions = ['Bike EMI', 'Car EMI', 'Phone EMI', 'Education loan', 'Personal loan']
 
@@ -702,33 +718,33 @@ const emptyProfile = {
 const walkthroughSteps = [
   {
     tab: 'home',
-    title: 'Today keeps money simple.',
-    detail: 'Check safe spending, add a money move, and see today activity in one place.',
+    title: 'Home is your notebook cover.',
+    detail: 'Write today\'s expense, choose a page, preview recent notes, and see the next reminder.',
   },
   {
     tab: 'home',
-    title: 'Add from the plus button.',
-    detail: 'Expense, income, transfer, and borrow/lend actions now open from the centre button.',
+    title: 'The plus button starts writing.',
+    detail: 'Daily expense, Borrow/Lend, Trip Split, and Quick Tools live in one fast notebook menu.',
   },
   {
-    tab: 'planner',
-    title: 'Savings goals help you buy safely.',
-    detail: 'Enter a target purchase and FBPly estimates a calmer path from your saved numbers.',
-  },
-  {
-    tab: 'reports',
-    title: 'Reports stay simple.',
-    detail: 'Short money notes appear first, with charts only where they help.',
+    tab: 'ledger',
+    title: 'Ledger is the heart.',
+    detail: 'Daily pages hold entries, search, filters, totals, and timeline rhythm.',
   },
   {
     tab: 'history',
-    title: 'Activity is your timeline.',
-    detail: 'Spent, earned, shifted, and borrow/lend entries stay readable together.',
+    title: 'People money stays human.',
+    detail: 'Borrow/Lend and Trip Split stay fast, readable, and settlement-first.',
   },
   {
     tab: 'home',
-    title: 'Settings moved up top.',
-    detail: 'Use the avatar/settings button for income, monthly bills, preferences, and sign out.',
+    title: 'Quick Tools stay tucked away.',
+    detail: 'Calculator, GST, EMI, and split helpers open only when you need them.',
+  },
+  {
+    tab: 'home',
+    title: 'Settings stay secondary.',
+    detail: 'Themes, profile, and advanced downloads stay out of the daily writing flow.',
   },
 ]
 
@@ -6840,41 +6856,41 @@ function DailyCompanionEntry({
 
   if (legacyDailyHero) {
     return (
-      <MoneyOSProvider as="section" className="screen-content v7-daily-entry money-os-daily-companion">
+      <MoneyOSProvider as="section" className="screen-content v7-daily-entry money-os-daily-companion v10-home-entry">
         <SectionHeader
           title="Daily"
           detail="Record money"
           actions={<StatusBadge tone="success">{moneySnapshot.balance.value}</StatusBadge>}
         />
-        <section className="v84-daily-hero-stack" aria-label="Daily summary">
-          <article className={`v84-daily-balance-hero v73-flow-node--${moneySnapshot.balance.tone}`}>
+        <section className="v84-daily-hero-stack v10-home-summary" aria-label="Daily summary">
+          <article className={`v84-daily-balance-hero v73-flow-node--${moneySnapshot.balance.tone} v10-summary-card`}>
             <small>{moneySnapshot.balance.label}</small>
-            <strong>{moneySnapshot.balance.value}</strong>
+            <AnimatedNumber as="strong" value={moneySnapshot.balance.value} />
           </article>
           <div className="v84-daily-flow-row">
-            <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyIn.tone}`}>
+            <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyIn.tone} v10-summary-card`}>
               <small>{moneySnapshot.moneyIn.label}</small>
-              <strong>{moneySnapshot.moneyIn.value}</strong>
+              <AnimatedNumber as="strong" value={moneySnapshot.moneyIn.value} />
             </article>
-            <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyOut.tone}`}>
+            <article className={`v73-flow-node v73-flow-node--${moneySnapshot.moneyOut.tone} v10-summary-card`}>
               <small>{moneySnapshot.moneyOut.label}</small>
-              <strong>{moneySnapshot.moneyOut.value}</strong>
+              <AnimatedNumber as="strong" value={moneySnapshot.moneyOut.value} />
             </article>
           </div>
         </section>
-        <div className="v7-companion-grid v7-daily-entry-grid">
+        <div className="v7-companion-grid v7-daily-entry-grid v10-home-quick-actions">
           <ActionCard
-            title="Add Expense"
+            title="Add expense"
             detail="Record money going out"
-            actionLabel="Add"
+            actionLabel="Record"
             icon={Receipt}
             tone="danger"
             onClick={() => openAddSheet?.('expense')}
           />
           <ActionCard
-            title="Add Received Money"
+            title="Add received money"
             detail="Record money coming in"
-            actionLabel="Add"
+            actionLabel="Record"
             icon={Wallet}
             tone="success"
             onClick={() => openAddSheet?.('income')}
@@ -6885,7 +6901,7 @@ function DailyCompanionEntry({
   }
 
   return (
-    <MoneyOSProvider as="section" className="screen-content v7-daily-entry v72-daily-hero money-os-daily-companion">
+    <MoneyOSProvider as="section" className="screen-content v7-daily-entry v72-daily-hero money-os-daily-companion v10-home-entry">
       <DailyPremiumViewport
         balanceValue={moneySnapshot.balance.value}
         balanceLabel={moneySnapshot.balance.label}
@@ -6904,6 +6920,281 @@ function DailyCompanionEntry({
       />
     </MoneyOSProvider>
   )
+}
+
+function V12HomeScreen({
+  todayTransactions = [],
+  nextBestAction,
+  onNextActionClick,
+  openAddSheet,
+  moneyTheme = defaultMoneyOSTheme,
+}) {
+  const [historyFilter, setHistoryFilter] = useState('today')
+  const [customDate, setCustomDate] = useState(todayDateKey())
+  const themeExperience = useMemo(() => getMoneyOSThemeExperience(moneyTheme), [moneyTheme])
+  const historyRange = useMemo(
+    () => buildHomeNotebookHistoryRange(historyFilter, customDate),
+    [customDate, historyFilter],
+  )
+  const notebookPreview = useMemo(
+    () => buildHomeNotebookPreview(todayTransactions, historyRange),
+    [historyRange, todayTransactions],
+  )
+  const todaysPreview = useMemo(
+    () => buildHomeNotebookPreview(todayTransactions, buildHomeNotebookHistoryRange('today')),
+    [todayTransactions],
+  )
+  const ritualStatus = useMemo(
+    () => buildDailyRitualStatus(todaysPreview.count, themeExperience),
+    [themeExperience, todaysPreview.count],
+  )
+  const currentMonthLabel = formatHomeNotebookMonth(todayDateKey())
+  const reminderTitle = nextBestAction?.title || 'Close today\'s page'
+  const reminderDetail = nextBestAction?.reason || 'Write one expense before the day ends if money moved today.'
+  const reminderAction = nextBestAction?.action || 'Write expense'
+  const ReminderIcon = nextBestAction ? (NEXT_BEST_ACTION_ICONS[nextBestAction.iconKey] || Sparkles) : Bell
+
+  return (
+    <MoneyOSProvider as="section" className="screen-content v12-home v16-notebook-cover money-os-daily-companion">
+      <section className="v16-cover-title" aria-label="Notebook cover">
+        <div>
+          <p className="eyebrow">Daily Money Notebook</p>
+          <h1>Today&apos;s page</h1>
+          <p>Write expenses, check the last page, and keep money notes calm.</p>
+          <div className="v17-cover-meta" aria-label="Notebook status">
+            <span>{currentMonthLabel}</span>
+            <strong>{ritualStatus.title}</strong>
+            <small>{ritualStatus.detail}</small>
+          </div>
+        </div>
+        <StatusBadge>Cover</StatusBadge>
+      </section>
+
+      <MoneyCard
+        className="v16-cover-quick-add"
+        eyebrow="Quick Add"
+        title="Write today's expense"
+        detail="Open a fresh line and record the money that just moved."
+        icon={Receipt}
+        tone="danger"
+        footer={(
+          <button className="primary-button v16-cover-write-button" type="button" onClick={() => openAddSheet?.('expense')}>
+            <Plus size={16} />
+            <span>Write expense</span>
+          </button>
+        )}
+      />
+
+      <section className="v16-history-selector" aria-label="Notebook history selector">
+        <SectionHeader
+          eyebrow="History selector"
+          title="Choose a page"
+          detail="Preview changes immediately."
+          actions={<StatusBadge>{notebookPreview.count} line{notebookPreview.count === 1 ? '' : 's'}</StatusBadge>}
+        />
+        <div className="v16-history-selector-row" role="radiogroup" aria-label="Choose notebook preview range">
+          {HOME_HISTORY_OPTIONS.map((option) => (
+            <button
+              className={historyFilter === option.key ? 'active' : ''}
+              type="button"
+              role="radio"
+              aria-checked={historyFilter === option.key}
+              key={option.key}
+              onClick={() => setHistoryFilter(option.key)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        {historyFilter === 'custom' && (
+          <label className="v16-history-custom-date">
+            <span className="input-label">Notebook date</span>
+            <input
+              className="plain-input"
+              type="date"
+              value={customDate}
+              onChange={(event) => setCustomDate(event.target.value)}
+            />
+          </label>
+        )}
+      </section>
+
+      <section className="v12-home-recent v16-cover-preview" aria-label="Recent notebook preview">
+        <SectionHeader
+          eyebrow="Recent notebook preview"
+          title={historyRange.label}
+          detail={`${notebookPreview.spentLabel} out, ${notebookPreview.receivedLabel} in.`}
+          actions={<StatusBadge tone={notebookPreview.balance >= 0 ? 'success' : 'warning'}>{notebookPreview.balanceLabel}</StatusBadge>}
+        />
+        {notebookPreview.rows.length === 0 ? (
+          <MoneyCard
+            title="Fresh page"
+            detail={themeExperience.copy.emptyHome}
+            icon={Receipt}
+            tone="neutral"
+          />
+        ) : (
+          <div className="v12-notebook-row-list">
+            {notebookPreview.rows.map((entry) => {
+              const EntryIcon = entry.icon || Receipt
+
+              return (
+                <article className={`v12-notebook-row v12-notebook-row--${entry.heroTone}`} key={entry.id || `${entry.title}-${entry.dateTime}`}>
+                  <span className="v12-notebook-row-icon" aria-hidden="true">
+                    <EntryIcon size={16} />
+                  </span>
+                  <span>
+                    <strong>{entry.title || entry.category || 'Money move'}</strong>
+                    <small>{entry.timeLabel}</small>
+                  </span>
+                  <b>{entry.amountLabel}</b>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      <MoneyCard
+        className="v16-cover-reminder"
+        eyebrow="Next reminder"
+        title={reminderTitle}
+        detail={reminderDetail}
+        icon={ReminderIcon}
+        tone={nextBestAction?.tone || 'tint'}
+        footer={(
+          <button
+            className="ghost-button v78-next-action-cta"
+            type="button"
+            onClick={() => {
+              if (nextBestAction) {
+                onNextActionClick?.(nextBestAction, 'home')
+                return
+              }
+
+              openAddSheet?.('expense')
+            }}
+          >
+            <span>{reminderAction}</span>
+            <ChevronRight size={15} />
+          </button>
+        )}
+      />
+    </MoneyOSProvider>
+  )
+}
+
+const HOME_HISTORY_OPTIONS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'custom', label: 'Custom' },
+]
+
+function buildHomeNotebookHistoryRange(filter = 'today', customDate = todayDateKey()) {
+  const todayKey = todayDateKey()
+  const safeCustomDate = String(customDate || todayKey).slice(0, 10)
+
+  if (filter === 'yesterday') {
+    const yesterdayKey = shiftDailyDateKey(todayKey, -1)
+    return { start: yesterdayKey, end: yesterdayKey, label: 'Yesterday' }
+  }
+
+  if (filter === 'week') {
+    return { start: shiftDailyDateKey(todayKey, -6), end: todayKey, label: 'This week' }
+  }
+
+  if (filter === 'month') {
+    return { start: `${todayKey.slice(0, 7)}-01`, end: todayKey, label: 'This month' }
+  }
+
+  if (filter === 'custom') {
+    return { start: safeCustomDate, end: safeCustomDate, label: formatHomeNotebookDate(safeCustomDate) }
+  }
+
+  return { start: todayKey, end: todayKey, label: 'Today' }
+}
+
+function formatHomeNotebookDate(dateKey) {
+  const parsed = new Date(`${String(dateKey || '').slice(0, 10)}T12:00:00`)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Selected page'
+  }
+
+  return parsed.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatHomeNotebookMonth(dateKey) {
+  const parsed = new Date(`${String(dateKey || '').slice(0, 10)}T12:00:00`)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Current month'
+  }
+
+  return parsed.toLocaleDateString('en-IN', {
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function buildDailyRitualStatus(lineCount = 0, themeExperience = {}) {
+  const hour = new Date().getHours()
+  const copy = themeExperience.copy || {}
+
+  if (lineCount > 0 && hour >= 20) {
+    return {
+      title: copy.homeFinished || "You've finished today's notebook.",
+      detail: `${lineCount} line${lineCount === 1 ? '' : 's'} written today.`,
+    }
+  }
+
+  if (hour < 12) {
+    return {
+      title: copy.homeReady || "Today's page is ready.",
+      detail: 'A fresh page is waiting when money moves.',
+    }
+  }
+
+  if (lineCount > 0) {
+    return {
+      title: `${lineCount} line${lineCount === 1 ? '' : 's'} written today.`,
+      detail: 'Keep adding notes as the day unfolds.',
+    }
+  }
+
+  return {
+    title: copy.homeReady || "Today's page is ready.",
+    detail: 'No pressure. Write the first line when something happens.',
+  }
+}
+
+function buildHomeNotebookPreview(transactions = [], range = {}) {
+  const filtered = transactions.filter((transaction) => {
+    const dateKey = dailyTransactionDateKey(transaction)
+
+    return dateKey >= range.start && dateKey <= range.end
+  })
+  const summary = buildTransactionSummary(filtered)
+  const spent = summary.outgoing || 0
+  const received = summary.incoming || 0
+  const balance = addMoney(received, -spent)
+
+  return {
+    rows: buildDailyHeroActivity(filtered).slice(0, 5),
+    count: filtered.length,
+    spent,
+    received,
+    balance,
+    spentLabel: rupees(spent),
+    receivedLabel: rupees(received),
+    balanceLabel: rupees(balance),
+  }
 }
 
 function buildInsightsHealthStatus(financialState = {}, financialHealth = {}) {
@@ -7058,12 +7349,12 @@ function DailyPremiumViewport({
 
   return (
     <section className="v851-daily-premium" aria-label="Daily money book">
-      <article className="v851-daily-balance-card" aria-label="Available balance">
+      <article className="v851-daily-balance-card v10-home-header v10-summary-card" aria-label="Available balance">
         <span className="v851-daily-balance-label">{balanceLabel}</span>
-        <strong className="v851-daily-balance-value">{balanceValue}</strong>
+        <AnimatedNumber as="strong" className="v851-daily-balance-value" value={balanceValue} />
       </article>
 
-      <section className="v851-daily-action-area" aria-label="Record money">
+      <section className="v851-daily-action-area v10-home-quick-actions" aria-label="Record money">
         <label className="v851-daily-amount-field">
           <span className="v851-daily-amount-label">Amount optional</span>
           <span className="v851-daily-amount-input">
@@ -7082,11 +7373,11 @@ function DailyPremiumViewport({
         <div className="v851-daily-action-grid">
           <button className="v851-daily-action v851-daily-action--expense" type="button" onClick={onAddExpense}>
             <Receipt size={20} />
-            <span>Add Expense</span>
+            <span>Add expense</span>
           </button>
           <button className="v851-daily-action v851-daily-action--received" type="button" onClick={onAddReceived}>
             <Wallet size={20} />
-            <span>Add Received Money</span>
+            <span>Add received money</span>
           </button>
         </div>
         <p className="v851-daily-action-hint">
@@ -7114,22 +7405,22 @@ function DailyPremiumViewport({
       </div>
 
       {selectedPeriod && (
-        <article className="v851-period-summary-card" aria-label={`${selectedPeriod.label} summary`}>
+        <article className="v851-period-summary-card v10-summary-card" aria-label={`${selectedPeriod.label} summary`}>
           <header className="v851-period-summary-header">
             <span>{selectedPeriod.label}</span>
           </header>
           <div className="v851-period-summary-metrics">
             <div className="v851-period-metric v851-period-metric--spent">
               <small>Spent</small>
-              <strong>{selectedPeriod.spent}</strong>
+              <AnimatedNumber as="strong" value={selectedPeriod.spent} />
             </div>
             <div className="v851-period-metric v851-period-metric--received">
               <small>Received</small>
-              <strong>{selectedPeriod.received}</strong>
+              <AnimatedNumber as="strong" value={selectedPeriod.received} />
             </div>
             <div className="v851-period-metric v851-period-metric--net">
               <small>Net Balance</small>
-              <strong>{selectedPeriod.netBalance}</strong>
+              <AnimatedNumber as="strong" value={selectedPeriod.netBalance} />
             </div>
           </div>
         </article>
@@ -7140,7 +7431,7 @@ function DailyPremiumViewport({
           action={nextBestAction}
           surface="home"
           onAction={onNextActionClick}
-          className="v851-daily-next-action"
+          className="v851-daily-next-action v10-summary-card"
         />
       ) : (
         <MoneyCard
@@ -7152,7 +7443,7 @@ function DailyPremiumViewport({
           meta={legacyNextAction.badge}
           icon={LegacyNextActionIcon}
           tone={legacyNextAction.tone}
-          className="v851-daily-next-action"
+          className="v851-daily-next-action v10-summary-card"
           interactive={legacyNextAction.target === 'expense'}
           onClick={legacyNextAction.target === 'expense' ? onAddExpense : undefined}
         />
@@ -7162,10 +7453,10 @@ function DailyPremiumViewport({
         feedback={smartFeedback}
         surface="home"
         onFeedbackClick={onSmartFeedbackClick}
-        className="v851-daily-smart-feedback"
+        className="v851-daily-smart-feedback v10-summary-card"
       />
 
-      <section className="v851-recent-activity v72-daily-panel" aria-label="Recent Activity">
+      <section className="v851-recent-activity v72-daily-panel v10-home-recent" aria-label="Recent Activity">
         <div className="v72-panel-header">
           <span>Recent Activity</span>
           <StatusBadge>{recentActivity.length}</StatusBadge>
@@ -7501,195 +7792,15 @@ function InsightsCompanionOverview({
           <div className="v73-report-actions">
             <button className="ghost-button" type="button" onClick={onViewReports}>
               <ChartPie size={16} />
-              View Reports
+              View reports
             </button>
             <button className="primary-button" type="button" onClick={onGenerateReport} disabled={isGeneratingReport}>
               <Download size={16} />
-              {isGeneratingReport ? 'Preparing' : 'Generate Report'}
+              {isGeneratingReport ? 'Preparing' : 'Download report'}
             </button>
           </div>
         </section>
       </div>
-    </MoneyOSProvider>
-  )
-}
-
-const V77_QUICK_TOOLS = [
-  { key: 'calculator', label: 'Calculator', detail: 'Basic arithmetic', icon: Calculator, tone: 'tint' },
-  { key: 'split', label: 'Split Amount', detail: 'Amount per person', icon: Divide, tone: 'success' },
-  { key: 'percentage', label: 'Percentage', detail: 'Add or reduce percent', icon: Percent, tone: 'warning' },
-  { key: 'emi', label: 'EMI Estimate', detail: 'Monthly estimate', icon: CreditCard, tone: 'tint' },
-  { key: 'gst', label: 'GST Add/Remove', detail: 'GST totals', icon: Receipt, tone: 'success' },
-]
-const V83_MORE_QUICK_TOOLS = V77_QUICK_TOOLS.filter((tool) => tool.key === 'percentage')
-
-const V83_TOP_TOOLS = [
-  { key: 'calculator', label: 'Calculator', detail: 'Basic arithmetic', icon: Calculator, tone: 'tint', quickTool: 'calculator' },
-  { key: 'split', label: 'Split Amount', detail: 'Amount per person', icon: Divide, tone: 'success', quickTool: 'split' },
-  { key: 'savings', label: 'Savings', detail: 'Goals and plans', icon: Target, tone: 'success', tab: 'planner', targetId: 'savings-goals-section' },
-  { key: 'borrow', label: 'Borrow/Lend', detail: 'Money Book', icon: Wallet, tone: 'warning', tab: 'history', targetId: 'money-book-section' },
-  { key: 'shared', label: 'Shared Expenses', detail: 'Groups and splits', icon: Receipt, tone: 'success', tab: 'history', targetId: 'shared-expenses-section' },
-  { key: 'trip', label: 'Trip Split', detail: 'Shared trips and settlements', icon: Plane, tone: 'tint', tab: 'history', targetId: 'shared-expenses-section' },
-  { key: 'gst', label: 'GST', detail: 'Add or remove GST', icon: Receipt, tone: 'warning', quickTool: 'gst' },
-  { key: 'emi', label: 'EMI', detail: 'Monthly estimate', icon: CreditCard, tone: 'tint', quickTool: 'emi' },
-  { key: 'statement', label: 'Statement Analysis', detail: 'Analyze PDF or CSV', icon: Upload, tone: 'warning', statement: true },
-]
-
-function ToolsCompanionHub({ navigateToTarget, openStatementImport, openQuickTools }) {
-  const useLegacyQuickTools = isLegacyQuickTools()
-
-  return (
-    <MoneyOSProvider as="section" className="screen-content v7-tools-hub money-os-tools">
-      <SectionHeader
-        title="Tools"
-        detail="Solve money problems"
-        actions={<StatusBadge>Utilities</StatusBadge>}
-      />
-
-      {!useLegacyQuickTools && (
-        <section className="v7-tool-group v77-quick-tools-surface" aria-label="Smart Quick Tools">
-          <SectionHeader
-            title="Top Tools"
-            detail="Most-used actions"
-            actions={<StatusBadge>Quick access</StatusBadge>}
-          />
-          <div className="v83-top-tools-grid">
-            {V83_TOP_TOOLS.map((tool) => {
-              const ToolIcon = tool.icon
-
-              return (
-                <button
-                  className={`v83-top-tool-button v77-quick-tool-button--${tool.tone}`}
-                  type="button"
-                  key={tool.key}
-                  onClick={() => {
-                    if (tool.quickTool) {
-                      openQuickTools?.(tool.quickTool)
-                    } else if (tool.statement) {
-                      openStatementImport?.()
-                    } else {
-                      navigateToTarget?.(tool.tab, tool.targetId)
-                    }
-                  }}
-                >
-                  <span aria-hidden="true">
-                    <ToolIcon size={17} />
-                  </span>
-                  <strong>{tool.label}</strong>
-                  <small>{tool.detail}</small>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
-      {!useLegacyQuickTools && (
-        <details className="v83-more-tools-details">
-          <summary>
-            <span>
-              <strong>More quick calculations</strong>
-              <small>Less frequent calculators</small>
-            </span>
-            <StatusBadge>More</StatusBadge>
-          </summary>
-          <div className="v77-quick-tool-strip">
-            {V83_MORE_QUICK_TOOLS.map((tool) => {
-              const ToolIcon = tool.icon
-
-              return (
-                <button
-                  className={`v77-quick-tool-button v77-quick-tool-button--${tool.tone}`}
-                  type="button"
-                  key={tool.key}
-                  onClick={() => openQuickTools?.(tool.key)}
-                >
-                  <span aria-hidden="true">
-                    <ToolIcon size={17} />
-                  </span>
-                  <strong>{tool.label}</strong>
-                  <small>{tool.detail}</small>
-                </button>
-              )
-            })}
-          </div>
-        </details>
-      )}
-
-      <section className="v7-tool-group" aria-label="People money tools">
-        <SectionHeader title="People Money" />
-        <div className="v7-companion-grid">
-          <ActionCard
-            title="Trip Split"
-            detail="Shared trips and settlements"
-            actionLabel="Open"
-            icon={Plane}
-            tone="tint"
-            onClick={() => navigateToTarget?.('history', 'shared-expenses-section')}
-          />
-          <ActionCard
-            title="Shared Expenses"
-            detail="Groups, payments, and settlement status"
-            actionLabel="Open"
-            icon={Receipt}
-            tone="success"
-            onClick={() => navigateToTarget?.('history', 'shared-expenses-section')}
-          />
-          <ActionCard
-            title="Borrow / Lend"
-            detail="Money Book"
-            actionLabel="Open"
-            icon={CreditCard}
-            tone="warning"
-            onClick={() => navigateToTarget?.('history', 'money-book-section')}
-          />
-        </div>
-      </section>
-
-      <section className="v7-tool-group" aria-label="Planning tools">
-        <SectionHeader title="Plan & Save" />
-        <div className="v7-companion-grid">
-          <ActionCard
-            title="Savings"
-            detail="Goals and purchase planning"
-            actionLabel="Open"
-            icon={Target}
-            tone="success"
-            onClick={() => navigateToTarget?.('planner', 'savings-goals-section')}
-          />
-          <ActionCard
-            title="Calculator"
-            detail={useLegacyQuickTools ? 'Placeholder' : 'Quick arithmetic, split, EMI, and GST'}
-            actionLabel={useLegacyQuickTools ? 'Planned' : 'Open'}
-            icon={Calculator}
-            tone="neutral"
-            disabled={useLegacyQuickTools}
-            onClick={() => openQuickTools?.('calculator')}
-          />
-        </div>
-      </section>
-
-      <section className="v7-tool-group" aria-label="Review tools">
-        <SectionHeader title="Review & Export" />
-        <div className="v7-companion-grid">
-          <ActionCard
-            title="Statement Analysis"
-            detail="Review PDF or CSV rows"
-            actionLabel="Open"
-            icon={Upload}
-            tone="warning"
-            onClick={openStatementImport}
-          />
-          <ActionCard
-            title="Reports"
-            detail="Monthly, trip, settlement, and statement outputs"
-            actionLabel="Open"
-            icon={ChartPie}
-            tone="tint"
-            onClick={() => navigateToTarget?.('reports', 'reports-export-section')}
-          />
-        </div>
-      </section>
     </MoneyOSProvider>
   )
 }
@@ -7706,23 +7817,37 @@ function ProfileCompanionHome({
   const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
 
   return (
-    <MoneyOSProvider as="section" className="screen-content v7-profile-home money-os-profile">
+    <MoneyOSProvider as="section" className="screen-content v7-profile-home v13-account-home money-os-profile">
       <SectionHeader
-        title="Account & Preferences"
-        detail="Identity, backup, and settings"
+        title="Account"
+        detail="Appearance, backup, support, and product details."
         actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
       />
-      <div className="v7-companion-grid">
+
+      <section className="v13-account-group" aria-labelledby="v13-account-appearance">
+        <SectionHeader
+          title="Appearance"
+          detail="Theme and notebook presentation."
+        />
         <ActionCard
-          title="Account"
-          detail="Name, income, currency, bills, and theme"
+          id="v13-account-appearance"
+          title="Notebook theme"
+          detail="Choose the visual style FBPLY uses across the app."
           actionLabel="Open"
           icon={User}
           tone="tint"
           onClick={openSettings}
         />
+      </section>
+
+      <section className="v13-account-group" aria-labelledby="v13-account-backup">
+        <SectionHeader
+          title="Backup & Sync"
+          detail="Data protection for this notebook."
+        />
         <MoneyCard
-          title="Backup Status"
+          id="v13-account-backup"
+          title="Backup status"
           detail={authUser?.id ? 'Cloud Backup is active for this account.' : 'Local only until Cloud Backup is enabled.'}
           icon={ShieldCheck}
           tone={authUser?.id ? 'success' : 'warning'}
@@ -7733,15 +7858,56 @@ function ProfileCompanionHome({
             </button>
           )}
         />
-      </div>
-      <Suspense fallback={<FLoader label="Opening Help & Support" />}>
-        <ProfileHub
-          supportEmail={supportEmail}
-          supportPaymentUrl={supportPaymentUrl}
-          founderName={founderName}
-          founderLinkedInUrl={founderLinkedInUrl}
+      </section>
+
+      <details className="v13-account-group-details">
+        <summary>
+          <span>
+            <strong>Support</strong>
+            <small>Feedback and help when something feels unclear.</small>
+          </span>
+          <StatusBadge>Open</StatusBadge>
+        </summary>
+        <Suspense fallback={<FLoader label="Opening Support" />}>
+          <ProfileHub
+            supportEmail={supportEmail}
+            supportPaymentUrl={supportPaymentUrl}
+            founderName={founderName}
+            founderLinkedInUrl={founderLinkedInUrl}
+            className="v13-account-support-panel"
+          />
+        </Suspense>
+      </details>
+
+      <section className="v13-account-group" aria-labelledby="v13-account-about">
+        <SectionHeader
+          title="About"
+          detail="FBPLY product and founder details."
         />
-      </Suspense>
+        <div className="v13-account-about-grid">
+          <ActionCard
+            id="v13-account-about"
+            title="About FBPLY"
+            detail={founderName ? `Founder-led by ${founderName}.` : 'Product details, privacy, and ownership.'}
+            actionLabel="Read"
+            icon={Sparkles}
+            tone="neutral"
+            href="/about"
+          />
+          {founderLinkedInUrl && (
+            <ActionCard
+              title="Founder LinkedIn"
+              detail="Open the founder profile."
+              actionLabel="Open"
+              icon={ExternalLink}
+              tone="tint"
+              href={founderLinkedInUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+            />
+          )}
+        </div>
+      </section>
     </MoneyOSProvider>
   )
 }
@@ -7882,6 +8048,7 @@ function MainApp(props) {
   const [quickIncomeInitialAmount, setQuickIncomeInitialAmount] = useState('')
   const [quickToolsSheet, setQuickToolsSheet] = useState(null)
   const [isInsightsReportsOpen, setIsInsightsReportsOpen] = useState(false)
+  const [isAccountAdvancedOpen, setIsAccountAdvancedOpen] = useState(false)
   const pendingNextActionRef = useRef(null)
   const useLegacyNavigation = isLegacyNavigation()
   const useLegacyDailyHero = isLegacyDailyHero()
@@ -7977,7 +8144,11 @@ function MainApp(props) {
   const navigateToTarget = useCallback((tab, targetId) => {
     const destinationTab = resolveNavigationTab(tab, useLegacyNavigation)
 
-    if (!useLegacyNavigation && !useLegacyInsights && destinationTab === 'reports') {
+    if (
+      !useLegacyNavigation &&
+      !useLegacyInsights &&
+      (destinationTab === 'reports' || tab === 'reports' || targetId === 'reports-export-section')
+    ) {
       setIsInsightsReportsOpen(true)
     }
 
@@ -8185,25 +8356,27 @@ function MainApp(props) {
   )
 
   return (
-    <div className={motionSurfaceClassName('app-shell')}>
+    <div className={motionSurfaceClassName(useLegacyNavigation ? 'app-shell' : 'app-shell v12-app-shell')}>
       <div className="app-brand-chip" aria-label="FBPly">
         <BrandMark size="tiny" />
         <span>FBPly</span>
       </div>
-      <button
-        className="top-settings-button"
-        type="button"
-        aria-label="Open profile and settings"
-        onClick={() => {
-          setIsSettingsOpen(true)
-          trackEvent('profile_viewed')
-          trackFeatureUsage('settings_opened', {
-            surface: 'app_chrome',
-          })
-        }}
-      >
-        <User size={18} />
-      </button>
+      {useLegacyNavigation && (
+        <button
+          className="top-settings-button"
+          type="button"
+          aria-label="Open profile and settings"
+          onClick={() => {
+            setIsSettingsOpen(true)
+            trackEvent('profile_viewed')
+            trackFeatureUsage('settings_opened', {
+              surface: 'app_chrome',
+            })
+          }}
+        >
+          <User size={18} />
+        </button>
+      )}
       <button
         className="top-notification-button"
         type="button"
@@ -8236,50 +8409,72 @@ function MainApp(props) {
       <main className="screen-panel">
         {activeNavigationTab === 'home' && (
           <>
-            {!useLegacyNavigation && (
-              <DailyCompanionEntry
+            {!useLegacyNavigation ? (
+              <V12HomeScreen
                 safeToSpend={safeToSpend}
                 financialState={financialState}
                 transactionSummary={transactionSummary}
-                openAddSheet={openAddSheet}
-                openQuickEntry={openDailyHeroEntry}
                 todayTransactions={todayTransactions}
-                recommendation={recommendation}
                 nextBestAction={nextBestAction}
-                smartFeedback={smartFeedback}
                 onNextActionClick={handleNextActionClick}
-                onSmartFeedbackClick={handleSmartFeedbackClick}
-                legacyDailyHero={useLegacyDailyHero}
+                openAddSheet={openAddSheet}
+                moneyTheme={moneyTheme}
               />
-            )}
-            {(useLegacyNavigation || useLegacyDailyHero) && todayScreenNode}
-            {!useLegacyNavigation && useLegacyDailyHero && dailyBookScreenNode}
-            {!useLegacyNavigation && !useLegacyDailyHero && (
-              <details className="v72-daily-secondary">
-                <summary>
-                  <span>
-                    <strong>More Daily Details</strong>
-                    <small>Daily Book, trends, analytics, and extended history</small>
-                  </span>
-                  <StatusBadge>Open</StatusBadge>
-                </summary>
-                <div className="v72-daily-secondary-stack">
-                  {todayScreenNode}
-                  {dailyBookScreenNode}
-                </div>
-              </details>
+            ) : (
+              <>
+                <DailyCompanionEntry
+                  safeToSpend={safeToSpend}
+                  financialState={financialState}
+                  transactionSummary={transactionSummary}
+                  openAddSheet={openAddSheet}
+                  openQuickEntry={openDailyHeroEntry}
+                  todayTransactions={todayTransactions}
+                  recommendation={recommendation}
+                  nextBestAction={nextBestAction}
+                  smartFeedback={smartFeedback}
+                  onNextActionClick={handleNextActionClick}
+                  onSmartFeedbackClick={handleSmartFeedbackClick}
+                  legacyDailyHero={useLegacyDailyHero}
+                />
+                {todayScreenNode}
+                {dailyBookScreenNode}
+              </>
             )}
           </>
         )}
-        {activeNavigationTab === 'history' && (
+        {!useLegacyNavigation && activeNavigationTab === 'ledger' && (
+          <Suspense fallback={<DailyBookScreenFallback />}>
+            <ActivityScreen
+              view="ledger"
+              groups={historyGroups}
+              summary={transactionSummary}
+              cashflowTimeline={cashflowTimeline}
+              expenses={expenses}
+              moneyBookEntries={moneyBookEntries}
+              moneyBookSummary={moneyBookSummary}
+              profile={profile}
+              sharedGroups={sharedGroups}
+              sharedSummary={sharedSummary}
+              addSharedGroup={addSharedGroup}
+              addSharedPayment={addSharedPayment}
+              markSharedSettlementReceived={markSharedSettlementReceived}
+              removeSharedGroup={removeSharedGroup}
+              onSaveMoneyBookEntry={saveMoneyBookEntry}
+              onToggleMoneyBookSettlement={toggleMoneyBookSettlement}
+              onDeleteMoneyBookEntry={deleteMoneyBookEntry}
+              selectedMonthKey={selectedMonthKey}
+              setSelectedMonthKey={setSelectedMonthKey}
+              monthOptions={monthOptions}
+              onEditExpense={editExpense}
+              setActiveTab={setCompanionActiveTab}
+              openAddSheet={openAddSheet}
+              requestReportExport={requestReportExport}
+              moneyTheme={moneyTheme}
+            />
+          </Suspense>
+        )}
+        {((useLegacyNavigation && activeNavigationTab === 'history') || (!useLegacyNavigation && activeNavigationTab === 'people')) && (
           <>
-            {!useLegacyNavigation && (
-              <ToolsCompanionHub
-                navigateToTarget={navigateToTarget}
-                openStatementImport={openStatementImportFromAddHub}
-                openQuickTools={openQuickTools}
-              />
-            )}
             {useLegacyNavigation && (
               <Suspense fallback={<DailyBookScreenFallback />}>
                 <DailyBookScreen
@@ -8288,30 +8483,9 @@ function MainApp(props) {
                 />
               </Suspense>
             )}
-            {!useLegacyNavigation && (
-              <Suspense fallback={<ScreenFallback eyebrow="Savings" title="Preparing savings goals" />}>
-                <GoalsScreen
-                  plannerInput={plannerInput}
-                  setPlannerInput={setPlannerInput}
-                  selectedPlan={selectedPlan}
-                  setSelectedPlan={setSelectedPlan}
-                  plannerTargetAmount={plannerTargetAmount}
-                  setPlannerTargetAmount={setPlannerTargetAmount}
-                  plannerCurrentSavings={plannerCurrentSavings}
-                  setPlannerCurrentSavings={setPlannerCurrentSavings}
-                  plannerTimeline={plannerTimeline}
-                  setPlannerTimeline={setPlannerTimeline}
-                  recommendation={recommendation}
-                  financialState={financialState}
-                  savingsBuckets={savingsBuckets}
-                  addSavingsBucket={addSavingsBucket}
-                  updateSavingsBucket={updateSavingsBucket}
-                  removeSavingsBucket={removeSavingsBucket}
-                />
-              </Suspense>
-            )}
             <Suspense fallback={<DailyBookScreenFallback />}>
               <ActivityScreen
+                view={useLegacyNavigation ? 'people' : 'people'}
                 groups={historyGroups}
                 summary={transactionSummary}
                 cashflowTimeline={cashflowTimeline}
@@ -8335,6 +8509,7 @@ function MainApp(props) {
                 setActiveTab={setCompanionActiveTab}
                 openAddSheet={openAddSheet}
                 requestReportExport={requestReportExport}
+                moneyTheme={moneyTheme}
               />
             </Suspense>
           </>
@@ -8390,8 +8565,8 @@ function MainApp(props) {
               >
                 <summary>
                   <span>
-                    <strong>Reports, History & Exports</strong>
-                    <small>Full reports, saved files, exports, and advanced reporting</small>
+                    <strong>Saved downloads</strong>
+                    <small>Advanced review and older notebook downloads</small>
                   </span>
                   <StatusBadge>{isInsightsReportsOpen ? 'Open' : 'View'}</StatusBadge>
                 </summary>
@@ -8402,7 +8577,7 @@ function MainApp(props) {
             )}
           </>
         )}
-        {activeNavigationTab === 'profile' && (
+        {((!useLegacyNavigation && activeNavigationTab === 'account') || (useLegacyNavigation && activeNavigationTab === 'profile')) && (
           <>
             {!useLegacyNavigation && (
               <ProfileCompanionHome
@@ -8421,68 +8596,93 @@ function MainApp(props) {
                 }}
               />
             )}
-            {!useLegacyNavigation ? (
-              <details className="v83-profile-advanced-details">
+            {!useLegacyNavigation && (
+              <details
+                className="v12-account-secondary-details"
+                id="v12-account-reports"
+                open={isInsightsReportsOpen}
+                onToggle={(event) => setIsInsightsReportsOpen(event.currentTarget.open)}
+              >
                 <summary>
                   <span>
-                    <strong>Advanced profile tools</strong>
-                    <small>Bills, voice entry, quick expense, savings, and support details</small>
+                    <strong>Saved downloads</strong>
+                    <small>Statement review and older notebook downloads</small>
                   </span>
-                  <StatusBadge>Open</StatusBadge>
+                  <StatusBadge>{isInsightsReportsOpen ? 'Open' : 'Hidden'}</StatusBadge>
                 </summary>
-                <ProfileScreen
-                  profile={profile}
-                  setProfile={setProfile}
-                  authUser={authUser}
-                  onEnableBackup={onEnableBackup}
-                  onSignOut={onSignOut}
-                  financialState={financialState}
-                  fixedDistribution={fixedDistribution}
-                  flexibleDistribution={flexibleDistribution}
-                  updateCommitment={updateCommitment}
-                  addCommitment={addCommitment}
-                  removeCommitment={removeCommitment}
-                  savingsBuckets={savingsBuckets}
-                  addSavingsBucket={addSavingsBucket}
-                  updateSavingsBucket={updateSavingsBucket}
-                  removeSavingsBucket={removeSavingsBucket}
-                  voiceState={voiceState}
-                  voiceDraft={voiceDraft}
-                  voiceDrafts={voiceDrafts}
-                  voiceStatus={voiceStatus}
-                  voiceTranscriptDraft={voiceTranscriptDraft}
-                  setVoiceTranscriptDraft={setVoiceTranscriptDraft}
-                  voiceTranscriptOptions={voiceTranscriptOptions}
-                  isListening={isListening}
-                  startVoiceExpense={startVoiceExpense}
-                  stopVoiceExpense={stopVoiceExpense}
-                  reviewVoiceTranscript={reviewVoiceTranscript}
-                  confirmVoiceExpense={confirmVoiceExpense}
-                  updateVoiceDraft={updateVoiceDraft}
-                  updateVoiceDraftAt={updateVoiceDraftAt}
-                  removeVoiceDraftAt={removeVoiceDraftAt}
-                  clearVoiceDraft={clearVoiceDraft}
-                  useVoiceManualFallback={useVoiceManualFallback}
-                  useVoiceDraftInForm={useVoiceDraftInForm}
-                  undoVoiceSave={undoVoiceSave}
-                  lastVoiceSave={lastVoiceSave}
-                  selectedCategory={selectedCategory}
-                  setSelectedCategory={setSelectedCategory}
-                  customExpenseName={customExpenseName}
-                  setCustomExpenseName={setCustomExpenseName}
-                  expenseAmount={expenseAmount}
-                  setExpenseAmount={setExpenseAmount}
-                  expenseNote={expenseNote}
-                  setExpenseNote={setExpenseNote}
-                  expenseError={expenseError}
-                  expenseFieldErrors={expenseFieldErrors}
-                  clearExpenseFieldError={clearExpenseFieldError}
-                  addExpense={addExpense}
-                  quickExpenseChips={quickExpenseChips}
-                  applyQuickExpense={applyQuickExpense}
-                  navigateToTarget={navigateToTarget}
-                  openStatementImport={openStatementImportFromAddHub}
-                />
+                <div className="v12-account-secondary-stack">
+                  {isInsightsReportsOpen && reportsScreenNode}
+                </div>
+              </details>
+            )}
+            {!useLegacyNavigation ? (
+              <details
+                className="v83-profile-advanced-details"
+                open={isAccountAdvancedOpen}
+                onToggle={(event) => setIsAccountAdvancedOpen(event.currentTarget.open)}
+              >
+                <summary>
+                  <span>
+                    <strong>Profile & Preferences</strong>
+                    <small>Themes, bills, voice entry, savings, and developer utilities</small>
+                  </span>
+                  <StatusBadge>Advanced</StatusBadge>
+                </summary>
+                {isAccountAdvancedOpen && (
+                  <ProfileScreen
+                    profile={profile}
+                    setProfile={setProfile}
+                    authUser={authUser}
+                    onEnableBackup={onEnableBackup}
+                    onSignOut={onSignOut}
+                    financialState={financialState}
+                    fixedDistribution={fixedDistribution}
+                    flexibleDistribution={flexibleDistribution}
+                    updateCommitment={updateCommitment}
+                    addCommitment={addCommitment}
+                    removeCommitment={removeCommitment}
+                    savingsBuckets={savingsBuckets}
+                    addSavingsBucket={addSavingsBucket}
+                    updateSavingsBucket={updateSavingsBucket}
+                    removeSavingsBucket={removeSavingsBucket}
+                    voiceState={voiceState}
+                    voiceDraft={voiceDraft}
+                    voiceDrafts={voiceDrafts}
+                    voiceStatus={voiceStatus}
+                    voiceTranscriptDraft={voiceTranscriptDraft}
+                    setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+                    voiceTranscriptOptions={voiceTranscriptOptions}
+                    isListening={isListening}
+                    startVoiceExpense={startVoiceExpense}
+                    stopVoiceExpense={stopVoiceExpense}
+                    reviewVoiceTranscript={reviewVoiceTranscript}
+                    confirmVoiceExpense={confirmVoiceExpense}
+                    updateVoiceDraft={updateVoiceDraft}
+                    updateVoiceDraftAt={updateVoiceDraftAt}
+                    removeVoiceDraftAt={removeVoiceDraftAt}
+                    clearVoiceDraft={clearVoiceDraft}
+                    useVoiceManualFallback={useVoiceManualFallback}
+                    useVoiceDraftInForm={useVoiceDraftInForm}
+                    undoVoiceSave={undoVoiceSave}
+                    lastVoiceSave={lastVoiceSave}
+                    selectedCategory={selectedCategory}
+                    setSelectedCategory={setSelectedCategory}
+                    customExpenseName={customExpenseName}
+                    setCustomExpenseName={setCustomExpenseName}
+                    expenseAmount={expenseAmount}
+                    setExpenseAmount={setExpenseAmount}
+                    expenseNote={expenseNote}
+                    setExpenseNote={setExpenseNote}
+                    expenseError={expenseError}
+                    expenseFieldErrors={expenseFieldErrors}
+                    clearExpenseFieldError={clearExpenseFieldError}
+                    addExpense={addExpense}
+                    quickExpenseChips={quickExpenseChips}
+                    applyQuickExpense={applyQuickExpense}
+                    navigateToTarget={navigateToTarget}
+                    openStatementImport={openStatementImportFromAddHub}
+                  />
+                )}
               </details>
             ) : (
               <ProfileScreen
@@ -8590,12 +8790,12 @@ function MainApp(props) {
           saveMoneyBookEntry={saveMoneyBookEntry}
           setActiveTab={setCompanionActiveTab}
           navigateToTarget={navigateToTarget}
-          openStatementImport={openStatementImportFromAddHub}
+          openQuickTools={openQuickTools}
           initialIncomeAmount={quickIncomeInitialAmount}
         />
       )}
       {quickToolsSheet && !isLegacyQuickTools() && (
-        <Suspense fallback={<FLoader fullPage label="Opening Quick Tools" />}>
+        <Suspense fallback={<FLoader fullPage label="Opening Quick Calculators" />}>
           <QuickToolsSheet
             key={quickToolsSheet}
             open
@@ -8702,8 +8902,22 @@ function ReportsFallback() {
 
 function HomeScreenFallback() {
   return (
-    <section className="screen-content">
-      <FLoader fullPage label="Preparing your money view" />
+    <section className="screen-content v10-home-skeleton" role="status" aria-live="polite">
+      <span className="sr-only">Preparing your money view</span>
+      <div className="v10-home-skeleton-hero skeleton-card">
+        <span className="skeleton-line" />
+        <span className="skeleton-line short" />
+        <span className="skeleton-block" />
+      </div>
+      <div className="v10-home-skeleton-grid" aria-hidden="true">
+        <article className="v10-home-skeleton-card skeleton-card" />
+        <article className="v10-home-skeleton-card skeleton-card" />
+      </div>
+      <div className="v10-home-skeleton-actions" aria-hidden="true">
+        <span className="skeleton-option" />
+        <span className="skeleton-option" />
+        <span className="skeleton-option" />
+      </div>
     </section>
   )
 }
@@ -8797,7 +9011,7 @@ function RewardedExportModal({ rewardState, onStart, onClose }) {
           <span style={{ width: `${Math.min(rewardState.progress, 100)}%` }} />
         </div>
         <div className="reward-status-row">
-          <span>{isUnlocked ? 'Unlocked. Preparing report...' : isWatching ? 'Thanks. Unlocking export...' : 'PDF export unlock'}</span>
+          <span>{isUnlocked ? 'Unlocked. Preparing report...' : isWatching ? 'Thanks. Unlocking download...' : 'Report download unlock'}</span>
           <strong>{Math.min(rewardState.progress, 100)}%</strong>
         </div>
         <div className="reward-actions">
@@ -8805,7 +9019,7 @@ function RewardedExportModal({ rewardState, onStart, onClose }) {
             {isWatching ? 'Watching...' : isUnlocked ? 'Unlocked' : 'Watch short ad'}
           </button>
           <button className="ghost-button" type="button" onClick={onClose} disabled={isUnlocked}>
-            Not now
+            Close
           </button>
         </div>
       </section>
@@ -8887,17 +9101,23 @@ function QuickAddSheet({
   saveMoneyBookEntry,
   setActiveTab,
   navigateToTarget,
-  openStatementImport,
+  openQuickTools,
   initialIncomeAmount = '',
 }) {
   const title = {
-    menu: 'Add',
+    menu: 'Notebook actions',
     expense: 'Add expense',
     income: 'Add income',
     transfer: 'Move to goal',
     borrow: 'Borrow or lend',
   }[mode] || 'Add money move'
   const [successState, setSuccessState] = useState(null)
+  const [inboxPreparedDraft, setInboxPreparedDraft] = useState(null)
+
+  const openAddMode = (nextMode) => {
+    setInboxPreparedDraft(null)
+    setMode(nextMode)
+  }
 
   const openHubDestination = (tab, targetId) => {
     onClose()
@@ -8911,26 +9131,41 @@ function QuickAddSheet({
   }
 
   const buildSuccessActions = (nextMode = 'menu') => [
-    { label: 'Done', onClick: onClose, variant: 'secondary' },
     {
       label: 'Add another',
       onClick: () => {
         setSuccessState(null)
+        setInboxPreparedDraft(null)
         setMode(nextMode)
       },
       variant: 'primary',
     },
+    { label: 'Close', onClick: onClose, variant: 'secondary' },
   ]
 
-  const showActionSuccess = ({ title: successTitle, detail, mode: nextMode = mode, actions }) => {
+  const showActionSuccess = ({ title: successTitle, detail, mode: nextMode = mode, actions, autoCloseMs = 950 }) => {
     setSuccessState({
       title: successTitle,
       detail,
       actions: actions || buildSuccessActions(nextMode),
+      autoCloseMs,
     })
   }
 
+  useEffect(() => {
+    if (!successState?.autoCloseMs || typeof window === 'undefined') {
+      return undefined
+    }
+
+    const closeTimer = window.setTimeout(() => {
+      onClose?.()
+    }, successState.autoCloseMs)
+
+    return () => window.clearTimeout(closeTimer)
+  }, [onClose, successState])
+
   const openSharedExpense = () => {
+    setInboxPreparedDraft(null)
     trackEvent('add_people_selected')
     trackFeatureUsage('add_hub_action_selected', {
       surface: 'add_hub',
@@ -8939,58 +9174,26 @@ function QuickAddSheet({
     openHubDestination('history', 'shared-expenses-section')
   }
 
-  const openStatementImportFromHub = () => {
-    trackEvent('add_other_actions_selected')
-    trackFeatureUsage('add_hub_action_selected', {
-      surface: 'add_hub',
-      action: 'statement_import',
+  const openBorrowLendMode = (kind = 'given') => {
+    setSuccessState(null)
+    setInboxPreparedDraft({
+      mode: 'borrow',
+      moneyBookDraft: {
+        kind,
+        date: todayDateKey(),
+      },
     })
-    onClose()
-    openStatementImport?.()
+    setMode('borrow')
   }
 
-  const openSavingsGoalFromHub = () => {
+  const openQuickToolsFromHub = () => {
     trackEvent('add_other_actions_selected')
     trackFeatureUsage('add_hub_action_selected', {
       surface: 'add_hub',
-      action: 'savings_goal',
+      action: 'quick_tools',
     })
-    addSavingsBucket?.()
-
-    if (navigateToTarget) {
-      navigateToTarget('planner', 'savings-goals-section')
-    } else {
-      setActiveTab?.('planner')
-    }
-
-    const showGoalSuccess = (detail = 'New goal. Successfully added.') => {
-      setSuccessState({
-        title: 'Savings Goal Created',
-        detail,
-        actions: [
-          {
-            label: 'Edit goal',
-            onClick: () => openHubDestination('planner', 'savings-goals-section'),
-            variant: 'secondary',
-          },
-          {
-            label: 'Add another',
-            onClick: () => {
-              addSavingsBucket?.()
-              if (navigateToTarget) {
-                navigateToTarget('planner', 'savings-goals-section')
-              } else {
-                setActiveTab?.('planner')
-              }
-              showGoalSuccess('Another new goal. Successfully added.')
-            },
-            variant: 'primary',
-          },
-        ],
-      })
-    }
-
-    showGoalSuccess()
+    onClose()
+    openQuickTools?.('calculator')
   }
 
   if (!isLegacyAddExperience()) {
@@ -9008,7 +9211,7 @@ function QuickAddSheet({
         : (
             <SecondaryButton onClick={() => {
               setSuccessState(null)
-              setMode('menu')
+              openAddMode('menu')
             }}>Back to actions</SecondaryButton>
           )
 
@@ -9033,58 +9236,61 @@ function QuickAddSheet({
 
         {!successState && mode === 'menu' && (
           <>
-            <div className="mos-add-hub-grid mos-add-hub-grid--primary" aria-label="Money action options">
+            <div className="mos-add-hub-grid mos-add-hub-grid--primary mos-add-hub-grid--v16-primary" aria-label="Notebook action options">
               <ActionCard
-                title="Expense"
-                detail="Food, petrol, bill"
-                actionLabel="Add"
+                title="Daily Expense"
+                detail="Write today's expense"
+                actionLabel="Write"
                 icon={Receipt}
                 tone="danger"
-                onClick={() => setMode('expense')}
+                onClick={() => openAddMode('expense')}
               />
               <ActionCard
-                title="Income"
-                detail="Monthly income"
-                actionLabel="Add"
-                icon={Wallet}
-                tone="success"
-                onClick={() => setMode('income')}
+                title="Borrow / Lend"
+                detail="Money owed either way"
+                actionLabel="Add entry"
+                icon={CreditCard}
+                tone="warning"
+                onClick={() => openBorrowLendMode('given')}
               />
               <ActionCard
-                title="Shared"
-                detail="Trip or group bill"
-                actionLabel="Split"
+                title="Trip Split"
+                detail="Trip, members, expenses, settlement"
+                actionLabel="Create"
                 icon={Plane}
                 tone="tint"
                 onClick={openSharedExpense}
               />
+              <ActionCard
+                title="Quick Tools"
+                detail="Calculator, GST, EMI, split"
+                actionLabel="Open"
+                icon={Calculator}
+                tone="neutral"
+                onClick={openQuickToolsFromHub}
+              />
             </div>
-            <details className="mos-add-hub-more">
-              <summary>Other Actions</summary>
-              <div className="mos-add-hub-grid">
+            <details className="mos-add-hub-more mos-add-hub-more--v16">
+              <summary>
+                <span>Notebook setup</span>
+                <ChevronRight size={16} aria-hidden="true" />
+              </summary>
+              <div className="mos-add-hub-grid" aria-label="Notebook setup actions">
                 <ActionCard
-                  title="Borrow / Lend"
-                  detail="Money given or taken"
-                  actionLabel="Add"
-                  icon={CreditCard}
-                  tone="warning"
-                  onClick={() => setMode('borrow')}
-                />
-                <ActionCard
-                  title="Savings Goal"
-                  detail="Savings target"
-                  actionLabel="Create"
-                  icon={PiggyBank}
+                  title="Income"
+                  detail="Update monthly income"
+                  actionLabel="Update"
+                  icon={Wallet}
                   tone="success"
-                  onClick={openSavingsGoalFromHub}
+                  onClick={() => openAddMode('income')}
                 />
                 <ActionCard
-                  title="Analyze Statement"
-                  detail="Upload PDF or CSV"
-                  actionLabel="Upload"
-                  icon={Upload}
-                  tone="neutral"
-                  onClick={openStatementImportFromHub}
+                  title="Move to goal"
+                  detail="Send money to a saved goal"
+                  actionLabel="Move"
+                  icon={PiggyBank}
+                  tone="tint"
+                  onClick={() => openAddMode('transfer')}
                 />
               </div>
             </details>
@@ -9108,8 +9314,8 @@ function QuickAddSheet({
             quickExpenseChips={quickExpenseChips}
             applyQuickExpense={applyQuickExpense}
             onSaved={(saved) => showActionSuccess({
-              title: 'Expense Added',
-              detail: `${rupees(saved?.amount || 0)} ${saved?.label || saved?.category || 'Expense'}. Successfully added.`,
+              title: 'Line written',
+              detail: `${rupees(saved?.amount || 0)} ${saved?.label || saved?.category || 'expense'} added to today's page.`,
               mode: 'expense',
             })}
             voiceState={voiceState}
@@ -9139,10 +9345,10 @@ function QuickAddSheet({
           <QuickIncomeEntry
             profile={profile}
             setProfile={setProfile}
-            initialAmount={initialIncomeAmount}
+            initialAmount={inboxPreparedDraft?.mode === 'income' ? inboxPreparedDraft.incomeAmount : initialIncomeAmount}
             onSaved={(saved) => showActionSuccess({
-              title: 'Income Added',
-              detail: `${rupees(saved?.amount || 0)} monthly income. Successfully added.`,
+              title: 'Income saved',
+              detail: `${rupees(saved?.amount || 0)} monthly income added.`,
               mode: 'income',
             })}
           />
@@ -9153,9 +9359,10 @@ function QuickAddSheet({
             savingsBuckets={savingsBuckets}
             addSavingsBucket={addSavingsBucket}
             updateSavingsBucket={updateSavingsBucket}
+            initialDraft={inboxPreparedDraft?.mode === 'transfer' ? inboxPreparedDraft.transferDraft : null}
             onSaved={() => showActionSuccess({
-              title: 'Savings Updated',
-              detail: 'Goal amount. Successfully added.',
+              title: 'Savings updated',
+              detail: 'Goal amount added.',
               mode: 'transfer',
             })}
             setActiveTab={setActiveTab}
@@ -9165,9 +9372,10 @@ function QuickAddSheet({
         {!successState && mode === 'borrow' && (
           <QuickBorrowLendEntry
             saveMoneyBookEntry={saveMoneyBookEntry}
+            initialDraft={inboxPreparedDraft?.mode === 'borrow' ? inboxPreparedDraft.moneyBookDraft : null}
             onSaved={(saved) => showActionSuccess({
-              title: 'Borrow / Lend Added',
-              detail: `${rupees(saved?.amount || 0)} ${saved?.person || 'entry'}. Successfully added.`,
+              title: 'Borrow/lend saved',
+              detail: `${rupees(saved?.amount || 0)} ${saved?.person || 'entry'} added.`,
               mode: 'borrow',
             })}
           />
@@ -9194,7 +9402,7 @@ function QuickAddSheet({
       </div>
 
       {mode !== 'menu' && (
-        <button className="text-action-button quick-add-back" type="button" onClick={() => setMode('menu')}>
+        <button className="text-action-button quick-add-back" type="button" onClick={() => openAddMode('menu')}>
           Back to options
         </button>
       )}
@@ -9202,28 +9410,28 @@ function QuickAddSheet({
       <div className="editor-sheet-body quick-add-body">
         {mode === 'menu' && (
           <div className="quick-add-options">
-            <button type="button" onClick={() => setMode('expense')}>
+            <button type="button" onClick={() => openAddMode('expense')}>
               <span className="soft-icon"><Receipt size={18} /></span>
               <span>
                 <strong>Expense</strong>
                 <small>Food, petrol, bill, shopping</small>
               </span>
             </button>
-            <button type="button" onClick={() => setMode('income')}>
+            <button type="button" onClick={() => openAddMode('income')}>
               <span className="soft-icon"><Wallet size={18} /></span>
               <span>
                 <strong>Income</strong>
                 <small>Update monthly income</small>
               </span>
             </button>
-            <button type="button" onClick={() => setMode('transfer')}>
+            <button type="button" onClick={() => openAddMode('transfer')}>
               <span className="soft-icon"><PiggyBank size={18} /></span>
               <span>
-                <strong>Transfer</strong>
+                <strong>Save to goal</strong>
                 <small>Move money to a goal</small>
               </span>
             </button>
-            <button type="button" onClick={() => setMode('borrow')}>
+            <button type="button" onClick={() => openAddMode('borrow')}>
               <span className="soft-icon"><CreditCard size={18} /></span>
               <span>
                 <strong>Borrow / lend</strong>
@@ -9277,7 +9485,7 @@ function QuickAddSheet({
           <QuickIncomeEntry
             profile={profile}
             setProfile={setProfile}
-            initialAmount={initialIncomeAmount}
+            initialAmount={inboxPreparedDraft?.mode === 'income' ? inboxPreparedDraft.incomeAmount : initialIncomeAmount}
             onSaved={onClose}
           />
         )}
@@ -9287,13 +9495,18 @@ function QuickAddSheet({
             savingsBuckets={savingsBuckets}
             addSavingsBucket={addSavingsBucket}
             updateSavingsBucket={updateSavingsBucket}
+            initialDraft={inboxPreparedDraft?.mode === 'transfer' ? inboxPreparedDraft.transferDraft : null}
             onSaved={onClose}
             setActiveTab={setActiveTab}
           />
         )}
 
         {mode === 'borrow' && (
-          <QuickBorrowLendEntry saveMoneyBookEntry={saveMoneyBookEntry} onSaved={onClose} />
+          <QuickBorrowLendEntry
+            saveMoneyBookEntry={saveMoneyBookEntry}
+            initialDraft={inboxPreparedDraft?.mode === 'borrow' ? inboxPreparedDraft.moneyBookDraft : null}
+            onSaved={onClose}
+          />
         )}
       </div>
     </AppModal>
@@ -9337,6 +9550,21 @@ function QuickExpenseEntry({
   undoVoiceSave,
   lastVoiceSave,
 }) {
+  const amountInputRef = useRef(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      amountInputRef.current?.focus()
+      amountInputRef.current?.select?.()
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [])
+
   const clearField = (field) => {
     if (clearExpenseFieldError) {
       clearExpenseFieldError(field)
@@ -9344,7 +9572,7 @@ function QuickExpenseEntry({
   }
 
   return (
-    <form className={`quick-expense-form ${Object.keys(expenseFieldErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
+    <form className={`quick-expense-form v17-writing-form ${Object.keys(expenseFieldErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
       const form = event.currentTarget
       const saved = addExpense(event)
 
@@ -9358,20 +9586,8 @@ function QuickExpenseEntry({
 
       focusInvalidField(form)
     }}>
-      <div className="quick-chip-row compact-quick-row">
-        {quickExpenseChips.slice(0, 6).map((chip) => (
-          <button key={chip.label} type="button" onClick={() => {
-            applyQuickExpense(chip)
-            clearField('amount')
-            clearField('category')
-          }}>
-            {chip.label}
-            {chip.amount > 0 && <span>{shortRupees(chip.amount)}</span>}
-          </button>
-        ))}
-      </div>
-
       <CurrencyInput
+        ref={amountInputRef}
         label="Amount"
         id="quick-expense-amount"
         value={expenseAmount}
@@ -9382,6 +9598,37 @@ function QuickExpenseEntry({
         }}
         error={expenseFieldErrors.amount}
       />
+
+      <div className="quick-chip-row compact-quick-row quick-amount-row" aria-label="Quick amounts">
+        {QUICK_AMOUNT_PRESETS.map((amount) => (
+          <button
+            key={amount}
+            type="button"
+            onClick={() => {
+              setExpenseAmount(String(amount))
+              clearField('amount')
+              amountInputRef.current?.focus()
+            }}
+          >
+            {rupees(amount)}
+          </button>
+        ))}
+      </div>
+
+      {quickExpenseChips.length > 0 && (
+        <div className="quick-chip-row compact-quick-row" aria-label="Recent expenses">
+          {quickExpenseChips.slice(0, 6).map((chip) => (
+            <button key={chip.label} type="button" onClick={() => {
+              applyQuickExpense(chip)
+              clearField('amount')
+              clearField('category')
+            }}>
+              {chip.label}
+              {chip.amount > 0 && <span>{shortRupees(chip.amount)}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       <CategoryPicker
         categories={expenseCategories}
@@ -9402,41 +9649,49 @@ function QuickExpenseEntry({
         error={expenseFieldErrors.category}
       />
 
-      <label>
-        <span className="input-label">Note</span>
-        <input
-          className="plain-input"
-          type="text"
-          value={expenseNote}
-          placeholder="Optional, like tea near office"
-          onChange={(event) => setExpenseNote(event.target.value)}
-        />
-      </label>
+      <details className="quick-extra-details">
+        <summary>
+          <span>Note or voice</span>
+          <ChevronRight size={15} aria-hidden="true" />
+        </summary>
+        <div className="quick-extra-body">
+          <label>
+            <span className="input-label">Note</span>
+            <input
+              className="plain-input"
+              type="text"
+              value={expenseNote}
+              placeholder="Optional, like tea near office"
+              onChange={(event) => setExpenseNote(event.target.value)}
+            />
+          </label>
 
-      <VoiceExpenseBox
-        voiceState={voiceState}
-        voiceDraft={voiceDraft}
-        voiceDrafts={voiceDrafts}
-        voiceStatus={voiceStatus}
-        voiceTranscriptDraft={voiceTranscriptDraft}
-        setVoiceTranscriptDraft={setVoiceTranscriptDraft}
-        voiceTranscriptOptions={voiceTranscriptOptions}
-        isListening={isListening}
-        startVoiceExpense={startVoiceExpense}
-        stopVoiceExpense={stopVoiceExpense}
-        reviewVoiceTranscript={reviewVoiceTranscript}
-        confirmVoiceExpense={confirmVoiceExpense}
-        updateVoiceDraft={updateVoiceDraft}
-        updateVoiceDraftAt={updateVoiceDraftAt}
-        removeVoiceDraftAt={removeVoiceDraftAt}
-        clearVoiceDraft={clearVoiceDraft}
-        useVoiceManualFallback={useVoiceManualFallback}
-        useVoiceDraftInForm={useVoiceDraftInForm}
-        undoVoiceSave={undoVoiceSave}
-        lastVoiceSave={lastVoiceSave}
-      />
+          <VoiceExpenseBox
+            voiceState={voiceState}
+            voiceDraft={voiceDraft}
+            voiceDrafts={voiceDrafts}
+            voiceStatus={voiceStatus}
+            voiceTranscriptDraft={voiceTranscriptDraft}
+            setVoiceTranscriptDraft={setVoiceTranscriptDraft}
+            voiceTranscriptOptions={voiceTranscriptOptions}
+            isListening={isListening}
+            startVoiceExpense={startVoiceExpense}
+            stopVoiceExpense={stopVoiceExpense}
+            reviewVoiceTranscript={reviewVoiceTranscript}
+            confirmVoiceExpense={confirmVoiceExpense}
+            updateVoiceDraft={updateVoiceDraft}
+            updateVoiceDraftAt={updateVoiceDraftAt}
+            removeVoiceDraftAt={removeVoiceDraftAt}
+            clearVoiceDraft={clearVoiceDraft}
+            useVoiceManualFallback={useVoiceManualFallback}
+            useVoiceDraftInForm={useVoiceDraftInForm}
+            undoVoiceSave={undoVoiceSave}
+            lastVoiceSave={lastVoiceSave}
+          />
+        </div>
+      </details>
 
-      <button className="primary-button full" type="submit">
+      <button className="primary-button full quick-save-button" type="submit">
         Save expense
       </button>
       {expenseError && <p className="form-message">{expenseError}</p>}
@@ -9447,6 +9702,20 @@ function QuickExpenseEntry({
 function QuickIncomeEntry({ profile, setProfile, onSaved, initialAmount = '' }) {
   const [incomeAmount, setIncomeAmount] = useState(initialAmount || (profile.income ? String(profile.income) : ''))
   const [error, setError] = useState('')
+  const incomeInputRef = useRef(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      incomeInputRef.current?.focus()
+      incomeInputRef.current?.select?.()
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [])
 
   return (
     <form className={`quick-expense-form ${error ? 'form-has-errors' : ''}`} onSubmit={(event) => {
@@ -9477,6 +9746,7 @@ function QuickIncomeEntry({ profile, setProfile, onSaved, initialAmount = '' }) 
       onSaved({ amount: parsed })
     }}>
       <CurrencyInput
+        ref={incomeInputRef}
         label="Monthly income"
         id="quick-income-amount"
         value={incomeAmount}
@@ -9488,18 +9758,35 @@ function QuickIncomeEntry({ profile, setProfile, onSaved, initialAmount = '' }) 
         error={error}
       />
       <p className="quick-form-note">This updates your monthly income used for safe spending.</p>
-      <button className="primary-button full" type="submit">
+      <button className="primary-button full quick-save-button" type="submit">
         Save income
       </button>
     </form>
   )
 }
 
-function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavingsBucket, onSaved, setActiveTab }) {
-  const [bucketId, setBucketId] = useState(savingsBuckets[0]?.id || '')
-  const [amount, setAmount] = useState('')
+function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavingsBucket, initialDraft = null, onSaved, setActiveTab }) {
+  const initialBucketId = initialDraft?.bucketId && savingsBuckets.some((bucket) => bucket.id === initialDraft.bucketId)
+    ? initialDraft.bucketId
+    : savingsBuckets[0]?.id || ''
+  const [bucketId, setBucketId] = useState(initialBucketId)
+  const [amount, setAmount] = useState(initialDraft?.amount || '')
   const [errors, setErrors] = useState({})
+  const amountInputRef = useRef(null)
   const selectedBucket = savingsBuckets.find((bucket) => bucket.id === bucketId)
+
+  useEffect(() => {
+    if (savingsBuckets.length === 0 || typeof window === 'undefined') {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      amountInputRef.current?.focus()
+      amountInputRef.current?.select?.()
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [savingsBuckets.length])
 
   if (savingsBuckets.length === 0) {
     return (
@@ -9567,6 +9854,7 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
         {errors.bucket && <small className="field-helper">{errors.bucket}</small>}
       </label>
       <CurrencyInput
+        ref={amountInputRef}
         label="Amount to move"
         id="quick-transfer-amount"
         value={amount}
@@ -9582,19 +9870,35 @@ function QuickTransferEntry({ savingsBuckets = [], addSavingsBucket, updateSavin
         error={errors.amount}
       />
       <p className="quick-form-note">This updates the saved amount for your goal.</p>
-      <button className="primary-button full" type="submit">
-        Move to goal
+      <button className="primary-button full quick-save-button" type="submit">
+        Move money
       </button>
     </form>
   )
 }
 
-function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
-  const [kind, setKind] = useState('given')
-  const [person, setPerson] = useState('')
-  const [amount, setAmount] = useState('')
-  const [note, setNote] = useState('')
+function QuickBorrowLendEntry({ saveMoneyBookEntry, initialDraft = null, onSaved }) {
+  const [kind, setKind] = useState(initialDraft?.kind === 'taken' ? 'taken' : 'given')
+  const [person, setPerson] = useState(initialDraft?.person || '')
+  const [amount, setAmount] = useState(initialDraft?.amount || '')
+  const [note, setNote] = useState(initialDraft?.note || '')
   const [errors, setErrors] = useState({})
+  const personInputRef = useRef(null)
+  const amountInputRef = useRef(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const target = initialDraft?.person ? amountInputRef.current : personInputRef.current
+      target?.focus()
+      target?.select?.()
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [initialDraft?.person])
 
   return (
     <form className={`quick-expense-form ${Object.keys(errors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
@@ -9635,17 +9939,19 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
     }}>
       <div className="segmented-control quick-kind-toggle" aria-label="Borrow or lend type">
         <button className={kind === 'given' ? 'active' : ''} type="button" onClick={() => setKind('given')}>
-          I gave
+          They owe me
         </button>
         <button className={kind === 'taken' ? 'active' : ''} type="button" onClick={() => setKind('taken')}>
-          I took
+          I owe them
         </button>
       </div>
       <label>
         <span className="input-label">Person</span>
         <input
+          ref={personInputRef}
           className={`plain-input ${errors.person ? 'field-invalid' : ''}`}
           type="text"
+          autoComplete="name"
           value={person}
           placeholder="Rahul, Priya..."
           aria-invalid={errors.person ? 'true' : undefined}
@@ -9661,6 +9967,7 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
         {errors.person && <small className="field-helper">{errors.person}</small>}
       </label>
       <CurrencyInput
+        ref={amountInputRef}
         label="Amount"
         id="quick-borrow-amount"
         value={amount}
@@ -9675,17 +9982,47 @@ function QuickBorrowLendEntry({ saveMoneyBookEntry, onSaved }) {
         }}
         error={errors.amount}
       />
-      <label>
-        <span className="input-label">Note</span>
-        <input
-          className="plain-input"
-          type="text"
-          value={note}
-          placeholder="Optional"
-          onChange={(event) => setNote(event.target.value)}
-        />
-      </label>
-      <button className="primary-button full" type="submit">
+
+      <div className="quick-chip-row compact-quick-row quick-amount-row" aria-label="Quick borrow/lend amounts">
+        {QUICK_AMOUNT_PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => {
+              setAmount(String(preset))
+              setErrors((current) => {
+                const next = { ...current }
+                delete next.amount
+                return next
+              })
+              amountInputRef.current?.focus()
+            }}
+          >
+            {rupees(preset)}
+          </button>
+        ))}
+      </div>
+
+      <details className="quick-extra-details">
+        <summary>
+          <span>Note</span>
+          <ChevronRight size={15} aria-hidden="true" />
+        </summary>
+        <div className="quick-extra-body">
+          <label>
+            <span className="input-label">Note</span>
+            <input
+              className="plain-input"
+              type="text"
+              value={note}
+              placeholder="Optional"
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </label>
+        </div>
+      </details>
+
+      <button className="primary-button full quick-save-button" type="submit">
         Save entry
       </button>
       {errors.form && <p className="form-message form-message-error">{errors.form}</p>}
@@ -10041,13 +10378,13 @@ function VoiceExpenseBox({
               ))}
               <div className="mini-action-row">
                 <button className="primary-button" type="button" onClick={confirmVoiceExpense}>
-                  {reviewDrafts.length > 1 ? 'Save all' : 'Save'}
+                  {reviewDrafts.length > 1 ? 'Save entries' : 'Save entry'}
                 </button>
                 <button className="ghost-button" type="button" onClick={useVoiceDraftInForm}>
                   Edit in form
                 </button>
                 <button className="ghost-button" type="button" onClick={clearVoiceDraft}>
-                  Cancel
+                  Close
                 </button>
               </div>
             </div>
@@ -10442,7 +10779,7 @@ function ProfileExpenseQuickAdd({
         </label>
       </div>
       <button className="primary-button full" type="submit">
-        Add Expense
+        Save expense
       </button>
       {expenseError && <p className="form-message">{expenseError}</p>}
     </form>
@@ -10474,7 +10811,7 @@ function CommitmentEditorSheet({ commitments, updateCommitment, addCommitment, r
       </div>
       <div className="editor-sheet-footer">
         <button className="primary-button full" type="button" onClick={onClose}>
-          Done
+          Close
         </button>
       </div>
     </AppModal>

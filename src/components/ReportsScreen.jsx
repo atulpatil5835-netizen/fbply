@@ -689,7 +689,7 @@ export default function ReportsScreen({
             />
             <ActionCard
               title="Analyze Statement"
-              detail="Upload PDF or CSV"
+              detail="Upload statement"
               actionLabel="Upload"
               icon={Upload}
               tone="warning"
@@ -788,9 +788,9 @@ export default function ReportsScreen({
           />
           <div className="mos-report-library-grid">
             <ActionCard
-              title="Monthly Reports"
-              detail="Generate the current monthly budget report."
-              actionLabel={isPreparingReport('monthly') ? 'Preparing' : 'Generate'}
+              title="Monthly Notebook"
+              detail="Download the best current notebook report."
+              actionLabel={isPreparingReport('monthly') ? 'Preparing' : 'Download'}
               icon={ChartPie}
               tone="tint"
               disabled={!canExport}
@@ -800,7 +800,7 @@ export default function ReportsScreen({
             </ActionCard>
             <ActionCard
               title="Statement Reports"
-              detail="Review PDF or CSV rows before generating a statement report."
+              detail="Review uploaded rows before downloading a statement report."
               actionLabel="Analyze statement"
               icon={Upload}
               tone="warning"
@@ -809,9 +809,9 @@ export default function ReportsScreen({
               {statementReportCount > 0 && <StatusBadge>{statementReportCount}</StatusBadge>}
             </ActionCard>
             <ActionCard
-              title="Trip Reports"
-              detail="Export the current shared trip report."
-              actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Generate'}
+              title="Trip Notebook"
+              detail="Download the current shared trip report."
+              actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Download'}
               icon={ShieldCheck}
               tone="success"
               disabled={!canExport}
@@ -867,10 +867,10 @@ export default function ReportsScreen({
             </div>
           ) : (
             <EmptyState
-              title="No reports yet"
+              title="No notebook reports yet."
               icon={FileText}
               action={{
-                label: isPreparingReport('monthly') ? 'Preparing...' : 'Create monthly report',
+                label: isPreparingReport('monthly') ? 'Preparing...' : 'Download notebook',
                 onClick: () => {
                   trackEvent('empty_state_cta_clicked', {
                     surface: 'reports',
@@ -884,12 +884,49 @@ export default function ReportsScreen({
           )}
         </section>
 
-        <section className="mos-report-section" id="reports-export-section" aria-label="Exports">
+        <section className="mos-report-section" id="reports-export-section" aria-label="Smart downloads">
           <SectionHeader
-            title="Exports"
-            actions={(
+            title="Download"
+            detail="FBPLY chooses the right notebook output."
+            actions={<StatusBadge>Smart</StatusBadge>}
+          />
+          <div className="mos-report-export-grid mos-report-smart-download-grid">
+            <ActionCard
+              title="Download notebook"
+              detail="Best full report for this month."
+              actionLabel={isPreparingReport('monthly') ? 'Preparing' : 'Download'}
+              icon={Download}
+              tone="tint"
+              disabled={!canExport}
+              onClick={() => handleMonthlyPdfExport('money_os_exports')}
+            />
+            <ActionCard
+              title="Download trip notebook"
+              detail="Shared groups, totals, and settlements."
+              actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Download'}
+              icon={FileText}
+              tone="success"
+              disabled={!canExport}
+              onClick={() => handleTripPdfExport('money_os_exports')}
+            />
+            <ActionCard
+              title="Download settlement note"
+              detail="Who needs to pay whom."
+              actionLabel={isPreparingReport('settlement') ? 'Preparing' : 'Download'}
+              icon={FileText}
+              tone="warning"
+              disabled={!canExport}
+              onClick={() => handleSettlementPdfExport('money_os_exports')}
+            />
+          </div>
+          <details className="money-os mos-report-advanced-downloads">
+            <summary>
+              <span>Advanced downloads</span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </summary>
+            <div className="mos-report-advanced-downloads-body">
               <label className="report-template-select mos-report-template-select">
-                <span>Template</span>
+                <span>Report style</span>
                 <select
                   className="month-select compact-month-select"
                   value={reportTemplate}
@@ -906,45 +943,16 @@ export default function ReportsScreen({
                   <option value="compact">Compact</option>
                 </select>
               </label>
-            )}
-          />
-          <div className="mos-report-export-grid">
-            <ActionCard
-              title="Monthly Budget PDF"
-              detail="Executive summary, key numbers, insights, and recommendations."
-              actionLabel={isPreparingReport('monthly') ? 'Preparing' : 'Export PDF'}
-              icon={FileText}
-              tone="tint"
-              disabled={!canExport}
-              onClick={() => handleMonthlyPdfExport('money_os_exports')}
-            />
-            <ActionCard
-              title="Trip PDF"
-              detail="Shared groups and trip totals."
-              actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Export trip'}
-              icon={FileText}
-              tone="success"
-              disabled={!canExport}
-              onClick={() => handleTripPdfExport('money_os_exports')}
-            />
-            <ActionCard
-              title="Settlement PDF"
-              detail="Settlement balances."
-              actionLabel={isPreparingReport('settlement') ? 'Preparing' : 'Export settlement'}
-              icon={FileText}
-              tone="warning"
-              disabled={!canExport}
-              onClick={() => handleSettlementPdfExport('money_os_exports')}
-            />
-            <ActionCard
-              title="CSV Export"
-              detail="Download the current financial history export."
-              actionLabel="Export CSV"
-              icon={Download}
-              tone="neutral"
-              onClick={() => handleCsvExport('money_os_exports')}
-            />
-          </div>
+              <ActionCard
+                title="Spreadsheet backup"
+                detail="Download the current financial history table."
+                actionLabel="Download"
+                icon={Download}
+                tone="neutral"
+                onClick={() => handleCsvExport('money_os_exports')}
+              />
+            </div>
+          </details>
         </section>
           </div>
         </details>
@@ -1166,7 +1174,7 @@ export default function ReportsScreen({
         <div>
           <p className="eyebrow">Statement Analysis</p>
           <h2>Review bank statement rows before creating a report</h2>
-          <p>Upload a PDF or CSV, check detected transactions, then generate a statement report from the reviewed data.</p>
+          <p>Upload a statement, check detected transactions, then generate a statement report from the reviewed data.</p>
         </div>
         <button
           className="text-action-button"
@@ -1242,7 +1250,7 @@ export default function ReportsScreen({
             disabled={isExportingPdf}
           >
             <FileText size={18} />
-            {isPreparingReport('monthly') ? 'Preparing...' : 'Monthly Budget'}
+            {isPreparingReport('monthly') ? 'Preparing...' : 'Download monthly'}
           </button>
           <button
             className="action-button"
@@ -1264,7 +1272,7 @@ export default function ReportsScreen({
             disabled={isExportingPdf}
           >
             <FileText size={18} />
-            {isPreparingReport('trip') ? 'Preparing...' : 'Trip Report'}
+            {isPreparingReport('trip') ? 'Preparing...' : 'Download trip'}
           </button>
           <button
             className="action-button"
@@ -1286,7 +1294,7 @@ export default function ReportsScreen({
             disabled={isExportingPdf}
           >
             <FileText size={18} />
-            {isPreparingReport('settlement') ? 'Preparing...' : 'Settlement Report'}
+            {isPreparingReport('settlement') ? 'Preparing...' : 'Download settlement'}
           </button>
         </div>
       </article>
@@ -1358,8 +1366,8 @@ export default function ReportsScreen({
         <article className="report-history-empty-card">
           <div>
             <p className="eyebrow">Report history</p>
-            <h2>Generate your first financial report</h2>
-            <p>Once created, saved reports appear here for quick re-download.</p>
+            <h2>Download your first notebook report</h2>
+            <p>Saved reports appear here for quick download.</p>
           </div>
           <button
             className="primary-button"
@@ -1379,7 +1387,7 @@ export default function ReportsScreen({
             }}
             disabled={isExportingPdf}
           >
-            Create monthly report
+            Download notebook
           </button>
         </article>
       )}
@@ -1570,7 +1578,7 @@ export default function ReportsScreen({
           disabled={isExportingPdf}
         >
           <FileText size={20} />
-          {isPreparingReport('monthly') ? 'Preparing...' : 'Export PDF'}
+          {isPreparingReport('monthly') ? 'Preparing...' : 'Download report'}
         </button>
         <button
           className="action-button"
@@ -1585,7 +1593,7 @@ export default function ReportsScreen({
           }}
         >
           <Download size={20} />
-          Export CSV
+          Download table
         </button>
       </div>
     </section>
