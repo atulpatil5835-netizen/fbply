@@ -1323,10 +1323,10 @@ function drawExpenseHistoryTablePdf(doc, y, model, meta = {}, theme = resolveRep
 
   const columns = [
     { key: 'dateLabel', label: 'Date', width: 31 },
-    { key: 'timeLabel', label: 'Time', width: 23 },
-    { key: 'category', label: 'Category', width: 38 },
-    { key: 'title', label: 'Line', width: 50 },
-    { key: 'amountLabel', label: 'Amount', width: 40, align: 'right' },
+    { key: 'timeLabel', label: 'Time', width: 22 },
+    { key: 'category', label: 'Category', width: 38, wrap: true },
+    { key: 'title', label: 'Line', width: 54, wrap: true },
+    { key: 'amountLabel', label: 'Amount', width: 37, align: 'right' },
   ]
   const drawHeader = () => {
     let x = PAGE.margin
@@ -1347,7 +1347,19 @@ function drawExpenseHistoryTablePdf(doc, y, model, meta = {}, theme = resolveRep
   drawHeader()
 
   model.rows.forEach((row) => {
-    const rowHeight = 10
+    const preparedCells = columns.map((column) => {
+      const text = cleanPdfText(row[column.key] || '-')
+      const lines = column.wrap
+        ? doc.splitTextToSize(text, column.width - 4).slice(0, 2)
+        : [text]
+
+      return {
+        column,
+        lines: lines.length > 0 ? lines : ['-'],
+      }
+    })
+    const maxLines = Math.max(1, ...preparedCells.map((cell) => cell.lines.length))
+    const rowHeight = Math.max(12, maxLines * 4.3 + 5)
 
     if (y + rowHeight > reportBottomY()) {
       y = addSimpleReportPage(doc, meta, theme)
@@ -1356,15 +1368,25 @@ function drawExpenseHistoryTablePdf(doc, y, model, meta = {}, theme = resolveRep
     }
 
     let x = PAGE.margin
-    columns.forEach((column, index) => {
-      drawFittedText(doc, row[column.key] || '-', x, y, column.width - (column.align === 'right' ? 0 : 4), {
-        align: column.align || 'left',
-        color: index === 4 ? theme.text : index === 2 ? theme.accent : theme.text,
-        font: theme.pdfFont,
-        minSize: 5.9,
-        size: 7.2,
-        weight: index === 2 || index === 4 ? 'bold' : 'normal',
-      })
+    preparedCells.forEach(({ column, lines }, index) => {
+      const color = index === 4 ? theme.text : index === 2 ? theme.accent : theme.text
+      const weight = index === 2 || index === 4 ? 'bold' : 'normal'
+
+      if (column.align === 'right') {
+        drawFittedText(doc, lines[0], x, y, column.width, {
+          align: 'right',
+          color,
+          font: theme.pdfFont,
+          minSize: 5.9,
+          size: 7.2,
+          weight,
+        })
+      } else {
+        setThemeText(doc, theme, color)
+        setThemeFont(doc, theme, weight, 7.1)
+        doc.text(lines, x, y)
+      }
+
       x += column.width
     })
     setThemeStroke(doc, theme.border)
@@ -1476,23 +1498,26 @@ async function createExpenseHistoryReportJpegBlob({ meta, model, theme }) {
   context.font = `800 16px ${theme.canvasFont}`
   context.fillText('DATE', margin, y)
   context.fillText('TIME', margin + 205, y)
-  context.fillText('CATEGORY', margin + 360, y)
+  context.fillText('CATEGORY', margin + 340, y)
+  context.fillText('LINE', margin + 560, y)
   context.textAlign = 'right'
   context.fillText('AMOUNT', canvas.width - margin, y)
   context.textAlign = 'left'
-  y += 26
+  y += 30
 
   const bottomLimit = canvas.height - 126
   model.rows.forEach((row) => {
-    if (y + 44 > bottomLimit) {
+    const rowHeight = 58
+
+    if (y + rowHeight > bottomLimit) {
       return
     }
 
     context.strokeStyle = rgbToCss(theme.border)
     context.lineWidth = 1
     context.beginPath()
-    context.moveTo(margin, y + 32)
-    context.lineTo(canvas.width - margin, y + 32)
+    context.moveTo(margin, y + rowHeight - 14)
+    context.lineTo(canvas.width - margin, y + rowHeight - 14)
     context.stroke()
 
     context.fillStyle = rgbToCss(theme.text)
@@ -1502,18 +1527,18 @@ async function createExpenseHistoryReportJpegBlob({ meta, model, theme }) {
 
     context.fillStyle = rgbToCss(theme.accent)
     context.font = `800 19px ${theme.canvasFont}`
-    context.fillText(row.category, margin + 360, y)
+    drawCanvasText(context, row.category, margin + 340, y, 180, 22, 1)
 
     context.fillStyle = rgbToCss(theme.muted)
     context.font = `500 17px ${theme.canvasFont}`
-    drawCanvasText(context, row.title, margin + 560, y, 340, 22, 1)
+    drawCanvasText(context, row.title, margin + 560, y, 330, 22, 2)
 
     context.fillStyle = rgbToCss(theme.text)
     context.font = `800 19px ${theme.canvasFont}`
     context.textAlign = 'right'
     context.fillText(row.amountLabel, canvas.width - margin, y)
     context.textAlign = 'left'
-    y += 44
+    y += rowHeight
   })
 
   context.strokeStyle = rgbToCss(theme.border)

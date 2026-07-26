@@ -7274,6 +7274,16 @@ img {
   border-top: 2px solid color-mix(in srgb, var(--theme-line) 70%, transparent);
 }
 
+.v25-history-top {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--notebook-space-md);
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--theme-line) 66%, var(--theme-border));
+  border-radius: var(--notebook-radius-card);
+  background: color-mix(in srgb, var(--theme-paper) 72%, transparent);
+}
+
 .previous-pages-heading {
   display: grid;
   gap: 4px;
@@ -7340,6 +7350,81 @@ img {
   align-items: center;
   gap: 7px;
   white-space: nowrap;
+}
+
+.home-history-list {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-line) 54%, transparent);
+  border-radius: var(--notebook-radius-card);
+  background: color-mix(in srgb, var(--theme-paper) 62%, transparent);
+}
+
+.home-history-row {
+  padding-right: 12px;
+}
+
+.home-history-row .ruled-line-copy strong,
+.home-history-row .ruled-line-copy small {
+  white-space: normal;
+}
+
+.home-history-row .ruled-line-copy strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.home-history-empty {
+  min-height: 74px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 10px;
+  padding: 14px;
+  color: var(--muted);
+}
+
+.home-history-empty svg {
+  grid-row: span 2;
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--nb-border));
+  border-radius: 999px;
+  color: var(--theme-primary);
+  background: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-paper));
+}
+
+.home-history-empty span,
+.home-history-empty small {
+  min-width: 0;
+}
+
+.home-history-empty span {
+  color: var(--text);
+  font-size: var(--type-body-size);
+  font-weight: 900;
+}
+
+.home-history-empty small {
+  font-size: var(--type-caption-size);
+  line-height: 1.35;
+  font-weight: 750;
+}
+
+.home-history-see-more {
+  min-height: 38px;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
+  border-radius: 999px;
+  padding: 0 18px;
+  color: var(--theme-primary);
+  background: color-mix(in srgb, var(--theme-paper) 82%, transparent);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .v24-section-page {
@@ -16465,6 +16550,14 @@ img {
 
   .previous-pages-section {
     margin-top: var(--notebook-space-sm);
+  }
+
+  .v25-history-top {
+    padding: 12px;
+  }
+
+  .home-history-see-more {
+    width: 100%;
   }
 
   .mos-sheet-backdrop:has(.notebook-spread-sheet),

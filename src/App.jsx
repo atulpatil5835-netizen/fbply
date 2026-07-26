@@ -235,7 +235,6 @@ import {
   StatusBadge,
   SuccessState,
   defaultMoneyOSTheme,
-  getMoneyOSThemeExperience,
   normalizeMoneyOSTheme,
 } from './design-system'
 import { focusInvalidField, slugify, titleCase } from './lib/uiHelpers'
@@ -6793,13 +6792,15 @@ function formatDailyHeroTime(value) {
   })
 }
 
-function buildDailyHeroActivity(transactions = []) {
+function buildDailyHeroActivity(transactions = [], limit = 5) {
+  const safeLimit = Number.isFinite(limit) ? limit : transactions.length
+
   return transactions
     .filter((transaction) => transaction && normalizeMoney(transaction.amount) > 0)
     .filter((transaction) => transaction.sourceModule !== 'Planner')
     .filter((transaction) => transaction.sourceModule !== 'Goals')
     .filter((transaction) => transaction.source !== 'commitment')
-    .slice(0, 5)
+    .slice(0, safeLimit)
     .map((transaction) => ({
       ...transaction,
       icon: dailyHeroActivityIcon(transaction),
@@ -6807,6 +6808,24 @@ function buildDailyHeroActivity(transactions = []) {
       amountLabel: dailyHeroSignedAmount(transaction),
       timeLabel: formatDailyHeroTime(transaction.dateTime || transaction.date),
     }))
+}
+
+function formatHomeHistoryLineMeta(entry = {}) {
+  const dateKey = dailyTransactionDateKey(entry)
+  const parts = [
+    entry.category || 'Expense',
+    formatHomeNotebookDate(dateKey),
+  ]
+  const parsed = new Date(entry.dateTime || entry.createdAt || '')
+
+  if (!Number.isNaN(parsed.getTime())) {
+    parts.push(parsed.toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+    }))
+  }
+
+  return parts.filter(Boolean).join(' - ')
 }
 
 function buildDailyHeroNextAction(recommendation) {
@@ -7268,13 +7287,13 @@ function V12HomeScreen({
   openQuickTools,
   requestReportExport,
   saveDailyFlowEntries,
-  moneyTheme = defaultMoneyOSTheme,
 }) {
   const [historyFilter, setHistoryFilter] = useState('today')
   const [entryMode, setEntryMode] = useState('normal')
   const [customDate, setCustomDate] = useState(todayDateKey())
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [calendarMonthKey, setCalendarMonthKey] = useState(currentMonthKey())
+  const [historyDisplay, setHistoryDisplay] = useState({ key: '', count: 8 })
   const [stampActive, setStampActive] = useState(false)
   const [dailyInsight, setDailyInsight] = useState('')
   const [dailyFlowInput, setDailyFlowInput] = useState('')
@@ -7285,7 +7304,6 @@ function V12HomeScreen({
   const previousTodayCountRef = useRef(null)
   const closePageTimerRef = useRef(null)
   const dailyFlowTimerRef = useRef(null)
-  const themeExperience = useMemo(() => getMoneyOSThemeExperience(moneyTheme), [moneyTheme])
   const homeExpenseTransactions = useMemo(
     () => todayTransactions.filter(isHomeDailyExpenseTransaction),
     [todayTransactions],
@@ -7319,6 +7337,14 @@ function V12HomeScreen({
     }),
     [historyRange, homeExpenseTransactions],
   )
+  const historyListKey = `${historyFilter}-${historyRange.start}-${historyRange.end}-${selectedHistoryExpenses.length}`
+  const visibleHistoryCount = historyDisplay.key === historyListKey ? historyDisplay.count : 8
+  const selectedHistoryRows = useMemo(
+    () => buildDailyHeroActivity(selectedHistoryExpenses, selectedHistoryExpenses.length),
+    [selectedHistoryExpenses],
+  )
+  const visibleHistoryRows = selectedHistoryRows.slice(0, visibleHistoryCount)
+  const remainingHistoryCount = Math.max(selectedHistoryRows.length - visibleHistoryRows.length, 0)
   const todaysPreview = useMemo(
     () => buildHomeNotebookPreview(homeExpenseTransactions, buildHomeNotebookHistoryRange('today')),
     [homeExpenseTransactions],
@@ -7353,12 +7379,7 @@ function V12HomeScreen({
     { key: 'written', label: 'Written', value: todayWrittenTotal },
     { key: 'last', label: 'Last line', value: todayLastLine },
   ]
-  const showSelectedPagePreview = historyFilter !== 'today'
   const ambientTimeClass = getHomeAmbientTimeClass()
-  const previousPageCount = Math.max(homeExpenseTransactions.length - todaysPreview.count, 0)
-  const previousPageDetail = previousPageCount > 0
-    ? `${previousPageCount} note${previousPageCount === 1 ? '' : 's'} from earlier pages.`
-    : 'Your past entries will rest here quietly.'
   const handleHistoryReportDownload = useCallback(() => {
     requestReportExport?.('expense-history', {
       template: 'standard',
@@ -7369,6 +7390,12 @@ function V12HomeScreen({
       transactions: selectedHistoryExpenses,
     })
   }, [historyFilter, historyRange, requestReportExport, selectedHistoryExpenses])
+  const showMoreHistory = useCallback(() => {
+    setHistoryDisplay({
+      key: historyListKey,
+      count: visibleHistoryCount + 12,
+    })
+  }, [historyListKey, visibleHistoryCount])
 
   useEffect(() => {
     if (previousTodayCountRef.current === null) {
@@ -7611,6 +7638,89 @@ function V12HomeScreen({
           </section>
         )}
 
+        <section className="previous-pages-section v25-history-top" aria-label="Expense page history">
+          <div className="v24-history-toolbar">
+            <div>
+              <p className="eyebrow">History</p>
+              <h3>Expense pages</h3>
+              <small>{notebookPreview.count} line{notebookPreview.count === 1 ? '' : 's'} in this view.</small>
+            </div>
+            <div className="v24-history-actions">
+              <label className="v24-history-select">
+                <span>View</span>
+                <select
+                  value={historyFilter}
+                  onChange={(event) => setHistoryFilter(event.target.value)}
+                  aria-label="Choose expense history range"
+                >
+                  {HOME_HISTORY_OPTIONS.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="ghost-button v24-history-download" type="button" onClick={handleHistoryReportDownload}>
+                <Download size={15} />
+                <span>Download report</span>
+              </button>
+            </div>
+          </div>
+          {historyFilter === 'custom' && (
+            <label className="v16-history-custom-date">
+              <span className="input-label">Notebook date</span>
+              <input
+                className="plain-input"
+                type="date"
+                value={customDate}
+                onChange={(event) => setCustomDate(event.target.value)}
+              />
+            </label>
+          )}
+
+          <div className="v12-notebook-row-list v23-today-page-lines home-history-list">
+            {visibleHistoryRows.length === 0 ? (
+              <div className="home-history-empty" aria-live="polite">
+                <Receipt size={16} aria-hidden="true" />
+                <span>No expense lines in this view yet.</span>
+                <small>New lines will appear here as soon as they are written.</small>
+              </div>
+            ) : (
+              visibleHistoryRows.map((entry) => (
+                <article
+                  className={`home-history-row ruled-line ruled-line-written ${newEntryId === entry.id ? 'ruled-line-new' : ''}`.trim()}
+                  key={entry.id || `${entry.title}-${entry.dateTime}`}
+                >
+                  <span className="ruled-line-copy">
+                    <strong>{entry.title || entry.category || 'Money move'}</strong>
+                    <small>{formatHomeHistoryLineMeta(entry)}</small>
+                  </span>
+                  <b className="amount">{entry.amountLabel}</b>
+                </article>
+              ))
+            )}
+          </div>
+
+          {remainingHistoryCount > 0 && (
+            <button className="home-history-see-more" type="button" onClick={showMoreHistory}>
+              See more ({remainingHistoryCount})
+            </button>
+          )}
+
+          {historyFilter === 'today' && selectedHistoryRows.length > 0 && !isPageClosed && (
+            <div className="home-close-page-row">
+              <button className="home-close-page-button" type="button" onClick={closeTodayPage}>
+                Close Today&apos;s Page
+              </button>
+            </div>
+          )}
+          {historyFilter === 'today' && isPageClosed && (
+            <div className="home-page-closed-note" role="status">
+              Page closed. Calmly done.
+            </div>
+          )}
+        </section>
+
         <section className="v24-page-start-tools" aria-label="Start today's page">
           <div className="v24-page-start-header">
             <div>
@@ -7736,141 +7846,6 @@ function V12HomeScreen({
             })}
           </div>
         </section>
-        {todaysPreview.rows.length === 0 ? (
-          <div className="empty-ruled-lines" aria-label="Empty notebook page">
-            <div className="ruled-line ruled-line-placeholder">
-              <span>Write your first money line</span>
-              <span className="empty-cursor" aria-hidden="true" />
-            </div>
-            <div className="ruled-line ruled-line-placeholder" aria-hidden="true">
-              <span className="ruled-line-fill" />
-            </div>
-            <div className="ruled-line ruled-line-placeholder" aria-hidden="true">
-              <span className="ruled-line-fill" />
-            </div>
-            <p>Tap &quot;Add One Expense&quot; to start this page.</p>
-          </div>
-        ) : (
-          <div className="v12-notebook-row-list v23-today-page-lines">
-            {todaysPreview.rows.slice(0, 3).map((entry) => {
-              return (
-                <article
-                  className={`ruled-line ruled-line-written ${newEntryId === entry.id ? 'ruled-line-new' : ''}`}
-                  key={entry.id || `${entry.title}-${entry.dateTime}`}
-                >
-                  <span className="ruled-line-copy">
-                    <strong>{entry.title || entry.category || 'Money move'}</strong>
-                    <small>{entry.timeLabel}</small>
-                  </span>
-                  <b className="amount">{entry.amountLabel}</b>
-                </article>
-              )
-            })}
-            {todaysPreview.count > 3 && (
-              <p className="home-notebook-more-lines">
-                + {todaysPreview.count - 3} more line{todaysPreview.count - 3 === 1 ? '' : 's'} resting on this page.
-              </p>
-            )}
-            {!isPageClosed && (
-              <div className="home-close-page-row">
-                <button className="home-close-page-button" type="button" onClick={closeTodayPage}>
-                  Close Today&apos;s Page
-                </button>
-              </div>
-            )}
-            {isPageClosed && (
-              <div className="home-page-closed-note" role="status">
-                Page closed. Calmly done.
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      <section className="previous-pages-section" aria-label="Previous notebook pages">
-        <div className="previous-pages-heading">
-          <h3 className="handwritten-subtitle">Previous Pages</h3>
-          <p>{previousPageDetail}</p>
-        </div>
-
-        <section className="v16-history-selector v23-history-secondary" aria-label="Notebook history selector">
-          <div className="v24-history-toolbar">
-            <div>
-              <p className="eyebrow">History</p>
-              <h3>Expense pages</h3>
-              <small>{notebookPreview.count} line{notebookPreview.count === 1 ? '' : 's'} in this view.</small>
-            </div>
-            <div className="v24-history-actions">
-              <label className="v24-history-select">
-                <span>View</span>
-                <select
-                  value={historyFilter}
-                  onChange={(event) => setHistoryFilter(event.target.value)}
-                  aria-label="Choose expense history range"
-                >
-                  {HOME_HISTORY_OPTIONS.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button className="ghost-button v24-history-download" type="button" onClick={handleHistoryReportDownload}>
-                <Download size={15} />
-                <span>Download report</span>
-              </button>
-            </div>
-          </div>
-          {historyFilter === 'custom' && (
-            <label className="v16-history-custom-date">
-              <span className="input-label">Notebook date</span>
-              <input
-                className="plain-input"
-                type="date"
-                value={customDate}
-                onChange={(event) => setCustomDate(event.target.value)}
-              />
-            </label>
-          )}
-        </section>
-
-        {showSelectedPagePreview && (
-          <section className="v12-home-recent v16-cover-preview v23-selected-page-preview" aria-label="Selected notebook preview">
-            <SectionHeader
-              eyebrow="Selected page"
-              title={historyRange.label}
-              detail={`${notebookPreview.spentLabel} out, ${notebookPreview.receivedLabel} in.`}
-              actions={<StatusBadge tone={notebookPreview.balance >= 0 ? 'success' : 'warning'}>{notebookPreview.balanceLabel}</StatusBadge>}
-            />
-            {notebookPreview.rows.length === 0 ? (
-              <MoneyCard
-                title="Fresh page"
-                detail={themeExperience.copy.emptyHome}
-                icon={Receipt}
-                tone="neutral"
-              />
-            ) : (
-              <div className="v12-notebook-row-list">
-                {notebookPreview.rows.map((entry) => {
-                  const EntryIcon = entry.icon || Receipt
-
-                  return (
-                    <article className={`v12-notebook-row v12-notebook-row--${entry.heroTone}`} key={entry.id || `${entry.title}-${entry.dateTime}`}>
-                      <span className="v12-notebook-row-icon" aria-hidden="true">
-                        <EntryIcon size={16} />
-                      </span>
-                      <span>
-                        <strong>{entry.title || entry.category || 'Money move'}</strong>
-                        <small>{entry.timeLabel}</small>
-                      </span>
-                      <b>{entry.amountLabel}</b>
-                    </article>
-                  )
-                })}
-              </div>
-            )}
-          </section>
-        )}
       </section>
     </MoneyOSProvider>
   )
