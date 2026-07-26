@@ -4352,11 +4352,24 @@ function App() {
     })
   }, [])
 
-  const saveExpenseRecord = useCallback(({ label, category, amount, note = '', type = expenseMode, source = 'manual', date = todayDateKey() }) => {
+  const saveExpenseRecord = useCallback(({
+    label,
+    category,
+    amount,
+    note = '',
+    type = expenseMode,
+    source = 'manual',
+    surface = 'quick_add',
+    date = todayDateKey(),
+    id,
+    createdAt,
+    activateFirstExpense = true,
+  }) => {
     const parsedAmount = normalizeMoney(amount)
     const categoryName = String(category || '').trim()
     const labelName = String(label || categoryName || '').trim()
     const dateKey = normalizeDateKey(date)
+    const savedAt = createdAt || new Date().toISOString()
     const fieldErrors = {}
 
     setExpenseError('')
@@ -4382,14 +4395,14 @@ function App() {
     }
 
     const newExpense = {
-      id: Date.now(),
+      id: id ?? Date.now(),
       label: labelName,
       category: categoryName || 'Other',
       amount: parsedAmount,
       note: note || `${labelName} ${type} entry`,
       type,
       date: dateKey,
-      createdAt: new Date().toISOString(),
+      createdAt: savedAt,
       source,
     }
 
@@ -4398,10 +4411,10 @@ function App() {
     trackFeatureUsage('expense_saved', {
       expense_type: type,
       source,
-      surface: 'quick_add',
+      surface,
     })
 
-    if (expenses.length === 0) {
+    if (activateFirstExpense && expenses.length === 0) {
       trackActivation('first_expense', {
         expense_type: type,
         source,
@@ -4475,6 +4488,68 @@ function App() {
 
     return saved
   }, [customExpenseName, expenseAmount, expenseMode, expenseNote, saveExpenseRecord, selectedCategory, voiceMemory])
+
+  const saveDailyFlowEntries = useCallback((items = []) => {
+    const preparedItems = (Array.isArray(items) ? items : [])
+      .map((item) => ({
+        description: String(item?.description || '').trim(),
+        amount: normalizeMoney(item?.amount),
+      }))
+      .filter((item) => item.description && item.amount > 0)
+      .slice(0, DAILY_FLOW_MAX_ITEMS)
+
+    if (preparedItems.length === 0) {
+      return []
+    }
+
+    const batchStartedAt = Date.now()
+    const savedEntries = preparedItems
+      .map((item, index) => {
+        const categorySuggestion = suggestExpenseCategoryForLabel(item.description, voiceMemory)
+        const category = categorySuggestion?.category || 'Other'
+
+        return saveExpenseRecord({
+          id: `${batchStartedAt}-${index}`,
+          label: item.description,
+          category,
+          amount: item.amount,
+          note: `${item.description} - Daily Flow`,
+          type: expenseMode,
+          source: 'daily_flow',
+          surface: 'home_daily_flow',
+          date: todayDateKey(),
+          createdAt: new Date(batchStartedAt + index).toISOString(),
+          activateFirstExpense: index === 0,
+        })
+      })
+      .filter(Boolean)
+
+    if (savedEntries.length === 0) {
+      return []
+    }
+
+    setVoiceMemory((current) => savedEntries.reduce((memory, entry) => learnVoiceExpense(memory, {
+      label: entry.label,
+      merchant: entry.label,
+      category: entry.category,
+      amount: entry.amount,
+      learningSource: 'daily_flow',
+    }, { learningSource: 'daily_flow' }), current))
+
+    const totalAmount = savedEntries.reduce((total, entry) => addMoney(total, entry.amount), 0)
+
+    trackFeatureUsage('daily_flow_batch_saved', {
+      surface: 'home',
+      entry_count: savedEntries.length,
+      total_amount: totalAmount,
+    })
+    trackEvent('daily_flow_batch_saved', {
+      surface: 'home',
+      entry_count: savedEntries.length,
+    })
+
+    return savedEntries
+  }, [expenseMode, saveExpenseRecord, voiceMemory])
 
   const saveVoiceDrafts = useCallback((drafts) => {
     const validDrafts = (Array.isArray(drafts) ? drafts : [drafts]).filter(Boolean)
@@ -5782,6 +5857,7 @@ function App() {
               expenseFieldErrors={expenseFieldErrors}
               clearExpenseFieldError={clearExpenseFieldError}
               addExpense={addExpense}
+              saveDailyFlowEntries={saveDailyFlowEntries}
               voiceState={voiceState}
               voiceDraft={voiceDraft}
               voiceDrafts={voiceDrafts}
@@ -6922,25 +6998,71 @@ function DailyCompanionEntry({
   )
 }
 
+const DAILY_FLOW_MAX_ITEMS = 20
+
+function parseDailyFlowInput(text) {
+  const parts = String(text || '')
+    .split(/[\n,;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const visibleParts = parts.slice(0, DAILY_FLOW_MAX_ITEMS)
+
+  return {
+    overflowCount: Math.max(parts.length - visibleParts.length, 0),
+    items: visibleParts.map((part, index) => {
+      const cleanPart = part.replace(/\s+/g, ' ')
+      const match = cleanPart.match(/^(.*?)\s*(?:-|:)?\s*(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]{1,2})?)\s*$/i)
+      const description = String(match?.[1] || cleanPart).trim() || 'Untitled line'
+      const amount = match ? normalizeMoney(match[2]) : 0
+
+      return {
+        id: `${index}-${cleanPart}`,
+        raw: cleanPart,
+        description,
+        amount,
+        isValid: amount > 0,
+      }
+    }),
+  }
+}
+
 function V12HomeScreen({
   todayTransactions = [],
   nextBestAction,
   onNextActionClick,
   openAddSheet,
+  saveDailyFlowEntries,
   moneyTheme = defaultMoneyOSTheme,
 }) {
   const [historyFilter, setHistoryFilter] = useState('today')
   const [customDate, setCustomDate] = useState(todayDateKey())
   const [stampActive, setStampActive] = useState(false)
   const [dailyInsight, setDailyInsight] = useState('')
+  const [dailyFlowInput, setDailyFlowInput] = useState('')
+  const [dailyFlowMessage, setDailyFlowMessage] = useState('')
+  const [isDailyFlowSaving, setIsDailyFlowSaving] = useState(false)
   const [isPageClosed, setIsPageClosed] = useState(false)
   const [newEntryId, setNewEntryId] = useState(null)
   const previousTodayCountRef = useRef(null)
   const closePageTimerRef = useRef(null)
+  const dailyFlowTimerRef = useRef(null)
   const themeExperience = useMemo(() => getMoneyOSThemeExperience(moneyTheme), [moneyTheme])
   const historyRange = useMemo(
     () => buildHomeNotebookHistoryRange(historyFilter, customDate),
     [customDate, historyFilter],
+  )
+  const dailyFlowPreview = useMemo(() => parseDailyFlowInput(dailyFlowInput), [dailyFlowInput])
+  const dailyFlowValidItems = useMemo(
+    () => dailyFlowPreview.items.filter((item) => item.isValid),
+    [dailyFlowPreview.items],
+  )
+  const dailyFlowHasInvalidItems = useMemo(
+    () => dailyFlowPreview.items.some((item) => !item.isValid),
+    [dailyFlowPreview.items],
+  )
+  const dailyFlowTotal = useMemo(
+    () => dailyFlowValidItems.reduce((total, item) => addMoney(total, item.amount), 0),
+    [dailyFlowValidItems],
   )
   const notebookPreview = useMemo(
     () => buildHomeNotebookPreview(todayTransactions, historyRange),
@@ -7022,6 +7144,10 @@ function V12HomeScreen({
     if (closePageTimerRef.current && typeof window !== 'undefined') {
       window.clearTimeout(closePageTimerRef.current)
     }
+
+    if (dailyFlowTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(dailyFlowTimerRef.current)
+    }
   }, [])
 
   const closeTodayPage = () => {
@@ -7039,19 +7165,88 @@ function V12HomeScreen({
     }
   }
 
+  const clearDailyFlowMessageSoon = (delay = 4200) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (dailyFlowTimerRef.current) {
+      window.clearTimeout(dailyFlowTimerRef.current)
+    }
+
+    dailyFlowTimerRef.current = window.setTimeout(() => {
+      setDailyFlowMessage('')
+      dailyFlowTimerRef.current = null
+    }, delay)
+  }
+
+  const clearDailyFlow = () => {
+    setDailyFlowInput('')
+    setDailyFlowMessage('')
+  }
+
+  const saveDailyFlow = async (event) => {
+    event.preventDefault()
+
+    if (isDailyFlowSaving) {
+      return
+    }
+
+    if (dailyFlowHasInvalidItems) {
+      setDailyFlowMessage('Add amounts to every line before writing.')
+      clearDailyFlowMessageSoon()
+      return
+    }
+
+    if (dailyFlowValidItems.length === 0) {
+      setDailyFlowMessage('Add an amount to at least one line.')
+      clearDailyFlowMessageSoon()
+      return
+    }
+
+    setIsDailyFlowSaving(true)
+    setDailyFlowMessage('Writing your lines...')
+
+    try {
+      const saved = await Promise.resolve(saveDailyFlowEntries?.(dailyFlowValidItems))
+      const savedEntries = Array.isArray(saved) ? saved : []
+
+      if (savedEntries.length === 0) {
+        setDailyFlowMessage('Nothing was written. Check the amounts once.')
+        clearDailyFlowMessageSoon()
+        return
+      }
+
+      setDailyFlowInput('')
+      setIsPageClosed(false)
+      setStampActive(true)
+      setDailyFlowMessage(`${savedEntries.length} line${savedEntries.length === 1 ? '' : 's'} written. Today's page has begun.`)
+      clearDailyFlowMessageSoon(4600)
+
+      if (typeof window !== 'undefined') {
+        window.setTimeout(() => setStampActive(false), 1500)
+      }
+    } catch (error) {
+      setDailyFlowMessage('Could not write these lines. Please try again.')
+      clearDailyFlowMessageSoon()
+    } finally {
+      setIsDailyFlowSaving(false)
+    }
+  }
+
   return (
     <MoneyOSProvider as="section" className={`screen-content v12-home v16-notebook-cover money-os-daily-companion ${ambientTimeClass}`}>
       <section className="v16-cover-title v23-home-hero" aria-label="Today's notebook page">
         <div className="v23-home-hero-copy">
           <p className="eyebrow">Daily Money Notebook</p>
-          <h1>Open today&apos;s page</h1>
+          <h1 className="handwritten-title">Open today&apos;s page</h1>
           <p>Write the money that moved today. Keep the page simple, honest, and calm.</p>
           <div className="v17-cover-meta" aria-label="Notebook status">
             <span>{currentMonthLabel}</span>
             <strong>{ritualStatus.title}</strong>
             <small>{ritualStatus.detail}</small>
           </div>
-          <button className="primary-button v16-cover-write-button v23-home-primary-cta" type="button" onClick={() => openAddSheet?.('expense')}>
+          <button className="primary-button v16-cover-write-button v23-home-primary-cta cta-handwritten" type="button" onClick={() => openAddSheet?.('expense')}>
             <Pencil size={16} />
             <span>Write Today&apos;s Money</span>
           </button>
@@ -7077,7 +7272,7 @@ function V12HomeScreen({
         <div className="v23-today-page-heading home-notebook-paper-heading">
           <div>
             <p className="eyebrow">Today&apos;s Page</p>
-            <h2 id="v23-today-page-title">{todayPageTitle}</h2>
+            <h2 className="sticky-note-title" id="v23-today-page-title">{todayPageTitle}</h2>
             <p>{todayPageDetail}</p>
           </div>
           <div className="home-notebook-paper-actions">
@@ -7089,6 +7284,70 @@ function V12HomeScreen({
             )}
           </div>
         </div>
+        <form className="daily-flow-entry" onSubmit={saveDailyFlow}>
+          <label className="daily-flow-label" htmlFor="daily-flow-input">
+            <span>Daily Flow</span>
+            <small>Write several lines at once: tea 20, bread 10, lunch 200</small>
+          </label>
+          <textarea
+            id="daily-flow-input"
+            value={dailyFlowInput}
+            placeholder="tea 20, bread 10, lunch 200"
+            rows={2}
+            onChange={(event) => {
+              setDailyFlowInput(event.target.value)
+              if (dailyFlowMessage) {
+                setDailyFlowMessage('')
+              }
+            }}
+          />
+
+          {dailyFlowPreview.items.length > 0 && (
+            <div className="daily-flow-preview" aria-label="Daily Flow preview">
+              <div className="daily-flow-preview-list">
+                {dailyFlowPreview.items.map((item) => (
+                  <div className={`daily-flow-preview-line ${item.isValid ? '' : 'needs-amount'}`.trim()} key={item.id}>
+                    <span>
+                      <strong>{item.description}</strong>
+                      <small>{item.isValid ? 'Ready to write' : 'Needs amount'}</small>
+                    </span>
+                    <b>{item.isValid ? rupees(item.amount) : 'Add amount'}</b>
+                  </div>
+                ))}
+                {dailyFlowPreview.overflowCount > 0 && (
+                  <p className="daily-flow-overflow">
+                    + {dailyFlowPreview.overflowCount} more line{dailyFlowPreview.overflowCount === 1 ? '' : 's'} ignored for this batch.
+                  </p>
+                )}
+              </div>
+              <div className="daily-flow-total-row">
+                <span>{dailyFlowValidItems.length} ready line{dailyFlowValidItems.length === 1 ? '' : 's'}</span>
+                <strong>{rupees(dailyFlowTotal)}</strong>
+              </div>
+            </div>
+          )}
+
+          {dailyFlowMessage && <p className="daily-flow-message" role="status">{dailyFlowMessage}</p>}
+
+          {dailyFlowPreview.items.length > 0 && (
+            <div className="daily-flow-actions">
+              <button className="daily-flow-clear" type="button" onClick={clearDailyFlow}>
+                Clear
+              </button>
+              <button
+                className="daily-flow-save"
+                type="submit"
+                disabled={isDailyFlowSaving || dailyFlowValidItems.length === 0 || dailyFlowHasInvalidItems}
+              >
+                {isDailyFlowSaving
+                  ? 'Writing...'
+                  : dailyFlowHasInvalidItems
+                    ? 'Add Amounts First'
+                    : `Write ${dailyFlowValidItems.length || 0} Line${dailyFlowValidItems.length === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          )}
+        </form>
         <dl className="v23-today-page-facts" aria-label="Today page summary">
           <div>
             <dt>Lines</dt>
@@ -7156,7 +7415,7 @@ function V12HomeScreen({
 
       <section className="previous-pages-section" aria-label="Previous notebook pages">
         <div className="previous-pages-heading">
-          <h3>Previous Pages</h3>
+          <h3 className="handwritten-subtitle">Previous Pages</h3>
           <p>{previousPageDetail}</p>
         </div>
 
@@ -8182,6 +8441,7 @@ function MainApp(props) {
     expenseFieldErrors,
     clearExpenseFieldError,
     addExpense,
+    saveDailyFlowEntries,
     voiceState,
     voiceDraft,
     voiceDrafts,
@@ -8611,7 +8871,7 @@ function MainApp(props) {
         </Suspense>
       )}
       <QuickAddFab openAddSheet={openAddSheet} activeTab={activeNavigationTab} />
-      <main className="screen-panel">
+      <main className="screen-panel notebook-foundation">
         {activeNavigationTab === 'home' && (
           <>
             {!useLegacyNavigation ? (
@@ -8623,6 +8883,7 @@ function MainApp(props) {
                 nextBestAction={nextBestAction}
                 onNextActionClick={handleNextActionClick}
                 openAddSheet={openAddSheet}
+                saveDailyFlowEntries={saveDailyFlowEntries}
                 moneyTheme={moneyTheme}
               />
             ) : (
