@@ -6931,6 +6931,12 @@ function V12HomeScreen({
 }) {
   const [historyFilter, setHistoryFilter] = useState('today')
   const [customDate, setCustomDate] = useState(todayDateKey())
+  const [stampActive, setStampActive] = useState(false)
+  const [dailyInsight, setDailyInsight] = useState('')
+  const [isPageClosed, setIsPageClosed] = useState(false)
+  const [newEntryId, setNewEntryId] = useState(null)
+  const previousTodayCountRef = useRef(null)
+  const closePageTimerRef = useRef(null)
   const themeExperience = useMemo(() => getMoneyOSThemeExperience(moneyTheme), [moneyTheme])
   const historyRange = useMemo(
     () => buildHomeNotebookHistoryRange(historyFilter, customDate),
@@ -6953,111 +6959,283 @@ function V12HomeScreen({
   const reminderDetail = nextBestAction?.reason || 'Write one expense before the day ends if money moved today.'
   const reminderAction = nextBestAction?.action || 'Write expense'
   const ReminderIcon = nextBestAction ? (NEXT_BEST_ACTION_ICONS[nextBestAction.iconKey] || Sparkles) : Bell
+  const todayHasLines = todaysPreview.count > 0
+  const todayWrittenTotal = rupees(addMoney(todaysPreview.spent, todaysPreview.received))
+  const todayDailyTotal = todaysPreview.spent > 0
+    ? `${todaysPreview.spentLabel} out`
+    : todaysPreview.received > 0
+      ? `${todaysPreview.receivedLabel} in`
+      : rupees(0)
+  const todayPageTitle = todayHasLines
+    ? `Today's page has ${todaysPreview.count} line${todaysPreview.count === 1 ? '' : 's'}`
+    : 'A fresh page is waiting'
+  const todayPageDetail = todayHasLines
+    ? 'Your money notes for today are written below.'
+    : 'Write the first line when money moves today.'
+  const showSelectedPagePreview = historyFilter !== 'today'
+  const ambientTimeClass = getHomeAmbientTimeClass()
+  const previousPageCount = Math.max(todayTransactions.length - todaysPreview.count, 0)
+  const previousPageDetail = previousPageCount > 0
+    ? `${previousPageCount} note${previousPageCount === 1 ? '' : 's'} from earlier pages.`
+    : 'Your past entries will rest here quietly.'
+
+  useEffect(() => {
+    if (previousTodayCountRef.current === null) {
+      previousTodayCountRef.current = todaysPreview.count
+      return undefined
+    }
+
+    if (todaysPreview.count <= previousTodayCountRef.current) {
+      previousTodayCountRef.current = todaysPreview.count
+      return undefined
+    }
+
+    previousTodayCountRef.current = todaysPreview.count
+    setStampActive(true)
+    setIsPageClosed(false)
+    setNewEntryId(todaysPreview.rows[0]?.id || null)
+
+    const timers = []
+
+    if (typeof window !== 'undefined') {
+      timers.push(window.setTimeout(() => setStampActive(false), 1500))
+      timers.push(window.setTimeout(() => setNewEntryId(null), 1400))
+    }
+
+    if (todaysPreview.count % 5 === 0) {
+      const insight = HOME_DAILY_INSIGHTS[Math.floor(Math.random() * HOME_DAILY_INSIGHTS.length)]
+      setDailyInsight(insight)
+
+      if (typeof window !== 'undefined') {
+        timers.push(window.setTimeout(() => setDailyInsight(''), 5000))
+      }
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        timers.forEach((timer) => window.clearTimeout(timer))
+      }
+    }
+  }, [todaysPreview.count, todaysPreview.rows])
+
+  useEffect(() => () => {
+    if (closePageTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(closePageTimerRef.current)
+    }
+  }, [])
+
+  const closeTodayPage = () => {
+    setIsPageClosed(true)
+
+    if (closePageTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(closePageTimerRef.current)
+    }
+
+    if (typeof window !== 'undefined') {
+      closePageTimerRef.current = window.setTimeout(() => {
+        setIsPageClosed(false)
+        closePageTimerRef.current = null
+      }, 3000)
+    }
+  }
 
   return (
-    <MoneyOSProvider as="section" className="screen-content v12-home v16-notebook-cover money-os-daily-companion">
-      <section className="v16-cover-title" aria-label="Notebook cover">
-        <div>
+    <MoneyOSProvider as="section" className={`screen-content v12-home v16-notebook-cover money-os-daily-companion ${ambientTimeClass}`}>
+      <section className="v16-cover-title v23-home-hero" aria-label="Today's notebook page">
+        <div className="v23-home-hero-copy">
           <p className="eyebrow">Daily Money Notebook</p>
-          <h1>Today&apos;s page</h1>
-          <p>Write expenses, check the last page, and keep money notes calm.</p>
+          <h1>Open today&apos;s page</h1>
+          <p>Write the money that moved today. Keep the page simple, honest, and calm.</p>
           <div className="v17-cover-meta" aria-label="Notebook status">
             <span>{currentMonthLabel}</span>
             <strong>{ritualStatus.title}</strong>
             <small>{ritualStatus.detail}</small>
           </div>
-        </div>
-        <StatusBadge>Cover</StatusBadge>
-      </section>
-
-      <MoneyCard
-        className="v16-cover-quick-add"
-        eyebrow="Quick Add"
-        title="Write today's expense"
-        detail="Open a fresh line and record the money that just moved."
-        icon={Receipt}
-        tone="danger"
-        footer={(
-          <button className="primary-button v16-cover-write-button" type="button" onClick={() => openAddSheet?.('expense')}>
-            <Plus size={16} />
-            <span>Write expense</span>
+          <button className="primary-button v16-cover-write-button v23-home-primary-cta" type="button" onClick={() => openAddSheet?.('expense')}>
+            <Pencil size={16} />
+            <span>Write Today&apos;s Money</span>
           </button>
-        )}
-      />
-
-      <section className="v16-history-selector" aria-label="Notebook history selector">
-        <SectionHeader
-          eyebrow="History selector"
-          title="Choose a page"
-          detail="Preview changes immediately."
-          actions={<StatusBadge>{notebookPreview.count} line{notebookPreview.count === 1 ? '' : 's'}</StatusBadge>}
-        />
-        <div className="v16-history-selector-row" role="radiogroup" aria-label="Choose notebook preview range">
-          {HOME_HISTORY_OPTIONS.map((option) => (
-            <button
-              className={historyFilter === option.key ? 'active' : ''}
-              type="button"
-              role="radio"
-              aria-checked={historyFilter === option.key}
-              key={option.key}
-              onClick={() => setHistoryFilter(option.key)}
-            >
-              {option.label}
-            </button>
-          ))}
         </div>
-        {historyFilter === 'custom' && (
-          <label className="v16-history-custom-date">
-            <span className="input-label">Notebook date</span>
-            <input
-              className="plain-input"
-              type="date"
-              value={customDate}
-              onChange={(event) => setCustomDate(event.target.value)}
-            />
-          </label>
-        )}
+        <aside className="v23-home-page-mark" aria-label="Today page marker">
+          <span>Today</span>
+          <strong>{todaysPreview.count}</strong>
+          <small>line{todaysPreview.count === 1 ? '' : 's'}</small>
+        </aside>
       </section>
 
-      <section className="v12-home-recent v16-cover-preview" aria-label="Recent notebook preview">
-        <SectionHeader
-          eyebrow="Recent notebook preview"
-          title={historyRange.label}
-          detail={`${notebookPreview.spentLabel} out, ${notebookPreview.receivedLabel} in.`}
-          actions={<StatusBadge tone={notebookPreview.balance >= 0 ? 'success' : 'warning'}>{notebookPreview.balanceLabel}</StatusBadge>}
-        />
-        {notebookPreview.rows.length === 0 ? (
-          <MoneyCard
-            title="Fresh page"
-            detail={themeExperience.copy.emptyHome}
-            icon={Receipt}
-            tone="neutral"
-          />
-        ) : (
-          <div className="v12-notebook-row-list">
-            {notebookPreview.rows.map((entry) => {
-              const EntryIcon = entry.icon || Receipt
+      {dailyInsight && (
+        <aside className="home-daily-insight" role="status" aria-live="polite">
+          <Sparkles size={15} aria-hidden="true" />
+          <span>{dailyInsight}</span>
+        </aside>
+      )}
 
+      <section
+        className={`v23-today-page-summary home-notebook-paper ${stampActive ? 'stamp-active' : ''} ${isPageClosed ? 'diary-closed' : ''}`}
+        aria-labelledby="v23-today-page-title"
+      >
+        <div className="v23-today-page-heading home-notebook-paper-heading">
+          <div>
+            <p className="eyebrow">Today&apos;s Page</p>
+            <h2 id="v23-today-page-title">{todayPageTitle}</h2>
+            <p>{todayPageDetail}</p>
+          </div>
+          <div className="home-notebook-paper-actions">
+            <span className="home-notebook-total-pill">{todayDailyTotal}</span>
+            {stampActive && (
+              <span className="stamp-icon" aria-hidden="true">
+                <CheckCircle2 size={15} />
+              </span>
+            )}
+          </div>
+        </div>
+        <dl className="v23-today-page-facts" aria-label="Today page summary">
+          <div>
+            <dt>Lines</dt>
+            <dd>{todaysPreview.count}</dd>
+          </div>
+          <div>
+            <dt>Money written</dt>
+            <dd>{todayWrittenTotal}</dd>
+          </div>
+          <div>
+            <dt>Page total</dt>
+            <dd>{todayDailyTotal}</dd>
+          </div>
+        </dl>
+        {todaysPreview.rows.length === 0 ? (
+          <div className="empty-ruled-lines" aria-label="Empty notebook page">
+            <div className="ruled-line ruled-line-placeholder">
+              <span>Write your first money line</span>
+              <span className="empty-cursor" aria-hidden="true" />
+            </div>
+            <div className="ruled-line ruled-line-placeholder" aria-hidden="true">
+              <span className="ruled-line-fill" />
+            </div>
+            <div className="ruled-line ruled-line-placeholder" aria-hidden="true">
+              <span className="ruled-line-fill" />
+            </div>
+            <p>Tap &quot;Write Today&apos;s Money&quot; to start this page.</p>
+          </div>
+        ) : (
+          <div className="v12-notebook-row-list v23-today-page-lines">
+            {todaysPreview.rows.slice(0, 3).map((entry) => {
               return (
-                <article className={`v12-notebook-row v12-notebook-row--${entry.heroTone}`} key={entry.id || `${entry.title}-${entry.dateTime}`}>
-                  <span className="v12-notebook-row-icon" aria-hidden="true">
-                    <EntryIcon size={16} />
-                  </span>
-                  <span>
+                <article
+                  className={`ruled-line ruled-line-written ${newEntryId === entry.id ? 'ruled-line-new' : ''}`}
+                  key={entry.id || `${entry.title}-${entry.dateTime}`}
+                >
+                  <span className="ruled-line-copy">
                     <strong>{entry.title || entry.category || 'Money move'}</strong>
                     <small>{entry.timeLabel}</small>
                   </span>
-                  <b>{entry.amountLabel}</b>
+                  <b className="amount">{entry.amountLabel}</b>
                 </article>
               )
             })}
+            {todaysPreview.count > 3 && (
+              <p className="home-notebook-more-lines">
+                + {todaysPreview.count - 3} more line{todaysPreview.count - 3 === 1 ? '' : 's'} resting on this page.
+              </p>
+            )}
+            {!isPageClosed && (
+              <div className="home-close-page-row">
+                <button className="home-close-page-button" type="button" onClick={closeTodayPage}>
+                  Close Today&apos;s Page
+                </button>
+              </div>
+            )}
+            {isPageClosed && (
+              <div className="home-page-closed-note" role="status">
+                Page closed. Calmly done.
+              </div>
+            )}
           </div>
         )}
       </section>
 
+      <section className="previous-pages-section" aria-label="Previous notebook pages">
+        <div className="previous-pages-heading">
+          <h3>Previous Pages</h3>
+          <p>{previousPageDetail}</p>
+        </div>
+
+        <section className="v16-history-selector v23-history-secondary" aria-label="Notebook history selector">
+          <SectionHeader
+            eyebrow="Review"
+            title="Review another page"
+            detail="Today stays first. Older pages are here when needed."
+            actions={<StatusBadge>{notebookPreview.count} line{notebookPreview.count === 1 ? '' : 's'}</StatusBadge>}
+          />
+          <div className="v16-history-selector-row" role="radiogroup" aria-label="Choose notebook preview range">
+            {HOME_HISTORY_OPTIONS.map((option) => (
+              <button
+                className={historyFilter === option.key ? 'active' : ''}
+                type="button"
+                role="radio"
+                aria-checked={historyFilter === option.key}
+                key={option.key}
+                onClick={() => setHistoryFilter(option.key)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {historyFilter === 'custom' && (
+            <label className="v16-history-custom-date">
+              <span className="input-label">Notebook date</span>
+              <input
+                className="plain-input"
+                type="date"
+                value={customDate}
+                onChange={(event) => setCustomDate(event.target.value)}
+              />
+            </label>
+          )}
+        </section>
+
+        {showSelectedPagePreview && (
+          <section className="v12-home-recent v16-cover-preview v23-selected-page-preview" aria-label="Selected notebook preview">
+            <SectionHeader
+              eyebrow="Selected page"
+              title={historyRange.label}
+              detail={`${notebookPreview.spentLabel} out, ${notebookPreview.receivedLabel} in.`}
+              actions={<StatusBadge tone={notebookPreview.balance >= 0 ? 'success' : 'warning'}>{notebookPreview.balanceLabel}</StatusBadge>}
+            />
+            {notebookPreview.rows.length === 0 ? (
+              <MoneyCard
+                title="Fresh page"
+                detail={themeExperience.copy.emptyHome}
+                icon={Receipt}
+                tone="neutral"
+              />
+            ) : (
+              <div className="v12-notebook-row-list">
+                {notebookPreview.rows.map((entry) => {
+                  const EntryIcon = entry.icon || Receipt
+
+                  return (
+                    <article className={`v12-notebook-row v12-notebook-row--${entry.heroTone}`} key={entry.id || `${entry.title}-${entry.dateTime}`}>
+                      <span className="v12-notebook-row-icon" aria-hidden="true">
+                        <EntryIcon size={16} />
+                      </span>
+                      <span>
+                        <strong>{entry.title || entry.category || 'Money move'}</strong>
+                        <small>{entry.timeLabel}</small>
+                      </span>
+                      <b>{entry.amountLabel}</b>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )}
+      </section>
+
       <MoneyCard
-        className="v16-cover-reminder"
-        eyebrow="Next reminder"
+        className="v16-cover-reminder v23-secondary-reminder"
+        eyebrow="Page note"
         title={reminderTitle}
         detail={reminderDetail}
         icon={ReminderIcon}
@@ -7091,6 +7269,33 @@ const HOME_HISTORY_OPTIONS = [
   { key: 'month', label: 'This Month' },
   { key: 'custom', label: 'Custom' },
 ]
+
+const HOME_DAILY_INSIGHTS = [
+  "You've written 5 thoughtful entries today. That's mindful progress.",
+  'This page is a quiet reflection of your financial clarity.',
+  'Each entry is a step toward mastering your money story.',
+  '5 entries done. Your future self will thank this calm habit.',
+  'Writing money down dissolves anxiety. Keep the flow going.',
+  'You are building a gentle, honest record of your life.',
+  "Progress isn't loud. It's this. Right here.",
+  'Your notebook respects your pace. Steady and calm.',
+  "Clarity comes in small, daily doses. You're doing it.",
+  'This is your space. Honest. Simple. Entirely yours.',
+]
+
+function getHomeAmbientTimeClass() {
+  const hour = new Date().getHours()
+
+  if (hour >= 6 && hour < 12) {
+    return 'time-morning'
+  }
+
+  if (hour >= 12 && hour < 18) {
+    return 'time-afternoon'
+  }
+
+  return 'time-evening'
+}
 
 function buildHomeNotebookHistoryRange(filter = 'today', customDate = todayDateKey()) {
   const todayKey = todayDateKey()
@@ -8405,7 +8610,7 @@ function MainApp(props) {
           />
         </Suspense>
       )}
-      <QuickAddFab openAddSheet={openAddSheet} />
+      <QuickAddFab openAddSheet={openAddSheet} activeTab={activeNavigationTab} />
       <main className="screen-panel">
         {activeNavigationTab === 'home' && (
           <>
@@ -8841,7 +9046,7 @@ function MainApp(props) {
   )
 }
 
-function QuickAddFab({ openAddSheet }) {
+function QuickAddFab({ openAddSheet, activeTab }) {
   const longPressTimerRef = useRef(null)
   const didLongPressRef = useRef(false)
   const useLegacyAdd = isLegacyAddExperience()
@@ -8863,6 +9068,10 @@ function QuickAddFab({ openAddSheet }) {
   }, [clearLongPressTimer, openAddSheet])
 
   useEffect(() => clearLongPressTimer, [clearLongPressTimer])
+
+  if (activeTab === 'home') {
+    return null
+  }
 
   return (
     <button
@@ -9106,7 +9315,7 @@ function QuickAddSheet({
 }) {
   const title = {
     menu: 'Notebook actions',
-    expense: 'Add expense',
+    expense: "Write Today's Money",
     income: 'Add income',
     transfer: 'Move to goal',
     borrow: 'Borrow or lend',
@@ -9198,15 +9407,18 @@ function QuickAddSheet({
 
   if (!isLegacyAddExperience()) {
     const isMenu = mode === 'menu'
+    const isExpenseSpread = mode === 'expense' && !successState
     const sheetTitle = successState ? successState.title : title
     const sheetDescription = successState
       ? 'Saved.'
       : isMenu
         ? ''
+        : isExpenseSpread
+          ? formatHomeNotebookDate(todayDateKey())
         : ''
     const footer = successState
       ? null
-      : isMenu
+      : isMenu || isExpenseSpread
         ? null
         : (
             <SecondaryButton onClick={() => {
@@ -9221,8 +9433,8 @@ function QuickAddSheet({
         onClose={onClose}
         title={sheetTitle}
         description={sheetDescription}
-        className="mos-add-hub-sheet"
-        bodyClassName="mos-add-hub-body"
+        className={`mos-add-hub-sheet ${isExpenseSpread ? 'notebook-spread-sheet' : ''}`.trim()}
+        bodyClassName={`mos-add-hub-body ${isExpenseSpread ? 'notebook-spread-body' : ''}`.trim()}
         footer={footer}
       >
         {successState && (
@@ -9338,6 +9550,7 @@ function QuickAddSheet({
             useVoiceDraftInForm={useVoiceDraftInForm}
             undoVoiceSave={undoVoiceSave}
             lastVoiceSave={lastVoiceSave}
+            onCancel={onClose}
           />
         )}
 
@@ -9388,8 +9601,8 @@ function QuickAddSheet({
     <AppModal
       onClose={onClose}
       labelledBy="quick-add-title"
-      sheetClassName="editor-sheet quick-add-sheet chrome-popover-sheet quick-add-popover-sheet"
-      backdropClassName="editor-sheet-backdrop chrome-popover-backdrop"
+      sheetClassName={`editor-sheet quick-add-sheet chrome-popover-sheet quick-add-popover-sheet ${mode === 'expense' ? 'notebook-spread-sheet legacy-notebook-spread-sheet' : ''}`.trim()}
+      backdropClassName={`editor-sheet-backdrop chrome-popover-backdrop ${mode === 'expense' ? 'notebook-spread-backdrop' : ''}`.trim()}
     >
       <div className="editor-sheet-header">
         <div>
@@ -9478,6 +9691,7 @@ function QuickAddSheet({
             useVoiceDraftInForm={useVoiceDraftInForm}
             undoVoiceSave={undoVoiceSave}
             lastVoiceSave={lastVoiceSave}
+            onCancel={onClose}
           />
         )}
 
@@ -9549,7 +9763,9 @@ function QuickExpenseEntry({
   useVoiceDraftInForm,
   undoVoiceSave,
   lastVoiceSave,
+  onCancel,
 }) {
+  const descriptionInputRef = useRef(null)
   const amountInputRef = useRef(null)
 
   useEffect(() => {
@@ -9558,8 +9774,8 @@ function QuickExpenseEntry({
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      amountInputRef.current?.focus()
-      amountInputRef.current?.select?.()
+      descriptionInputRef.current?.focus()
+      descriptionInputRef.current?.select?.()
     })
 
     return () => window.cancelAnimationFrame(frameId)
@@ -9572,7 +9788,7 @@ function QuickExpenseEntry({
   }
 
   return (
-    <form className={`quick-expense-form v17-writing-form ${Object.keys(expenseFieldErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
+    <form className={`quick-expense-form v17-writing-form notebook-spread-form ${Object.keys(expenseFieldErrors).length > 0 ? 'form-has-errors' : ''}`} onSubmit={(event) => {
       const form = event.currentTarget
       const saved = addExpense(event)
 
@@ -9586,18 +9802,38 @@ function QuickExpenseEntry({
 
       focusInvalidField(form)
     }}>
-      <CurrencyInput
-        ref={amountInputRef}
-        label="Amount"
-        id="quick-expense-amount"
-        value={expenseAmount}
-        placeholder="120"
-        onChange={(value) => {
-          setExpenseAmount(value)
-          clearField('amount')
-        }}
-        error={expenseFieldErrors.amount}
-      />
+      <label className="notebook-spread-line notebook-spread-line--description" htmlFor="quick-expense-description">
+        <span>Line</span>
+        <input
+          id="quick-expense-description"
+          ref={descriptionInputRef}
+          className="sheet-ruled-input"
+          type="text"
+          value={customExpenseName}
+          placeholder="What did you spend on?"
+          autoComplete="off"
+          data-autofocus="true"
+          onChange={(event) => {
+            setCustomExpenseName(event.target.value)
+            clearField('category')
+          }}
+        />
+      </label>
+
+      <div className="notebook-spread-amount-line">
+        <CurrencyInput
+          ref={amountInputRef}
+          label="Amount"
+          id="quick-expense-amount"
+          value={expenseAmount}
+          placeholder="120"
+          onChange={(value) => {
+            setExpenseAmount(value)
+            clearField('amount')
+          }}
+          error={expenseFieldErrors.amount}
+        />
+      </div>
 
       <div className="quick-chip-row compact-quick-row quick-amount-row" aria-label="Quick amounts">
         {QUICK_AMOUNT_PRESETS.map((amount) => (
@@ -9630,24 +9866,23 @@ function QuickExpenseEntry({
         </div>
       )}
 
-      <CategoryPicker
-        categories={expenseCategories}
-        customExpenseName={customExpenseName}
-        quickExpenseChips={quickExpenseChips}
-        selectedCategory={selectedCategory}
-        setCustomExpenseName={(value) => {
-          setCustomExpenseName(value)
-          clearField('category')
-        }}
-        setSelectedCategory={(value) => {
-          setSelectedCategory(value)
-          if (value !== 'Custom') {
-            setCustomExpenseName('')
-          }
-          clearField('category')
-        }}
-        error={expenseFieldErrors.category}
-      />
+      <div className="notebook-spread-category-line">
+        <CategoryPicker
+          categories={expenseCategories}
+          customExpenseName={customExpenseName}
+          quickExpenseChips={quickExpenseChips}
+          selectedCategory={selectedCategory}
+          setCustomExpenseName={(value) => {
+            setCustomExpenseName(value)
+            clearField('category')
+          }}
+          setSelectedCategory={(value) => {
+            setSelectedCategory(value)
+            clearField('category')
+          }}
+          error={expenseFieldErrors.category}
+        />
+      </div>
 
       <details className="quick-extra-details">
         <summary>
@@ -9691,9 +9926,15 @@ function QuickExpenseEntry({
         </div>
       </details>
 
-      <button className="primary-button full quick-save-button" type="submit">
-        Save expense
-      </button>
+      <div className="notebook-spread-actions">
+        <button className="sheet-btn-cancel" type="button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="primary-button sheet-btn-save quick-save-button" type="submit">
+          <CheckCircle2 size={16} aria-hidden="true" />
+          <span>Save Entry</span>
+        </button>
+      </div>
       {expenseError && <p className="form-message">{expenseError}</p>}
     </form>
   )
