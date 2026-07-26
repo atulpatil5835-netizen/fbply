@@ -91,6 +91,7 @@ function drawTextBlock(doc, text, x, y, width, {
   return y + lines.length * lineHeight
 }
 
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
 async function loadLogoDataUrl() {
   if (typeof document === 'undefined' || typeof fetch !== 'function') {
     return ''
@@ -148,7 +149,7 @@ function drawBrandLockup(doc, x, y, { color = COLORS.navy, compact = false } = {
   setText(doc, color)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(compact ? 8.8 : 13)
-  doc.text('FBPly Financial Report', x + size + 4, y + (compact ? 5.8 : 7.8))
+  doc.text('FBPLY', x + size + 4, y + (compact ? 5.8 : 7.8))
   setText(doc, compact ? COLORS.muted : [203, 213, 225])
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(compact ? 6.8 : 7.5)
@@ -208,11 +209,12 @@ function drawProfessionalFooter(doc, meta = {}) {
     setText(doc, COLORS.muted)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.2)
-    doc.text(`Generated with FBPLY | fbply.com | ${meta.reportId || 'Report ID pending'}`, PAGE.margin, PAGE.height - 9)
-    doc.text(`Page ${page} of ${total}`, PAGE.width - PAGE.margin, PAGE.height - 9, { align: 'right' })
+    doc.text(meta.reportId || `Page ${page} of ${total}`, PAGE.margin, PAGE.height - 9)
+    doc.text(REPORT_SITE_URL, PAGE.width - PAGE.margin, PAGE.height - 9, { align: 'right' })
   }
 }
 
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
 function drawProfessionalCover(doc, meta = {}) {
   setFill(doc, COLORS.navy)
   doc.rect(0, 0, PAGE.width, PAGE.height, 'F')
@@ -256,7 +258,7 @@ function drawProfessionalCover(doc, meta = {}) {
   setText(doc, [148, 163, 184])
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  doc.text('Generated with FBPLY | fbply.com', PAGE.width / 2, 274, { align: 'center' })
+  doc.text(REPORT_SITE_URL, PAGE.width - PAGE.margin, 274, { align: 'right' })
 }
 
 function drawProfessionalHeader(doc, meta = {}) {
@@ -278,9 +280,1313 @@ function addProfessionalPage(doc, meta = {}) {
   return PAGE.margin + 22
 }
 
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
 function finaliseProfessionalDoc(doc, meta) {
   drawProfessionalFooter(doc, meta)
   return doc.output('blob')
+}
+
+const REPORT_SITE_URL = 'www.fbply.com'
+
+const REPORT_THEME_ALIASES = {
+  brownJournal: 'classic',
+  navy: 'classic',
+  vintageDiary: 'classic',
+  executive: 'ledgerPro',
+  minimal: 'receipt',
+}
+
+const REPORT_EXPORT_THEMES = {
+  classic: {
+    pdfFont: 'times',
+    canvasFont: 'Georgia, "Times New Roman", serif',
+    page: [255, 253, 247],
+    card: [255, 251, 242],
+    soft: [248, 241, 230],
+    border: [229, 218, 201],
+    text: [40, 51, 51],
+    muted: [115, 107, 97],
+    accent: [47, 93, 93],
+    accentSoft: [231, 239, 231],
+  },
+  ledgerPro: {
+    pdfFont: 'helvetica',
+    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    page: [255, 255, 255],
+    card: [248, 249, 247],
+    soft: [240, 241, 238],
+    border: [218, 222, 226],
+    text: [23, 26, 31],
+    muted: [101, 107, 115],
+    accent: [138, 106, 46],
+    accentSoft: [238, 232, 218],
+  },
+  receipt: {
+    pdfFont: 'courier',
+    canvasFont: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
+    page: [255, 255, 255],
+    card: [250, 250, 249],
+    soft: [241, 241, 239],
+    border: [226, 226, 222],
+    text: [24, 24, 27],
+    muted: [113, 113, 122],
+    accent: [82, 82, 91],
+    accentSoft: [238, 238, 234],
+  },
+  minimalWhite: {
+    pdfFont: 'helvetica',
+    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    page: [255, 255, 255],
+    card: [248, 250, 252],
+    soft: [243, 246, 250],
+    border: [226, 232, 240],
+    text: [17, 24, 39],
+    muted: [100, 116, 139],
+    accent: [17, 24, 39],
+    accentSoft: [238, 244, 255],
+  },
+  blueRegister: {
+    pdfFont: 'helvetica',
+    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    page: [248, 251, 255],
+    card: [255, 255, 255],
+    soft: [231, 240, 248],
+    border: [207, 222, 235],
+    text: [19, 34, 56],
+    muted: [91, 107, 125],
+    accent: [30, 58, 95],
+    accentSoft: [220, 235, 250],
+  },
+  emerald: {
+    pdfFont: 'helvetica',
+    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    page: [251, 255, 253],
+    card: [255, 255, 255],
+    soft: [227, 243, 236],
+    border: [205, 228, 218],
+    text: [24, 49, 40],
+    muted: [99, 117, 109],
+    accent: [36, 91, 73],
+    accentSoft: [216, 241, 229],
+  },
+  midnight: {
+    pdfFont: 'helvetica',
+    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    page: [17, 25, 39],
+    card: [18, 28, 42],
+    soft: [23, 35, 52],
+    border: [52, 67, 91],
+    text: [245, 248, 252],
+    muted: [167, 179, 197],
+    accent: [134, 183, 255],
+    accentSoft: [30, 45, 68],
+  },
+  sunset: {
+    pdfFont: 'times',
+    canvasFont: 'Georgia, "Times New Roman", serif',
+    page: [255, 249, 241],
+    card: [255, 253, 248],
+    soft: [241, 226, 210],
+    border: [226, 207, 188],
+    text: [47, 41, 36],
+    muted: [115, 103, 93],
+    accent: [106, 61, 46],
+    accentSoft: [247, 216, 198],
+  },
+}
+
+function resolveReportTheme(themeId = 'classic') {
+  const normalized = REPORT_THEME_ALIASES[themeId] || themeId
+  return REPORT_EXPORT_THEMES[normalized] || REPORT_EXPORT_THEMES.classic
+}
+
+function rgbToCss(color = COLORS.text) {
+  return `rgb(${color[0]}, ${color[1]}, ${color[2]})`
+}
+
+function setThemeText(doc, theme, color = theme.text) {
+  doc.setTextColor(color[0], color[1], color[2])
+}
+
+function setThemeFill(doc, color) {
+  doc.setFillColor(color[0], color[1], color[2])
+}
+
+function setThemeStroke(doc, color) {
+  doc.setDrawColor(color[0], color[1], color[2])
+}
+
+function setThemeFont(doc, theme, weight = 'normal', size = 9) {
+  doc.setFont(theme.pdfFont, weight === 'bold' ? 'bold' : 'normal')
+  doc.setFontSize(size)
+}
+
+function reportBottomY() {
+  return PAGE.height - 22
+}
+
+function drawSimpleReportHeader(doc, meta = {}, theme = resolveReportTheme()) {
+  setThemeFill(doc, theme.page)
+  doc.rect(0, 0, PAGE.width, PAGE.height, 'F')
+
+  setThemeText(doc, theme, theme.accent)
+  setThemeFont(doc, theme, 'bold', 12)
+  doc.text('FBPLY', PAGE.margin, 15)
+
+  setThemeText(doc, theme, theme.muted)
+  setThemeFont(doc, theme, 'normal', 7.2)
+  doc.text(cleanPdfText(meta.typeLabel || 'Report'), PAGE.margin, 20)
+}
+
+function drawSimpleReportFooters(doc, meta = {}, theme = resolveReportTheme()) {
+  const total = doc.getNumberOfPages()
+
+  for (let page = 1; page <= total; page += 1) {
+    doc.setPage(page)
+    setThemeStroke(doc, theme.border)
+    doc.setLineWidth(0.16)
+    doc.line(PAGE.margin, PAGE.height - 15, PAGE.width - PAGE.margin, PAGE.height - 15)
+
+    setThemeText(doc, theme, theme.muted)
+    setThemeFont(doc, theme, 'normal', 7)
+    doc.text(meta.reportId || `Page ${page} of ${total}`, PAGE.margin, PAGE.height - 9)
+    doc.text(REPORT_SITE_URL, PAGE.width - PAGE.margin, PAGE.height - 9, { align: 'right' })
+  }
+}
+
+function addSimpleReportPage(doc, meta = {}, theme = resolveReportTheme()) {
+  doc.addPage()
+  drawSimpleReportHeader(doc, meta, theme)
+  return PAGE.margin + 16
+}
+
+function addSimplePageIfNeeded(doc, y, height, meta = {}, theme = resolveReportTheme()) {
+  if (y + height <= reportBottomY()) {
+    return y
+  }
+
+  return addSimpleReportPage(doc, meta, theme)
+}
+
+function drawSimpleTitle(doc, meta = {}, theme = resolveReportTheme()) {
+  let y = PAGE.margin + 18
+  setThemeText(doc, theme, theme.text)
+  setThemeFont(doc, theme, 'bold', 20)
+  doc.text(cleanPdfText(meta.title || 'FBPLY Report'), PAGE.margin, y, { maxWidth: PAGE.width - PAGE.margin * 2 })
+  y += 9
+
+  setThemeText(doc, theme, theme.muted)
+  setThemeFont(doc, theme, 'normal', 8)
+  const metaLine = [
+    meta.period || currentMonthLabel(),
+    reportDateLabel(meta.generatedAt),
+    meta.currency || 'INR',
+  ].filter(Boolean).join('  |  ')
+  doc.text(metaLine, PAGE.margin, y, { maxWidth: PAGE.width - PAGE.margin * 2 })
+  y += 9
+
+  setThemeStroke(doc, theme.border)
+  doc.setLineWidth(0.2)
+  doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y)
+  return y + 9
+}
+
+function drawSimpleSectionHeading(doc, title, y, theme = resolveReportTheme()) {
+  setThemeText(doc, theme, theme.accent)
+  setThemeFont(doc, theme, 'bold', 9)
+  doc.text(cleanPdfText(title).toUpperCase(), PAGE.margin, y)
+  return y + 6
+}
+
+function drawSimpleParagraph(doc, text, x, y, width, theme = resolveReportTheme(), { size = 8.7, maxLines = 6 } = {}) {
+  const lines = doc.splitTextToSize(cleanPdfText(text), width).slice(0, maxLines)
+  setThemeText(doc, theme, theme.text)
+  setThemeFont(doc, theme, 'normal', size)
+  doc.text(lines, x, y)
+  return y + lines.length * 4.3
+}
+
+function drawSimpleMetrics(doc, y, title, items = [], meta = {}, theme = resolveReportTheme()) {
+  const visible = items.filter(Boolean).slice(0, sectionLimit(meta, 6))
+
+  if (visible.length === 0) {
+    return y
+  }
+
+  y = addSimplePageIfNeeded(doc, y, 18 + Math.ceil(visible.length / 3) * 25, meta, theme)
+  y = drawSimpleSectionHeading(doc, title, y, theme)
+
+  const columns = 3
+  const gap = 6
+  const width = (PAGE.width - PAGE.margin * 2 - gap * (columns - 1)) / columns
+  const rowHeight = 24
+
+  visible.forEach((item, index) => {
+    const x = PAGE.margin + (index % columns) * (width + gap)
+    const top = y + Math.floor(index / columns) * rowHeight
+    setThemeFill(doc, theme.card)
+    setThemeStroke(doc, theme.border)
+    doc.setLineWidth(0.16)
+    doc.roundedRect(x, top, width, rowHeight - 4, 3, 3, 'FD')
+
+    setThemeText(doc, theme, theme.muted)
+    setThemeFont(doc, theme, 'bold', 6.6)
+    doc.text(cleanPdfText(item.label).toUpperCase(), x + 4, top + 6)
+
+    drawFittedText(doc, item.value || '-', x + 4, top + 13, width - 8, {
+      color: item.tone || theme.text,
+      font: theme.pdfFont,
+      minSize: 7,
+      size: 10.5,
+      weight: 'bold',
+    })
+
+    if (item.detail) {
+      setThemeText(doc, theme, theme.muted)
+      setThemeFont(doc, theme, 'normal', 6.2)
+      doc.text(doc.splitTextToSize(cleanPdfText(item.detail), width - 8).slice(0, 1), x + 4, top + 18)
+    }
+  })
+
+  return y + Math.ceil(visible.length / columns) * rowHeight + 3
+}
+
+function drawSimpleNumberedList(doc, y, title, items = [], meta = {}, theme = resolveReportTheme()) {
+  const visible = uniqueSentences(items, title === 'Suggestions' ? 4 : 5)
+
+  if (visible.length === 0) {
+    return y
+  }
+
+  y = addSimplePageIfNeeded(doc, y, 14 + visible.length * 12, meta, theme)
+  y = drawSimpleSectionHeading(doc, title, y, theme)
+
+  visible.forEach((item, index) => {
+    const rowY = y + index * 11
+    setThemeFill(doc, theme.accentSoft)
+    doc.circle(PAGE.margin + 3, rowY - 1.5, 3, 'F')
+    setThemeText(doc, theme, theme.accent)
+    setThemeFont(doc, theme, 'bold', 7)
+    doc.text(String(index + 1), PAGE.margin + 3, rowY + 0.7, { align: 'center' })
+    drawSimpleParagraph(doc, item, PAGE.margin + 10, rowY, PAGE.width - PAGE.margin * 2 - 10, theme, {
+      size: 8,
+      maxLines: 2,
+    })
+  })
+
+  return y + visible.length * 11 + 4
+}
+
+function drawSimpleRows(doc, y, section, meta = {}, theme = resolveReportTheme()) {
+  const visible = (section.items || []).filter(Boolean).slice(0, resolveSectionItemLimit(meta, section, section.limit || 8))
+
+  if (visible.length === 0) {
+    return y
+  }
+
+  y = addSimplePageIfNeeded(doc, y, 16 + visible.length * 11, meta, theme)
+  y = drawSimpleSectionHeading(doc, section.title, y, theme)
+
+  if (section.subtitle) {
+    y = drawSimpleParagraph(doc, section.subtitle, PAGE.margin, y - 1, PAGE.width - PAGE.margin * 2, theme, {
+      size: 7.4,
+      maxLines: 2,
+    }) + 2
+  }
+
+  visible.forEach((item) => {
+    const rowHeight = section.kind === 'bars' ? 13 : 12
+
+    if (y + rowHeight > reportBottomY()) {
+      y = addSimpleReportPage(doc, meta, theme)
+      y = drawSimpleSectionHeading(doc, section.title, y, theme)
+    }
+
+    setThemeStroke(doc, theme.border)
+    doc.setLineWidth(0.12)
+    doc.line(PAGE.margin, y + rowHeight - 3, PAGE.width - PAGE.margin, y + rowHeight - 3)
+
+    drawFittedText(doc, item.label || '-', PAGE.margin, y, 58, {
+      color: theme.text,
+      font: theme.pdfFont,
+      minSize: 6.2,
+      size: 7.8,
+      weight: 'bold',
+    })
+    drawFittedText(doc, item.value || item.detail || '', PAGE.width - PAGE.margin - 42, y, 42, {
+      align: 'right',
+      color: theme.text,
+      font: theme.pdfFont,
+      minSize: 6.2,
+      size: 7.6,
+      weight: 'bold',
+    })
+
+    if (section.kind === 'bars') {
+      const barX = PAGE.margin + 64
+      const barWidth = PAGE.width - PAGE.margin * 2 - 112
+      const percent = Math.max(0, Math.min(safeAmount(item.barValue ?? item.percentage), 100))
+      setThemeFill(doc, theme.soft)
+      doc.roundedRect(barX, y - 3, barWidth, 2.4, 1.2, 1.2, 'F')
+      setThemeFill(doc, item.tone || theme.accent)
+      doc.roundedRect(barX, y - 3, Math.max(2, (barWidth * percent) / 100), 2.4, 1.2, 1.2, 'F')
+    } else if (item.detail) {
+      setThemeText(doc, theme, theme.muted)
+      setThemeFont(doc, theme, 'normal', 7)
+      doc.text(doc.splitTextToSize(cleanPdfText(item.detail), 76).slice(0, 1), PAGE.margin + 64, y)
+    }
+
+    y += rowHeight
+  })
+
+  return y + 4
+}
+
+function buildSimpleReportPdfDocument({
+  meta,
+  executiveSummary = '',
+  executiveNumbers = [],
+  keyNumbers = [],
+  observations = [],
+  analysisSections = [],
+  recommendations = [],
+  finalSummary = '',
+}) {
+  const theme = resolveReportTheme(meta.theme)
+  const doc = new meta.jsPDF({ unit: 'mm', format: 'a4' })
+  drawSimpleReportHeader(doc, meta, theme)
+
+  let y = drawSimpleTitle(doc, meta, theme)
+  y = addSimplePageIfNeeded(doc, y, 36, meta, theme)
+  y = drawSimpleSectionHeading(doc, 'Summary', y, theme)
+  y = drawSimpleParagraph(doc, executiveSummary || finalSummary || 'This report is prepared from saved FBPLY data.', PAGE.margin, y, PAGE.width - PAGE.margin * 2, theme, {
+    size: 9,
+    maxLines: 7,
+  }) + 6
+
+  y = drawSimpleMetrics(doc, y, 'Key Numbers', executiveNumbers.length ? executiveNumbers : keyNumbers, meta, theme)
+  y = drawSimpleNumberedList(doc, y, 'Suggestions', recommendations, meta, theme)
+  y = drawSimpleNumberedList(doc, y, 'Notes', observations, meta, theme)
+
+  analysisSections.forEach((section) => {
+    y = drawSimpleRows(doc, y, section, meta, theme)
+  })
+
+  if (finalSummary) {
+    y = addSimplePageIfNeeded(doc, y, 28, meta, theme)
+    y = drawSimpleSectionHeading(doc, 'Close', y, theme)
+    drawSimpleParagraph(doc, finalSummary, PAGE.margin, y, PAGE.width - PAGE.margin * 2, theme, {
+      size: 8.2,
+      maxLines: 4,
+    })
+  }
+
+  drawSimpleReportFooters(doc, meta, theme)
+  return doc
+}
+
+function drawCanvasText(context, text, x, y, width, lineHeight, maxLines = 4) {
+  const words = cleanPdfText(text).split(/\s+/).filter(Boolean)
+  const lines = []
+  let current = ''
+
+  words.forEach((word) => {
+    const next = current ? `${current} ${word}` : word
+    if (context.measureText(next).width <= width || !current) {
+      current = next
+      return
+    }
+    lines.push(current)
+    current = word
+  })
+
+  if (current) {
+    lines.push(current)
+  }
+
+  const visible = lines.slice(0, maxLines)
+  if (lines.length > maxLines && visible.length > 0) {
+    visible[visible.length - 1] = `${visible[visible.length - 1].replace(/\.*$/, '')}...`
+  }
+
+  visible.forEach((line, index) => {
+    context.fillText(line, x, y + index * lineHeight)
+  })
+
+  return y + visible.length * lineHeight
+}
+
+function canvasBlob(canvas, type = 'image/jpeg', quality = 0.92) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob)
+      } else {
+        reject(new Error('Unable to create report image.'))
+      }
+    }, type, quality)
+  })
+}
+
+function drawCanvasRoundRect(context, x, y, width, height, radius) {
+  if (typeof context.roundRect === 'function') {
+    context.roundRect(x, y, width, height, radius)
+    return
+  }
+
+  const safeRadius = Math.min(radius, width / 2, height / 2)
+  context.moveTo(x + safeRadius, y)
+  context.lineTo(x + width - safeRadius, y)
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius)
+  context.lineTo(x + width, y + height - safeRadius)
+  context.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height)
+  context.lineTo(x + safeRadius, y + height)
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius)
+  context.lineTo(x, y + safeRadius)
+  context.quadraticCurveTo(x, y, x + safeRadius, y)
+}
+
+async function createSimpleReportJpegBlob({
+  meta,
+  executiveSummary = '',
+  executiveNumbers = [],
+  keyNumbers = [],
+  observations = [],
+  recommendations = [],
+}) {
+  if (typeof document === 'undefined') {
+    throw new Error('Image export is not available outside the browser.')
+  }
+
+  const theme = resolveReportTheme(meta.theme)
+  const canvas = document.createElement('canvas')
+  canvas.width = 1400
+  canvas.height = 1980
+  const context = canvas.getContext('2d')
+  const margin = 86
+  const width = canvas.width - margin * 2
+
+  context.fillStyle = rgbToCss(theme.page)
+  context.fillRect(0, 0, canvas.width, canvas.height)
+
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 34px ${theme.canvasFont}`
+  context.fillText('FBPLY', margin, 70)
+
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `500 20px ${theme.canvasFont}`
+  context.fillText(cleanPdfText(meta.typeLabel || 'Report'), margin, 104)
+
+  let y = 185
+  context.fillStyle = rgbToCss(theme.text)
+  context.font = `800 58px ${theme.canvasFont}`
+  y = drawCanvasText(context, meta.title || 'FBPLY Report', margin, y, width, 64, 2) + 22
+
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `500 22px ${theme.canvasFont}`
+  context.fillText([meta.period || currentMonthLabel(), reportDateLabel(meta.generatedAt), meta.currency || 'INR'].join('  |  '), margin, y)
+  y += 54
+
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(margin, y)
+  context.lineTo(canvas.width - margin, y)
+  context.stroke()
+  y += 54
+
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 22px ${theme.canvasFont}`
+  context.fillText('SUMMARY', margin, y)
+  y += 42
+
+  context.fillStyle = rgbToCss(theme.text)
+  context.font = `500 27px ${theme.canvasFont}`
+  y = drawCanvasText(context, executiveSummary || 'This report is prepared from saved FBPLY data.', margin, y, width, 38, 6) + 52
+
+  const metrics = (executiveNumbers.length ? executiveNumbers : keyNumbers).filter(Boolean).slice(0, 6)
+  const cardGap = 22
+  const cardWidth = (width - cardGap * 2) / 3
+  const cardHeight = 132
+  metrics.forEach((item, index) => {
+    const x = margin + (index % 3) * (cardWidth + cardGap)
+    const top = y + Math.floor(index / 3) * (cardHeight + 18)
+    context.fillStyle = rgbToCss(theme.card)
+    context.strokeStyle = rgbToCss(theme.border)
+    context.lineWidth = 2
+    context.beginPath()
+    drawCanvasRoundRect(context, x, top, cardWidth, cardHeight, 22)
+    context.fill()
+    context.stroke()
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `800 17px ${theme.canvasFont}`
+    context.fillText(cleanPdfText(item.label).toUpperCase(), x + 24, top + 38)
+    context.fillStyle = rgbToCss(theme.text)
+    context.font = `800 31px ${theme.canvasFont}`
+    drawCanvasText(context, item.value || '-', x + 24, top + 82, cardWidth - 48, 34, 1)
+  })
+  y += Math.ceil(metrics.length / 3) * (cardHeight + 18) + 34
+
+  const suggestionItems = uniqueSentences(recommendations.length ? recommendations : observations, 4)
+  if (suggestionItems.length > 0) {
+    context.fillStyle = rgbToCss(theme.accent)
+    context.font = `800 22px ${theme.canvasFont}`
+    context.fillText('SUGGESTIONS', margin, y)
+    y += 42
+    suggestionItems.forEach((item, index) => {
+      context.fillStyle = rgbToCss(theme.accentSoft)
+      context.beginPath()
+      context.arc(margin + 18, y - 8, 18, 0, Math.PI * 2)
+      context.fill()
+      context.fillStyle = rgbToCss(theme.accent)
+      context.font = `800 18px ${theme.canvasFont}`
+      context.fillText(String(index + 1), margin + 12, y - 2)
+      context.fillStyle = rgbToCss(theme.text)
+      context.font = `500 25px ${theme.canvasFont}`
+      y = drawCanvasText(context, item, margin + 54, y, width - 54, 34, 2) + 24
+    })
+  }
+
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(margin, canvas.height - 86)
+  context.lineTo(canvas.width - margin, canvas.height - 86)
+  context.stroke()
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `500 20px ${theme.canvasFont}`
+  context.textAlign = 'right'
+  context.fillText(REPORT_SITE_URL, canvas.width - margin, canvas.height - 48)
+  context.textAlign = 'left'
+
+  return canvasBlob(canvas, 'image/jpeg', 0.92)
+}
+
+const EXPENSE_REPORT_CHART_COLORS = [
+  [47, 93, 93],
+  [29, 78, 216],
+  [22, 163, 74],
+  [217, 119, 6],
+  [147, 51, 234],
+  [220, 38, 38],
+  [8, 145, 178],
+  [82, 82, 91],
+]
+
+function reportDateKey(value) {
+  const text = String(value || '').trim()
+  const direct = text.slice(0, 10)
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(direct)) {
+    return direct
+  }
+
+  const parsed = new Date(text)
+
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10)
+  }
+
+  return new Date().toISOString().slice(0, 10)
+}
+
+function expenseReportDateKey(item = {}) {
+  return reportDateKey(item.date || item.dateTime || item.createdAt)
+}
+
+function expenseReportDateTimeValue(item = {}) {
+  return item.dateTime || item.createdAt || item.date || ''
+}
+
+function expenseReportDateLabel(dateKey) {
+  const parsed = new Date(`${String(dateKey || '').slice(0, 10)}T12:00:00`)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return cleanPdfText(dateKey) || '-'
+  }
+
+  return parsed.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function expenseReportShortDateLabel(dateKey) {
+  const parsed = new Date(`${String(dateKey || '').slice(0, 10)}T12:00:00`)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return cleanPdfText(dateKey) || '-'
+  }
+
+  return parsed.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+function expenseReportTimeLabel(item = {}) {
+  const value = expenseReportDateTimeValue(item)
+
+  if (!value || /^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
+    return '-'
+  }
+
+  const parsed = new Date(value)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return '-'
+  }
+
+  return parsed.toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function expenseReportMode(reportMeta = {}, range = {}) {
+  const filter = String(reportMeta.historyFilter || '').toLowerCase()
+
+  if (range.start && range.end && range.start === range.end) {
+    return 'daily'
+  }
+
+  if (filter === 'today' || filter === 'daily' || filter === 'custom') {
+    return 'daily'
+  }
+
+  if (filter === 'week' || filter === 'weekly') {
+    return 'weekly'
+  }
+
+  if (filter === 'month' || filter === 'monthly') {
+    return 'monthly'
+  }
+
+  if (filter === 'year' || filter === 'yearly') {
+    return 'yearly'
+  }
+
+  return 'monthly'
+}
+
+function expenseReportTitle(mode) {
+  if (mode === 'weekly') {
+    return 'Weekly Expense Report'
+  }
+
+  if (mode === 'monthly') {
+    return 'Monthly Expense Report'
+  }
+
+  if (mode === 'yearly') {
+    return 'Yearly Expense Report'
+  }
+
+  return 'Daily Expense Report'
+}
+
+function dateKeySequence(startKey, endKey, maxDays = 370) {
+  const start = new Date(`${String(startKey || '').slice(0, 10)}T12:00:00`)
+  const end = new Date(`${String(endKey || '').slice(0, 10)}T12:00:00`)
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return []
+  }
+
+  const keys = []
+  const cursor = new Date(start)
+
+  while (cursor <= end && keys.length < maxDays) {
+    keys.push(cursor.toISOString().slice(0, 10))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return keys
+}
+
+function buildExpenseHistoryReportModel({ reportMeta = {}, expenses = [], range = {} } = {}) {
+  const mode = expenseReportMode(reportMeta, range)
+  const currency = reportMeta.currency || 'INR'
+  const safeRange = {
+    start: range.start || '',
+    end: range.end || range.start || '',
+    label: range.label || reportMeta.rangeLabel || reportMeta.period || 'Selected period',
+  }
+  const filtered = expenses
+    .filter((item) => safeAmount(item.amount) > 0)
+    .filter((item) => {
+      const key = expenseReportDateKey(item)
+
+      if (safeRange.start && key < safeRange.start) {
+        return false
+      }
+
+      if (safeRange.end && key > safeRange.end) {
+        return false
+      }
+
+      return true
+    })
+    .sort((a, b) => String(expenseReportDateTimeValue(b)).localeCompare(String(expenseReportDateTimeValue(a))))
+  const rows = filtered.map((item) => {
+    const dateKey = expenseReportDateKey(item)
+    const amount = safeAmount(item.amount)
+    const category = cleanPdfText(item.category || item.originalCategory || item.impactType || 'Other') || 'Other'
+
+    return {
+      id: item.id || `${dateKey}-${category}-${amount}`,
+      dateKey,
+      dateLabel: expenseReportDateLabel(dateKey),
+      shortDateLabel: expenseReportShortDateLabel(dateKey),
+      timeLabel: expenseReportTimeLabel(item),
+      category,
+      title: cleanPdfText(item.title || item.label || item.note || category) || category,
+      amount,
+      amountLabel: currencyMoney(amount, currency),
+    }
+  })
+  const categoryMap = new Map()
+  const dayMap = new Map()
+
+  rows.forEach((row) => {
+    categoryMap.set(row.category, safeAmount(categoryMap.get(row.category)) + row.amount)
+    dayMap.set(row.dateKey, safeAmount(dayMap.get(row.dateKey)) + row.amount)
+  })
+
+  const total = sumMoney(rows, (row) => row.amount)
+  const categories = Array.from(categoryMap.entries())
+    .map(([label, amount], index) => ({
+      label,
+      amount,
+      amountLabel: currencyMoney(amount, currency),
+      percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
+      color: EXPENSE_REPORT_CHART_COLORS[index % EXPENSE_REPORT_CHART_COLORS.length],
+    }))
+    .sort((a, b) => b.amount - a.amount)
+  const rangeKeys = safeRange.start && safeRange.end ? dateKeySequence(safeRange.start, safeRange.end) : []
+  const dayKeys = rangeKeys.length > 0
+    ? rangeKeys
+    : Array.from(dayMap.keys()).sort()
+  const dayTotals = dayKeys.map((key) => ({
+    key,
+    label: expenseReportShortDateLabel(key),
+    amount: safeAmount(dayMap.get(key)),
+    amountLabel: currencyMoney(dayMap.get(key), currency),
+  }))
+
+  return {
+    currency,
+    mode,
+    title: expenseReportTitle(mode),
+    periodLabel: safeRange.label,
+    includeDayBars: mode !== 'daily',
+    rows,
+    categories,
+    dayTotals,
+    total,
+    totalLabel: currencyMoney(total, currency),
+  }
+}
+
+function drawExpensePieCanvas(context, model, theme, box) {
+  const { x, y, width, height } = box
+  const centerX = x + Math.min(width * 0.33, 220)
+  const centerY = y + height / 2 + 8
+  const radius = Math.min(height * 0.32, width * 0.16, 130)
+  const total = model.total || sumMoney(model.categories, (item) => item.amount)
+
+  context.fillStyle = rgbToCss(theme.card)
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  drawCanvasRoundRect(context, x, y, width, height, 28)
+  context.fill()
+  context.stroke()
+
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 24px ${theme.canvasFont}`
+  context.fillText('CATEGORY PIE CHART', x + 34, y + 46)
+
+  if (model.categories.length === 0 || total <= 0) {
+    context.fillStyle = rgbToCss(theme.soft)
+    context.beginPath()
+    context.arc(centerX, centerY, radius, 0, Math.PI * 2)
+    context.fill()
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `600 22px ${theme.canvasFont}`
+    context.textAlign = 'center'
+    context.fillText('No entries', centerX, centerY + 8)
+    context.textAlign = 'left'
+  } else {
+    let start = -Math.PI / 2
+    model.categories.forEach((item) => {
+      const angle = (item.amount / total) * Math.PI * 2
+      context.fillStyle = rgbToCss(item.color)
+      context.beginPath()
+      context.moveTo(centerX, centerY)
+      context.arc(centerX, centerY, radius, start, start + angle)
+      context.closePath()
+      context.fill()
+      start += angle
+    })
+    context.fillStyle = rgbToCss(theme.page)
+    context.beginPath()
+    context.arc(centerX, centerY, radius * 0.42, 0, Math.PI * 2)
+    context.fill()
+    context.fillStyle = rgbToCss(theme.text)
+    context.font = `800 24px ${theme.canvasFont}`
+    context.textAlign = 'center'
+    context.fillText(model.totalLabel, centerX, centerY + 8)
+    context.textAlign = 'left'
+  }
+
+  const legendX = x + Math.min(width * 0.55, width - 380)
+  let legendY = y + 86
+  model.categories.slice(0, 8).forEach((item) => {
+    context.fillStyle = rgbToCss(item.color)
+    context.beginPath()
+    context.arc(legendX, legendY - 5, 8, 0, Math.PI * 2)
+    context.fill()
+
+    context.fillStyle = rgbToCss(theme.text)
+    context.font = `800 21px ${theme.canvasFont}`
+    context.fillText(item.label, legendX + 22, legendY)
+
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `600 18px ${theme.canvasFont}`
+    context.fillText(`${item.amountLabel} - ${item.percentage}%`, legendX + 22, legendY + 27)
+    legendY += 58
+  })
+}
+
+function drawExpenseDayBarsCanvas(context, model, theme, box) {
+  const { x, y, width, height } = box
+  const maxAmount = Math.max(1, ...model.dayTotals.map((item) => item.amount))
+  const chartX = x + 58
+  const chartY = y + 76
+  const chartWidth = width - 100
+  const chartHeight = height - 132
+  const visibleDays = model.dayTotals.slice(0, 62)
+  const gap = Math.max(4, Math.min(10, chartWidth / Math.max(visibleDays.length, 1) * 0.2))
+  const barWidth = Math.max(5, (chartWidth - gap * Math.max(visibleDays.length - 1, 0)) / Math.max(visibleDays.length, 1))
+
+  context.fillStyle = rgbToCss(theme.card)
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  drawCanvasRoundRect(context, x, y, width, height, 28)
+  context.fill()
+  context.stroke()
+
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 24px ${theme.canvasFont}`
+  context.fillText('DAY-WISE BAR CHART', x + 34, y + 46)
+
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(chartX, chartY + chartHeight)
+  context.lineTo(chartX + chartWidth, chartY + chartHeight)
+  context.stroke()
+
+  visibleDays.forEach((item, index) => {
+    const barX = chartX + index * (barWidth + gap)
+    const barHeight = Math.max(item.amount > 0 ? 5 : 0, (item.amount / maxAmount) * chartHeight)
+    const barY = chartY + chartHeight - barHeight
+
+    context.fillStyle = item.amount > 0 ? rgbToCss(theme.accent) : rgbToCss(theme.soft)
+    context.beginPath()
+    drawCanvasRoundRect(context, barX, barY, barWidth, barHeight, Math.min(8, barWidth / 2))
+    context.fill()
+
+    if (visibleDays.length <= 14 || index % 3 === 0) {
+      context.save()
+      context.translate(barX + barWidth / 2, chartY + chartHeight + 24)
+      context.rotate(-Math.PI / 7)
+      context.fillStyle = rgbToCss(theme.muted)
+      context.font = `600 15px ${theme.canvasFont}`
+      context.textAlign = 'right'
+      context.fillText(item.label, 0, 0)
+      context.restore()
+    }
+  })
+
+  context.fillStyle = rgbToCss(theme.text)
+  context.font = `800 22px ${theme.canvasFont}`
+  context.textAlign = 'right'
+  context.fillText(model.totalLabel, x + width - 34, y + 47)
+  context.textAlign = 'left'
+}
+
+function createExpenseChartDataUrl(draw) {
+  if (typeof document === 'undefined') {
+    return ''
+  }
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 1100
+  canvas.height = 520
+  const context = canvas.getContext('2d')
+
+  draw(context, canvas)
+  return canvas.toDataURL('image/jpeg', 0.92)
+}
+
+function createExpenseReportChartImages(model, theme) {
+  return {
+    pie: createExpenseChartDataUrl((context, canvas) => {
+      context.fillStyle = rgbToCss(theme.page)
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      drawExpensePieCanvas(context, model, theme, {
+        x: 28,
+        y: 28,
+        width: canvas.width - 56,
+        height: canvas.height - 56,
+      })
+    }),
+    bars: model.includeDayBars
+      ? createExpenseChartDataUrl((context, canvas) => {
+        context.fillStyle = rgbToCss(theme.page)
+        context.fillRect(0, 0, canvas.width, canvas.height)
+        drawExpenseDayBarsCanvas(context, model, theme, {
+          x: 28,
+          y: 28,
+          width: canvas.width - 56,
+          height: canvas.height - 56,
+        })
+      })
+      : '',
+  }
+}
+
+function drawExpenseFallbackBarsPdf(doc, y, items = [], meta = {}, theme = resolveReportTheme()) {
+  const visible = items.filter((item) => safeAmount(item.amount) > 0).slice(0, 12)
+  const maxAmount = Math.max(1, ...visible.map((item) => item.amount))
+
+  if (visible.length === 0) {
+    setThemeText(doc, theme, theme.muted)
+    setThemeFont(doc, theme, 'normal', 8)
+    doc.text('No entries in this period.', PAGE.margin, y)
+    return y + 10
+  }
+
+  visible.forEach((item) => {
+    y = addSimplePageIfNeeded(doc, y, 10, meta, theme)
+    drawFittedText(doc, item.label, PAGE.margin, y, 45, {
+      color: theme.text,
+      font: theme.pdfFont,
+      minSize: 6.2,
+      size: 7.6,
+      weight: 'bold',
+    })
+    setThemeFill(doc, theme.soft)
+    doc.roundedRect(PAGE.margin + 50, y - 3.5, 76, 3, 1.4, 1.4, 'F')
+    setThemeFill(doc, item.color || theme.accent)
+    doc.roundedRect(PAGE.margin + 50, y - 3.5, Math.max(2, (item.amount / maxAmount) * 76), 3, 1.4, 1.4, 'F')
+    drawFittedText(doc, item.amountLabel, PAGE.width - PAGE.margin - 42, y, 42, {
+      align: 'right',
+      color: theme.text,
+      font: theme.pdfFont,
+      minSize: 6.2,
+      size: 7.4,
+      weight: 'bold',
+    })
+    y += 9
+  })
+
+  return y + 2
+}
+
+function drawExpenseChartPdf(doc, y, title, dataUrl, fallbackItems, meta = {}, theme = resolveReportTheme()) {
+  y = addSimplePageIfNeeded(doc, y, 84, meta, theme)
+  y = drawSimpleSectionHeading(doc, title, y, theme)
+
+  if (dataUrl) {
+    doc.addImage(dataUrl, 'JPEG', PAGE.margin, y, PAGE.width - PAGE.margin * 2, 70)
+    return y + 78
+  }
+
+  return drawExpenseFallbackBarsPdf(doc, y + 2, fallbackItems, meta, theme) + 6
+}
+
+function drawExpenseHistoryTablePdf(doc, y, model, meta = {}, theme = resolveReportTheme()) {
+  y = addSimplePageIfNeeded(doc, y, 22, meta, theme)
+  y = drawSimpleSectionHeading(doc, 'History', y, theme)
+
+  if (model.rows.length === 0) {
+    setThemeText(doc, theme, theme.muted)
+    setThemeFont(doc, theme, 'normal', 8.2)
+    doc.text('No expense lines were written in this period.', PAGE.margin, y)
+    return y + 12
+  }
+
+  const columns = [
+    { key: 'dateLabel', label: 'Date', width: 31 },
+    { key: 'timeLabel', label: 'Time', width: 23 },
+    { key: 'category', label: 'Category', width: 38 },
+    { key: 'title', label: 'Line', width: 50 },
+    { key: 'amountLabel', label: 'Amount', width: 40, align: 'right' },
+  ]
+  const drawHeader = () => {
+    let x = PAGE.margin
+    setThemeText(doc, theme, theme.muted)
+    setThemeFont(doc, theme, 'bold', 6.8)
+    columns.forEach((column) => {
+      doc.text(column.label.toUpperCase(), column.align === 'right' ? x + column.width : x, y, {
+        align: column.align || 'left',
+      })
+      x += column.width
+    })
+    setThemeStroke(doc, theme.border)
+    doc.setLineWidth(0.14)
+    doc.line(PAGE.margin, y + 3, PAGE.width - PAGE.margin, y + 3)
+    y += 9
+  }
+
+  drawHeader()
+
+  model.rows.forEach((row) => {
+    const rowHeight = 10
+
+    if (y + rowHeight > reportBottomY()) {
+      y = addSimpleReportPage(doc, meta, theme)
+      y = drawSimpleSectionHeading(doc, 'History', y, theme)
+      drawHeader()
+    }
+
+    let x = PAGE.margin
+    columns.forEach((column, index) => {
+      drawFittedText(doc, row[column.key] || '-', x, y, column.width - (column.align === 'right' ? 0 : 4), {
+        align: column.align || 'left',
+        color: index === 4 ? theme.text : index === 2 ? theme.accent : theme.text,
+        font: theme.pdfFont,
+        minSize: 5.9,
+        size: 7.2,
+        weight: index === 2 || index === 4 ? 'bold' : 'normal',
+      })
+      x += column.width
+    })
+    setThemeStroke(doc, theme.border)
+    doc.setLineWidth(0.1)
+    doc.line(PAGE.margin, y + rowHeight - 3, PAGE.width - PAGE.margin, y + rowHeight - 3)
+    y += rowHeight
+  })
+
+  return y + 5
+}
+
+function drawExpenseReportIntroPdf(doc, y, model, meta = {}, theme = resolveReportTheme()) {
+  setThemeText(doc, theme, theme.text)
+  setThemeFont(doc, theme, 'bold', 20)
+  doc.text(model.title, PAGE.margin, y)
+  y += 9
+
+  setThemeText(doc, theme, theme.muted)
+  setThemeFont(doc, theme, 'normal', 8)
+  doc.text([model.periodLabel, reportDateLabel(meta.generatedAt), meta.currency || model.currency].filter(Boolean).join('  |  '), PAGE.margin, y, {
+    maxWidth: PAGE.width - PAGE.margin * 2,
+  })
+  y += 9
+
+  setThemeStroke(doc, theme.border)
+  doc.setLineWidth(0.2)
+  doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y)
+  y += 10
+
+  setThemeText(doc, theme, theme.text)
+  setThemeFont(doc, theme, 'bold', 12)
+  doc.text(model.totalLabel, PAGE.margin, y)
+  setThemeText(doc, theme, theme.muted)
+  setThemeFont(doc, theme, 'normal', 7.4)
+  doc.text(`${model.rows.length} line${model.rows.length === 1 ? '' : 's'} in this report`, PAGE.margin + 42, y)
+
+  return y + 12
+}
+
+async function createExpenseHistoryReportJpegBlob({ meta, model, theme }) {
+  if (typeof document === 'undefined') {
+    throw new Error('Image export is not available outside the browser.')
+  }
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 1400
+  canvas.height = 1980
+  const context = canvas.getContext('2d')
+  const margin = 86
+  const width = canvas.width - margin * 2
+
+  context.fillStyle = rgbToCss(theme.page)
+  context.fillRect(0, 0, canvas.width, canvas.height)
+
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 34px ${theme.canvasFont}`
+  context.fillText('FBPLY', margin, 70)
+
+  let y = 158
+  context.fillStyle = rgbToCss(theme.text)
+  context.font = `800 58px ${theme.canvasFont}`
+  y = drawCanvasText(context, model.title, margin, y, width, 64, 2) + 22
+
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `500 22px ${theme.canvasFont}`
+  context.fillText([model.periodLabel, reportDateLabel(meta.generatedAt), meta.currency || model.currency].filter(Boolean).join('  |  '), margin, y)
+  y += 48
+
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(margin, y)
+  context.lineTo(canvas.width - margin, y)
+  context.stroke()
+  y += 50
+
+  context.fillStyle = rgbToCss(theme.text)
+  context.font = `800 32px ${theme.canvasFont}`
+  context.fillText(model.totalLabel, margin, y)
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `600 20px ${theme.canvasFont}`
+  context.fillText(`${model.rows.length} line${model.rows.length === 1 ? '' : 's'} written`, margin + 260, y)
+  y += 34
+
+  drawExpensePieCanvas(context, model, theme, {
+    x: margin,
+    y,
+    width,
+    height: 430,
+  })
+  y += 468
+
+  if (model.includeDayBars) {
+    drawExpenseDayBarsCanvas(context, model, theme, {
+      x: margin,
+      y,
+      width,
+      height: 330,
+    })
+    y += 368
+  }
+
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 22px ${theme.canvasFont}`
+  context.fillText('HISTORY', margin, y)
+  y += 38
+
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `800 16px ${theme.canvasFont}`
+  context.fillText('DATE', margin, y)
+  context.fillText('TIME', margin + 205, y)
+  context.fillText('CATEGORY', margin + 360, y)
+  context.textAlign = 'right'
+  context.fillText('AMOUNT', canvas.width - margin, y)
+  context.textAlign = 'left'
+  y += 26
+
+  const bottomLimit = canvas.height - 126
+  model.rows.forEach((row) => {
+    if (y + 44 > bottomLimit) {
+      return
+    }
+
+    context.strokeStyle = rgbToCss(theme.border)
+    context.lineWidth = 1
+    context.beginPath()
+    context.moveTo(margin, y + 32)
+    context.lineTo(canvas.width - margin, y + 32)
+    context.stroke()
+
+    context.fillStyle = rgbToCss(theme.text)
+    context.font = `600 19px ${theme.canvasFont}`
+    context.fillText(row.dateLabel, margin, y)
+    context.fillText(row.timeLabel, margin + 205, y)
+
+    context.fillStyle = rgbToCss(theme.accent)
+    context.font = `800 19px ${theme.canvasFont}`
+    context.fillText(row.category, margin + 360, y)
+
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `500 17px ${theme.canvasFont}`
+    drawCanvasText(context, row.title, margin + 560, y, 340, 22, 1)
+
+    context.fillStyle = rgbToCss(theme.text)
+    context.font = `800 19px ${theme.canvasFont}`
+    context.textAlign = 'right'
+    context.fillText(row.amountLabel, canvas.width - margin, y)
+    context.textAlign = 'left'
+    y += 44
+  })
+
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(margin, canvas.height - 86)
+  context.lineTo(canvas.width - margin, canvas.height - 86)
+  context.stroke()
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `500 20px ${theme.canvasFont}`
+  context.textAlign = 'right'
+  context.fillText(REPORT_SITE_URL, canvas.width - margin, canvas.height - 48)
+  context.textAlign = 'left'
+
+  return canvasBlob(canvas, 'image/jpeg', 0.92)
+}
+
+async function createExpenseHistoryReportBlob(reportData = {}) {
+  const { jsPDF } = await import('jspdf')
+  const meta = {
+    ...(reportData.reportMeta || {}),
+    title: '',
+    typeLabel: 'Expense History',
+    jsPDF,
+  }
+  const model = buildExpenseHistoryReportModel(reportData)
+  const theme = resolveReportTheme(meta.theme)
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const chartImages = createExpenseReportChartImages(model, theme)
+
+  drawSimpleReportHeader(doc, meta, theme)
+
+  let y = drawExpenseReportIntroPdf(doc, PAGE.margin + 18, model, meta, theme)
+  y = drawExpenseChartPdf(doc, y, 'Category pie chart', chartImages.pie, model.categories, meta, theme)
+
+  if (model.includeDayBars) {
+    y = drawExpenseChartPdf(doc, y, 'Day-wise bar chart', chartImages.bars, model.dayTotals, meta, theme)
+  }
+
+  drawExpenseHistoryTablePdf(doc, y, model, meta, theme)
+  drawSimpleReportFooters(doc, meta, theme)
+
+  const pageCount = doc.getNumberOfPages()
+
+  if (meta.exportMode === 'auto' && pageCount <= 1) {
+    try {
+      const imageBlob = await createExpenseHistoryReportJpegBlob({ meta, model, theme })
+
+      return {
+        blob: imageBlob,
+        extension: 'jpg',
+        format: 'jpg',
+        mimeType: 'image/jpeg',
+        pageCount,
+      }
+    } catch {
+      // Browser image export is best effort; PDF remains the reliable fallback.
+    }
+  }
+
+  const pdfBlob = doc.output('blob')
+
+  if (meta.exportMode === 'auto') {
+    return {
+      blob: pdfBlob,
+      extension: 'pdf',
+      format: 'pdf',
+      mimeType: 'application/pdf',
+      pageCount,
+    }
+  }
+
+  return pdfBlob
 }
 
 function cleanSentence(value) {
@@ -410,6 +1716,7 @@ function drawMinorHeading(doc, title, y) {
 function drawFittedText(doc, value, x, y, maxWidth, {
   align = 'left',
   color = COLORS.text,
+  font = 'helvetica',
   minSize = 6.5,
   size = 8,
   weight = 'normal',
@@ -418,7 +1725,7 @@ function drawFittedText(doc, value, x, y, maxWidth, {
   let fontSize = size
 
   setText(doc, color)
-  doc.setFont('helvetica', weight)
+  doc.setFont(font, weight)
   doc.setFontSize(fontSize)
 
   while (fontSize > minSize && doc.getTextWidth(text) > maxWidth) {
@@ -504,6 +1811,7 @@ function drawObservationList(doc, y, title, observations = [], meta = {}) {
   return y + visible.length * 11 + 4
 }
 
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
 function drawExecutiveSummary(doc, y, { summary = '', snapshot = [], observations = [] } = {}, meta = {}) {
   y = drawDocumentHeading(doc, 'Executive Summary', y, 'A plain-language view of the financial period, prepared for quick review and sharing.')
   y = drawTextBlock(doc, summary, PAGE.margin, y + 3, PAGE.width - PAGE.margin * 2, {
@@ -672,6 +1980,7 @@ function drawDocumentTable(doc, y, section, meta = {}) {
   return y + 4
 }
 
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
 function drawAnalysisSection(doc, y, section, meta = {}) {
   if (section.kind === 'bars') {
     return drawHorizontalBars(doc, y, section, meta)
@@ -680,6 +1989,7 @@ function drawAnalysisSection(doc, y, section, meta = {}) {
   return drawDocumentTable(doc, y, section, meta)
 }
 
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
 function drawRecommendations(doc, y, recommendations = [], meta = {}) {
   const visible = uniqueSentences(recommendations, 3)
 
@@ -719,6 +2029,7 @@ function dataQualityLines(accuracy = {}) {
   ]
 }
 
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
 function drawFinalSummary(doc, y, finalSummary = '', accuracy = {}, meta = {}) {
   y = addPageIfNeeded(doc, y, 56, meta)
   y = drawDocumentHeading(doc, 'Final Summary', y)
@@ -738,6 +2049,7 @@ function drawFinalSummary(doc, y, finalSummary = '', accuracy = {}, meta = {}) {
   return y + 22
 }
 
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
 function createProfessionalPdfDocument({
   meta,
   executiveSummary = '',
@@ -749,39 +2061,17 @@ function createProfessionalPdfDocument({
   finalSummary = '',
   accuracy = {},
 }) {
-  const doc = new meta.jsPDF({ unit: 'mm', format: 'a4' })
-  doc.__fbplyLogoDataUrl = meta.logoDataUrl || ''
-  drawProfessionalCover(doc, meta)
-
-  let y = addProfessionalPage(doc, meta)
-  y = drawExecutiveSummary(doc, y, {
-    summary: executiveSummary,
-    snapshot: executiveNumbers,
+  return buildSimpleReportPdfDocument({
+    meta,
+    executiveSummary,
+    executiveNumbers,
+    keyNumbers,
     observations,
-  }, meta)
-
-  y = addProfessionalPage(doc, meta)
-  y = drawDocumentHeading(doc, 'Key Numbers', y, 'The most important values from the saved report data.')
-  y = drawKeyNumbers(doc, y, 'Primary Information', keyNumbers, meta)
-
-  y = addPageIfNeeded(doc, y, 34, meta)
-  y = drawDocumentHeading(doc, 'Detailed Analysis', y, 'Sorted tables and simple bars for the parts of the report that need inspection.')
-  if (analysisSections.length === 0) {
-    y = drawTextBlock(doc, 'No detailed rows were available for this report period.', PAGE.margin, y + 3, PAGE.width - PAGE.margin * 2, {
-      size: 8.5,
-      lineHeight: 4,
-      maxLines: 2,
-    }) + 6
-  }
-
-  analysisSections.forEach((section) => {
-    y = drawAnalysisSection(doc, y, section, meta)
-  })
-
-  y = drawRecommendations(doc, y, recommendations, meta)
-  drawFinalSummary(doc, y, finalSummary, accuracy, meta)
-
-  return finaliseProfessionalDoc(doc, meta)
+    analysisSections,
+    recommendations,
+    finalSummary,
+    accuracy,
+  }).output('blob')
 }
 
 async function createProfessionalReportBlob({
@@ -796,13 +2086,10 @@ async function createProfessionalReportBlob({
   accuracy,
 }) {
   const { jsPDF } = await import('jspdf')
-  const logoDataUrl = await loadLogoDataUrl()
-
-  return createProfessionalPdfDocument({
+  const preparedReport = {
     meta: {
       ...meta,
       jsPDF,
-      logoDataUrl,
     },
     executiveSummary,
     executiveNumbers,
@@ -812,7 +2099,90 @@ async function createProfessionalReportBlob({
     recommendations,
     finalSummary,
     accuracy,
-  })
+  }
+
+  const doc = buildSimpleReportPdfDocument(preparedReport)
+  const pageCount = doc.getNumberOfPages()
+
+  if (meta?.exportMode === 'auto' && pageCount <= 1) {
+    try {
+      const imageBlob = await createSimpleReportJpegBlob(preparedReport)
+
+      return {
+        blob: imageBlob,
+        extension: 'jpg',
+        format: 'jpg',
+        mimeType: 'image/jpeg',
+        pageCount,
+      }
+    } catch {
+      // Fall back to PDF if the browser cannot create a canvas image.
+    }
+  }
+
+  const pdfBlob = doc.output('blob')
+
+  if (meta?.exportMode === 'auto') {
+    return {
+      blob: pdfBlob,
+      extension: 'pdf',
+      format: 'pdf',
+      mimeType: 'application/pdf',
+      pageCount,
+    }
+  }
+
+  return pdfBlob
+}
+
+function withReportExportMode(payload = {}, exportMode = 'pdf') {
+  return {
+    ...payload,
+    reportMeta: {
+      ...(payload.reportMeta || {}),
+      exportMode,
+    },
+  }
+}
+
+function normalizeReportExportResult(result, fallbackFormat = 'pdf') {
+  if (result?.blob) {
+    return result
+  }
+
+  return {
+    blob: result,
+    extension: fallbackFormat,
+    format: fallbackFormat,
+    mimeType: fallbackFormat === 'jpg' ? 'image/jpeg' : 'application/pdf',
+    pageCount: fallbackFormat === 'jpg' ? 1 : undefined,
+  }
+}
+
+async function createTypedReportBlob(type = 'monthly', payload = {}) {
+  if (type === 'expense-history') {
+    return createExpenseHistoryReportBlob(payload)
+  }
+
+  if (type === 'trip') {
+    return createTripReportPdfBlob(payload)
+  }
+
+  if (type === 'settlement') {
+    return createSettlementReportPdfBlob(payload)
+  }
+
+  if (type === 'statement') {
+    return createStatementAnalysisReportPdfBlob(payload)
+  }
+
+  return createMonthlyBudgetReportPdfBlob(payload)
+}
+
+export async function createReportExportBlob({ type = 'monthly', payload = {} } = {}) {
+  const result = await createTypedReportBlob(type, withReportExportMode(payload, 'auto'))
+
+  return normalizeReportExportResult(result)
 }
 
 export async function createMonthlyBudgetReportPdfBlob(reportData = {}) {
@@ -917,14 +2287,16 @@ export async function createMonthlyBudgetReportPdfBlob(reportData = {}) {
 
   return createProfessionalReportBlob({
     meta: {
-      title: 'Monthly Financial Report',
-      typeLabel: 'Monthly Financial Report',
+      title: 'Monthly Report',
+      typeLabel: 'Monthly Report',
       subtitle: 'Income, expenses, remaining money, goals, settlements, and practical next steps.',
       preparedFor: profile.name || profile.email || 'FBPly user',
       currency,
       period: reportData.reportMeta?.period || currentMonthLabel(),
       reportId: reportData.reportMeta?.reportId,
       generatedAt: reportData.reportMeta?.generatedAt,
+      theme: reportData.reportMeta?.theme,
+      exportMode: reportData.reportMeta?.exportMode,
       template,
     },
     executiveSummary,
@@ -1100,6 +2472,8 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
       period: reportMeta.period || group.date || currentMonthLabel(),
       reportId: reportMeta.reportId,
       generatedAt: reportMeta.generatedAt,
+      theme: reportMeta.theme,
+      exportMode: reportMeta.exportMode,
       template,
       unlimitedSections: true,
       reportType: 'trip',
@@ -1198,6 +2572,8 @@ export async function createSettlementReportPdfBlob({ reportMeta = {}, profile =
       period: reportMeta.period || currentMonthLabel(),
       reportId: reportMeta.reportId,
       generatedAt: reportMeta.generatedAt,
+      theme: reportMeta.theme,
+      exportMode: reportMeta.exportMode,
       template,
     },
     executiveSummary: [
@@ -1300,6 +2676,8 @@ export async function createStatementAnalysisReportPdfBlob({ reportMeta = {}, pr
       period: reportMeta.period || statementReport.dateRange || currentMonthLabel(),
       reportId: reportMeta.reportId,
       generatedAt: reportMeta.generatedAt,
+      theme: reportMeta.theme,
+      exportMode: reportMeta.exportMode,
       template,
     },
     executiveSummary: [
@@ -1340,19 +2718,9 @@ export async function createStatementAnalysisReportPdfBlob({ reportMeta = {}, pr
 }
 
 export async function createReportPdfBlob({ type = 'monthly', payload = {} } = {}) {
-  if (type === 'trip') {
-    return createTripReportPdfBlob(payload)
-  }
+  const result = await createTypedReportBlob(type, withReportExportMode(payload, 'pdf'))
 
-  if (type === 'settlement') {
-    return createSettlementReportPdfBlob(payload)
-  }
-
-  if (type === 'statement') {
-    return createStatementAnalysisReportPdfBlob(payload)
-  }
-
-  return createMonthlyBudgetReportPdfBlob(payload)
+  return result?.blob || result
 }
 
 export async function createMonthlyReportPdfBlob({

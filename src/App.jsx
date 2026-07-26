@@ -2,9 +2,11 @@ import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, use
 import {
   Bell,
   Calculator,
+  CalendarDays,
   Car,
   ChartPie,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   Coffee,
   CreditCard,
@@ -5353,6 +5355,7 @@ function App() {
       period,
       accuracy: overrides.accuracy,
       userOverrides: overrides.userOverrides || 0,
+      theme: moneyTheme,
     }
     const reconciledGroups = sharedGroups.map((group) => reconcileSharedGroup(group, profile))
 
@@ -5407,6 +5410,28 @@ function App() {
       }
     }
 
+    if (type === 'expense-history') {
+      const range = overrides.range || {}
+      const periodLabel = overrides.periodLabel || range.label || period
+
+      return {
+        type,
+        reportId,
+        payload: {
+          reportMeta: {
+            ...reportMeta,
+            period: periodLabel,
+            reportType: 'expense-history',
+            historyFilter: overrides.historyFilter || 'today',
+            rangeLabel: periodLabel,
+          },
+          profile,
+          range,
+          expenses: Array.isArray(overrides.transactions) ? overrides.transactions : [],
+        },
+      }
+    }
+
     return {
       type: 'monthly',
       reportId,
@@ -5430,6 +5455,7 @@ function App() {
     profile,
     recommendation,
     reportTemplate,
+    moneyTheme,
     savingsBuckets,
     selectedAdvancedReport,
     selectedExpenseBreakdown,
@@ -5453,16 +5479,29 @@ function App() {
       activeRequest = request || buildReportRequest('monthly')
       setExportingReportType(activeRequest.type || 'monthly')
       const reportId = activeRequest.reportId || activeRequest.payload?.reportMeta?.reportId || createReportId(activeRequest.type)
-      const { isNativeMobileApp, sharePdfBlob } = await import('./lib/nativeFileShare')
-      const { createReportPdfBlob } = await import('./lib/reportPdf')
-      const blob = await createReportPdfBlob(activeRequest)
-      const filename = `${reportId}.pdf`
+      activeRequest = {
+        ...activeRequest,
+        payload: {
+          ...(activeRequest.payload || {}),
+          reportMeta: {
+            ...(activeRequest.payload?.reportMeta || {}),
+            theme: moneyTheme,
+          },
+        },
+      }
+      const { isNativeMobileApp, shareBlob } = await import('./lib/nativeFileShare')
+      const { createReportExportBlob } = await import('./lib/reportPdf')
+      const exportResult = await createReportExportBlob(activeRequest)
+      const blob = exportResult.blob
+      const exportType = exportResult.format || 'pdf'
+      const filename = `${reportId}.${exportResult.extension || exportType}`
       const reportType = activeRequest.type || 'monthly'
 
       trackEvent('report_generated', {
         surface: 'reports',
         report_type: reportType,
         template: activeRequest.payload?.reportMeta?.template || reportTemplate,
+        export_type: exportType,
         save_history: saveHistory,
       })
 
@@ -5473,11 +5512,15 @@ function App() {
       }
 
       if (isNativeMobileApp()) {
-        await sharePdfBlob(blob, filename)
+        await shareBlob(blob, filename, {
+          title: exportType === 'jpg' ? 'FBPLY Report Card' : 'FBPLY Report',
+          text: 'Your FBPLY report is ready.',
+          dialogTitle: 'Save or share report',
+        })
         trackEvent('report_shared', {
           surface: 'reports',
           report_type: reportType,
-          export_type: 'pdf',
+          export_type: exportType,
         })
       } else {
         const url = URL.createObjectURL(blob)
@@ -5491,7 +5534,7 @@ function App() {
       trackEvent('report_exported', {
         surface: 'reports',
         report_type: reportType,
-        export_type: 'pdf',
+        export_type: exportType,
         save_history: saveHistory,
       })
 
@@ -5504,7 +5547,13 @@ function App() {
             period: activeRequest.payload?.reportMeta?.period || selectedMonthKey,
             currency: activeRequest.payload?.reportMeta?.currency || profile.currency,
             reportId,
-            payload: activeRequest.payload,
+            payload: {
+              ...activeRequest.payload,
+              reportMeta: {
+                ...(activeRequest.payload?.reportMeta || {}),
+                lastExportFormat: exportType,
+              },
+            },
           }),
           ...current,
         ]))
@@ -5519,7 +5568,7 @@ function App() {
       setIsExportingPdf(false)
       setExportingReportType('')
     }
-  }, [buildReportRequest, isExportingPdf, profile, reportHistory.length, reportTemplate, selectedMonthKey])
+  }, [buildReportRequest, isExportingPdf, moneyTheme, profile, reportHistory.length, reportTemplate, selectedMonthKey])
 
   const requestReportExport = useCallback((type = 'monthly', overrides = {}) => {
     if (isExportingPdf) {
@@ -7009,6 +7058,61 @@ const HOME_QUICK_TOOLS = [
   { key: 'emi', label: 'EMI', detail: 'Monthly estimate', icon: CreditCard },
 ]
 
+const HOME_CALENDAR_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const INDIAN_FIXED_HOLIDAYS = Object.freeze({
+  '01-26': Object.freeze({ name: 'Republic Day', shortName: 'Republic Day', type: 'National' }),
+  '08-15': Object.freeze({ name: 'Independence Day', shortName: 'Independence', type: 'National' }),
+  '10-02': Object.freeze({ name: "Mahatma Gandhi's Birthday", shortName: 'Gandhi Jayanti', type: 'National' }),
+  '12-25': Object.freeze({ name: 'Christmas Day', shortName: 'Christmas', type: 'Gazetted' }),
+})
+
+const INDIAN_CALENDAR_HOLIDAYS_2026 = Object.freeze({
+  '2026-01-01': Object.freeze({ name: "New Year's Day", shortName: 'New Year', type: 'Restricted' }),
+  '2026-01-03': Object.freeze({ name: "Hazarat Ali's Birthday", shortName: 'Hazarat Ali', type: 'Restricted' }),
+  '2026-01-14': Object.freeze({ name: 'Makar Sankranti / Pongal', shortName: 'Sankranti', type: 'Restricted' }),
+  '2026-01-23': Object.freeze({ name: 'Basant Panchami', shortName: 'Basant Panchami', type: 'Restricted' }),
+  '2026-01-26': Object.freeze({ name: 'Republic Day', shortName: 'Republic Day', type: 'National' }),
+  '2026-02-01': Object.freeze({ name: "Guru Ravi Das's Birthday", shortName: 'Guru Ravi Das', type: 'Restricted' }),
+  '2026-02-15': Object.freeze({ name: 'Maha Shivaratri', shortName: 'Shivaratri', type: 'Restricted' }),
+  '2026-02-19': Object.freeze({ name: 'Shivaji Jayanti', shortName: 'Shivaji Jayanti', type: 'Restricted' }),
+  '2026-03-03': Object.freeze({ name: 'Holika Dahan / Dolyatra', shortName: 'Holika Dahan', type: 'Restricted' }),
+  '2026-03-04': Object.freeze({ name: 'Holi', shortName: 'Holi', type: 'Gazetted' }),
+  '2026-03-19': Object.freeze({ name: 'Chaitra Sukladi / Gudi Padava / Ugadi', shortName: 'Ugadi', type: 'Restricted' }),
+  '2026-03-20': Object.freeze({ name: 'Jamat Ul-Vida', shortName: 'Jamat Ul-Vida', type: 'Restricted' }),
+  '2026-03-21': Object.freeze({ name: 'Id-ul-Fitr', shortName: 'Id-ul-Fitr', type: 'Gazetted' }),
+  '2026-03-26': Object.freeze({ name: 'Ram Navami', shortName: 'Ram Navami', type: 'Gazetted' }),
+  '2026-03-31': Object.freeze({ name: 'Mahavir Jayanti', shortName: 'Mahavir', type: 'Gazetted' }),
+  '2026-04-03': Object.freeze({ name: 'Good Friday', shortName: 'Good Friday', type: 'Gazetted' }),
+  '2026-04-05': Object.freeze({ name: 'Easter Sunday', shortName: 'Easter', type: 'Restricted' }),
+  '2026-04-14': Object.freeze({ name: 'Vaisakhi / Vishu / Mesadi', shortName: 'Vaisakhi', type: 'Restricted' }),
+  '2026-04-15': Object.freeze({ name: 'Bahag Bihu', shortName: 'Bihu', type: 'Restricted' }),
+  '2026-05-01': Object.freeze({ name: 'Buddha Purnima', shortName: 'Buddha Purnima', type: 'Gazetted' }),
+  '2026-05-09': Object.freeze({ name: 'Birthday of Guru Rabindranath Tagore', shortName: 'Tagore', type: 'Restricted' }),
+  '2026-05-27': Object.freeze({ name: 'Id-ul-Zuha (Bakrid)', shortName: 'Bakrid', type: 'Gazetted' }),
+  '2026-06-26': Object.freeze({ name: 'Muharram', shortName: 'Muharram', type: 'Gazetted' }),
+  '2026-07-16': Object.freeze({ name: 'Rath Yatra', shortName: 'Rath Yatra', type: 'Restricted' }),
+  '2026-08-15': Object.freeze({ name: 'Independence Day', shortName: 'Independence', type: 'National' }),
+  '2026-08-26': Object.freeze({ name: 'Milad-Un-Nabi / Onam', shortName: 'Milad / Onam', type: 'Gazetted' }),
+  '2026-08-28': Object.freeze({ name: 'Raksha Bandhan', shortName: 'Rakhi', type: 'Restricted' }),
+  '2026-09-04': Object.freeze({ name: 'Janmashtami', shortName: 'Janmashtami', type: 'Gazetted' }),
+  '2026-09-14': Object.freeze({ name: 'Ganesh Chaturthi', shortName: 'Ganesh', type: 'Restricted' }),
+  '2026-10-02': Object.freeze({ name: "Mahatma Gandhi's Birthday", shortName: 'Gandhi Jayanti', type: 'National' }),
+  '2026-10-18': Object.freeze({ name: 'Dussehra Saptami', shortName: 'Saptami', type: 'Restricted' }),
+  '2026-10-19': Object.freeze({ name: 'Dussehra Mahashtami', shortName: 'Mahashtami', type: 'Restricted' }),
+  '2026-10-20': Object.freeze({ name: 'Dussehra', shortName: 'Dussehra', type: 'Gazetted' }),
+  '2026-10-26': Object.freeze({ name: "Maharishi Valmiki's Birthday", shortName: 'Valmiki', type: 'Restricted' }),
+  '2026-10-29': Object.freeze({ name: 'Karwa Chauth', shortName: 'Karwa Chauth', type: 'Restricted' }),
+  '2026-11-08': Object.freeze({ name: 'Diwali / Naraka Chaturdasi', shortName: 'Diwali', type: 'Gazetted' }),
+  '2026-11-09': Object.freeze({ name: 'Govardhan Puja', shortName: 'Govardhan', type: 'Restricted' }),
+  '2026-11-11': Object.freeze({ name: 'Bhai Duj', shortName: 'Bhai Duj', type: 'Restricted' }),
+  '2026-11-15': Object.freeze({ name: 'Chhath Puja', shortName: 'Chhath', type: 'Restricted' }),
+  '2026-11-24': Object.freeze({ name: "Guru Nanak's Birthday", shortName: 'Guru Nanak', type: 'Gazetted' }),
+  '2026-12-23': Object.freeze({ name: "Hazarat Ali's Birthday", shortName: 'Hazarat Ali', type: 'Restricted' }),
+  '2026-12-24': Object.freeze({ name: 'Christmas Eve', shortName: 'Christmas Eve', type: 'Restricted' }),
+  '2026-12-25': Object.freeze({ name: 'Christmas Day', shortName: 'Christmas', type: 'Gazetted' }),
+})
+
 function isHomeDailyExpenseTransaction(transaction = {}) {
   return transaction?.tone === 'outgoing' &&
     transaction?.sourceModule !== 'Shared' &&
@@ -7039,6 +7143,99 @@ function buildHomeDateBox(dateKey = todayDateKey()) {
   }
 }
 
+function getIndianCalendarHoliday(dateKey) {
+  const cleanDateKey = String(dateKey || '').slice(0, 10)
+  const mappedHoliday = INDIAN_CALENDAR_HOLIDAYS_2026[cleanDateKey]
+
+  if (mappedHoliday) {
+    return mappedHoliday
+  }
+
+  return INDIAN_FIXED_HOLIDAYS[cleanDateKey.slice(5)] || null
+}
+
+function buildHomeCalendarMonth({ monthKey = currentMonthKey(), transactions = [], todayKey = todayDateKey() } = {}) {
+  const safeMonthKey = dateMonthKey(`${monthKey || currentMonthKey()}-01`)
+  const firstDay = new Date(`${safeMonthKey}-01T12:00:00`)
+
+  if (Number.isNaN(firstDay.getTime())) {
+    return {
+      monthKey: currentMonthKey(),
+      label: 'This month',
+      days: [],
+    }
+  }
+
+  const lastDay = new Date(firstDay)
+  lastDay.setMonth(lastDay.getMonth() + 1, 0)
+
+  const amountByDate = transactions.reduce((map, transaction) => {
+    const dateKey = dailyTransactionDateKey(transaction)
+
+    if (!dateKey.startsWith(safeMonthKey)) {
+      return map
+    }
+
+    const current = map.get(dateKey) || { amount: 0, count: 0 }
+    map.set(dateKey, {
+      amount: addMoney(current.amount, normalizeMoney(transaction.amount)),
+      count: current.count + 1,
+    })
+    return map
+  }, new Map())
+
+  const blanks = Array.from({ length: firstDay.getDay() }, (_, index) => ({
+    key: `blank-${safeMonthKey}-${index}`,
+    type: 'blank',
+  }))
+
+  const dateCells = Array.from({ length: lastDay.getDate() }, (_, index) => {
+    const day = index + 1
+    const dateKey = `${safeMonthKey}-${String(day).padStart(2, '0')}`
+    const parsed = new Date(`${dateKey}T12:00:00`)
+    const amountRecord = amountByDate.get(dateKey) || { amount: 0, count: 0 }
+    const holiday = getIndianCalendarHoliday(dateKey)
+
+    return {
+      key: dateKey,
+      type: 'date',
+      dateKey,
+      day,
+      weekday: HOME_CALENDAR_WEEKDAYS[parsed.getDay()],
+      isToday: dateKey === todayKey,
+      isWeekend: parsed.getDay() === 0 || parsed.getDay() === 6,
+      amount: amountRecord.amount,
+      amountLabel: amountRecord.amount > 0 ? shortRupees(amountRecord.amount) : '',
+      count: amountRecord.count,
+      holiday,
+    }
+  })
+
+  return {
+    monthKey: safeMonthKey,
+    label: firstDay.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
+    days: [...blanks, ...dateCells],
+  }
+}
+
+function buildHomePageSuggestion({ preview = {}, todayDateBox = {} } = {}) {
+  const count = preview.count || 0
+
+  if (count === 0) {
+    return `Fresh page for ${todayDateBox.full || 'today'}. Start with the first expense you remember clearly.`
+  }
+
+  if (count === 1) {
+    return 'The page has begun. Add only the next real expense when it happens.'
+  }
+
+  if ((preview.spent || 0) >= 1000) {
+    return `${preview.spentLabel || rupees(preview.spent || 0)} is written today. Review once before you close the page.`
+  }
+
+  return `${count} lines written today. Keep the next entry simple and honest.`
+}
+
 function parseDailyFlowInput(text) {
   const parts = String(text || '')
     .split(/[\n,;]+/)
@@ -7067,8 +7264,6 @@ function parseDailyFlowInput(text) {
 
 function V12HomeScreen({
   todayTransactions = [],
-  nextBestAction,
-  onNextActionClick,
   openAddSheet,
   openQuickTools,
   requestReportExport,
@@ -7078,6 +7273,8 @@ function V12HomeScreen({
   const [historyFilter, setHistoryFilter] = useState('today')
   const [entryMode, setEntryMode] = useState('normal')
   const [customDate, setCustomDate] = useState(todayDateKey())
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
+  const [calendarMonthKey, setCalendarMonthKey] = useState(currentMonthKey())
   const [stampActive, setStampActive] = useState(false)
   const [dailyInsight, setDailyInsight] = useState('')
   const [dailyFlowInput, setDailyFlowInput] = useState('')
@@ -7114,19 +7311,27 @@ function V12HomeScreen({
     () => buildHomeNotebookPreview(homeExpenseTransactions, historyRange),
     [historyRange, homeExpenseTransactions],
   )
+  const selectedHistoryExpenses = useMemo(
+    () => homeExpenseTransactions.filter((transaction) => {
+      const dateKey = dailyTransactionDateKey(transaction)
+
+      return dateKey >= historyRange.start && dateKey <= historyRange.end
+    }),
+    [historyRange, homeExpenseTransactions],
+  )
   const todaysPreview = useMemo(
     () => buildHomeNotebookPreview(homeExpenseTransactions, buildHomeNotebookHistoryRange('today')),
     [homeExpenseTransactions],
   )
-  const ritualStatus = useMemo(
-    () => buildDailyRitualStatus(todaysPreview.count, themeExperience),
-    [themeExperience, todaysPreview.count],
+  const todayDateBox = buildHomeDateBox(todayDateKey())
+  const calendarMonth = useMemo(
+    () => buildHomeCalendarMonth({
+      monthKey: calendarMonthKey,
+      transactions: homeExpenseTransactions,
+      todayKey: todayDateKey(),
+    }),
+    [calendarMonthKey, homeExpenseTransactions],
   )
-  const currentMonthLabel = formatHomeNotebookMonth(todayDateKey())
-  const reminderTitle = nextBestAction?.title || 'Close today\'s page'
-  const reminderDetail = nextBestAction?.reason || 'Write one expense before the day ends if money moved today.'
-  const reminderAction = nextBestAction?.action || 'Write expense'
-  const ReminderIcon = nextBestAction ? (NEXT_BEST_ACTION_ICONS[nextBestAction.iconKey] || Sparkles) : Bell
   const todayHasLines = todaysPreview.count > 0
   const todayWrittenTotal = rupees(addMoney(todaysPreview.spent, todaysPreview.received))
   const todayDailyTotal = todaysPreview.spent > 0
@@ -7140,13 +7345,30 @@ function V12HomeScreen({
   const todayPageDetail = todayHasLines
     ? 'Your money notes for today are written below.'
     : 'Write the first line when money moves today.'
+  const todayLastLine = todaysPreview.rows[0]?.timeLabel || 'No line yet'
+  const homePageSuggestion = buildHomePageSuggestion({ preview: todaysPreview, todayDateBox })
+  const todayPageLiveStats = [
+    { key: 'date', label: 'Date', value: `${todayDateBox.weekday}, ${todayDateBox.day} ${todayDateBox.month}` },
+    { key: 'lines', label: 'Lines', value: String(todaysPreview.count) },
+    { key: 'written', label: 'Written', value: todayWrittenTotal },
+    { key: 'last', label: 'Last line', value: todayLastLine },
+  ]
   const showSelectedPagePreview = historyFilter !== 'today'
   const ambientTimeClass = getHomeAmbientTimeClass()
-  const todayDateBox = buildHomeDateBox(todayDateKey())
   const previousPageCount = Math.max(homeExpenseTransactions.length - todaysPreview.count, 0)
   const previousPageDetail = previousPageCount > 0
     ? `${previousPageCount} note${previousPageCount === 1 ? '' : 's'} from earlier pages.`
     : 'Your past entries will rest here quietly.'
+  const handleHistoryReportDownload = useCallback(() => {
+    requestReportExport?.('expense-history', {
+      template: 'standard',
+      period: historyRange.start || todayDateKey(),
+      periodLabel: historyRange.label,
+      historyFilter,
+      range: historyRange,
+      transactions: selectedHistoryExpenses,
+    })
+  }, [historyFilter, historyRange, requestReportExport, selectedHistoryExpenses])
 
   useEffect(() => {
     if (previousTodayCountRef.current === null) {
@@ -7171,13 +7393,11 @@ function V12HomeScreen({
       timers.push(window.setTimeout(() => setNewEntryId(null), 1400))
     }
 
-    if (todaysPreview.count % 5 === 0) {
+    if (todaysPreview.count % 5 === 0 && typeof window !== 'undefined') {
       const insight = HOME_DAILY_INSIGHTS[Math.floor(Math.random() * HOME_DAILY_INSIGHTS.length)]
-      setDailyInsight(insight)
 
-      if (typeof window !== 'undefined') {
-        timers.push(window.setTimeout(() => setDailyInsight(''), 5000))
-      }
+      timers.push(window.setTimeout(() => setDailyInsight(insight), 0))
+      timers.push(window.setTimeout(() => setDailyInsight(''), 5000))
     }
 
     return () => {
@@ -7273,7 +7493,7 @@ function V12HomeScreen({
       if (typeof window !== 'undefined') {
         window.setTimeout(() => setStampActive(false), 1500)
       }
-    } catch (error) {
+    } catch {
       setDailyFlowMessage('Could not write these lines. Please try again.')
       clearDailyFlowMessageSoon()
     } finally {
@@ -7281,48 +7501,47 @@ function V12HomeScreen({
     }
   }
 
+  const openCalendarDate = (dateKey) => {
+    setCustomDate(dateKey)
+    setHistoryFilter('custom')
+    setIsCalendarOpen(false)
+  }
+
   return (
     <MoneyOSProvider as="section" className={`screen-content v12-home v16-notebook-cover money-os-daily-companion ${ambientTimeClass}`}>
-      <section className="v16-cover-title v23-home-hero v24-home-opening" aria-label="Today's money notebook opening">
-        <div className="v23-home-hero-copy v24-home-opening-copy">
-          <p className="eyebrow">Daily Money Notebook</p>
-          <h1 className="handwritten-title">Today&apos;s Money</h1>
-          <p>Start with today. Write only the money that actually moved, then let the notebook keep the rest calm.</p>
-          <div className="v17-cover-meta v24-home-opening-note" aria-label="Notebook status">
-            <span>{todayDateBox.full}</span>
-            <strong>{ritualStatus.title}</strong>
-            <small>{ritualStatus.detail}</small>
-          </div>
-          <button className="primary-button v16-cover-write-button v23-home-primary-cta cta-handwritten" type="button" onClick={() => openAddSheet?.('expense')}>
-            <Pencil size={16} />
-            <span>Add Today&apos;s Expense</span>
-          </button>
-        </div>
-        <aside className="v23-home-page-mark v24-date-box" aria-label="Today's date">
-          <span>{todayDateBox.weekday}</span>
-          <strong>{todayDateBox.day}</strong>
-          <small>{todayDateBox.month}</small>
-        </aside>
-      </section>
-
-      {dailyInsight && (
-        <aside className="home-daily-insight" role="status" aria-live="polite">
-          <Sparkles size={15} aria-hidden="true" />
-          <span>{dailyInsight}</span>
-        </aside>
-      )}
-
       <section
         className={`v23-today-page-summary home-notebook-paper ${stampActive ? 'stamp-active' : ''} ${isPageClosed ? 'diary-closed' : ''}`}
         aria-labelledby="v23-today-page-title"
       >
-        <div className="v23-today-page-heading home-notebook-paper-heading">
-          <div>
+        <div className="v23-today-page-heading home-notebook-paper-heading v25-today-page-opening">
+          <div className="v25-today-page-copy">
             <p className="eyebrow">Today&apos;s Page</p>
             <h2 className="sticky-note-title" id="v23-today-page-title">{todayPageTitle}</h2>
             <p>{todayPageDetail}</p>
+            <dl className="home-page-live-strip" aria-label="Today page live details">
+              {todayPageLiveStats.map((item) => (
+                <div key={item.key}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="home-page-suggestion">
+              <Sparkles size={15} aria-hidden="true" />
+              <span>{homePageSuggestion}</span>
+            </p>
           </div>
-          <div className="home-notebook-paper-actions">
+          <div className="home-notebook-paper-actions v25-page-actions">
+            <button
+              className={`home-calendar-icon-button ${isCalendarOpen ? 'active' : ''}`.trim()}
+              type="button"
+              aria-expanded={isCalendarOpen}
+              aria-controls="home-india-calendar"
+              aria-label="Open Indian calendar"
+              onClick={() => setIsCalendarOpen((current) => !current)}
+            >
+              <CalendarDays size={18} />
+            </button>
             <span className="home-notebook-total-pill">{todayDailyTotal}</span>
             {stampActive && (
               <span className="stamp-icon" aria-hidden="true">
@@ -7331,11 +7550,72 @@ function V12HomeScreen({
             )}
           </div>
         </div>
+        {dailyInsight && (
+          <aside className="home-daily-insight" role="status" aria-live="polite">
+            <Sparkles size={15} aria-hidden="true" />
+            <span>{dailyInsight}</span>
+          </aside>
+        )}
+
+        {isCalendarOpen && (
+          <section className="home-calendar-popover" id="home-india-calendar" aria-label="Indian calendar with daily expense totals">
+            <div className="home-calendar-topline">
+              <div>
+                <span>India Calendar</span>
+                <strong>{calendarMonth.label}</strong>
+              </div>
+              <div className="home-calendar-month-actions">
+                <button type="button" aria-label="Previous month" onClick={() => setCalendarMonthKey((monthKey) => shiftMonthKey(monthKey, -1))}>
+                  <ChevronLeft size={16} />
+                </button>
+                <button type="button" aria-label="Next month" onClick={() => setCalendarMonthKey((monthKey) => shiftMonthKey(monthKey, 1))}>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="home-calendar-weekdays" aria-hidden="true">
+              {HOME_CALENDAR_WEEKDAYS.map((weekday) => (
+                <span key={weekday}>{weekday}</span>
+              ))}
+            </div>
+            <div className="home-calendar-grid">
+              {calendarMonth.days.map((day) => {
+                if (day.type === 'blank') {
+                  return <span className="home-calendar-day blank" key={day.key} aria-hidden="true" />
+                }
+
+                const dayClasses = [
+                  'home-calendar-day',
+                  day.isToday ? 'today' : '',
+                  day.isWeekend ? 'weekend' : '',
+                  day.holiday ? 'holiday' : '',
+                  day.amount > 0 ? 'has-amount' : '',
+                ].filter(Boolean).join(' ')
+
+                return (
+                  <button
+                    className={dayClasses}
+                    type="button"
+                    key={day.key}
+                    aria-label={`${day.day} ${calendarMonth.label}${day.amount > 0 ? `, ${day.amountLabel} written` : ''}${day.holiday ? `, ${day.holiday.name}` : ''}`}
+                    onClick={() => openCalendarDate(day.dateKey)}
+                  >
+                    <span className="home-calendar-day-number">{day.day}</span>
+                    {day.amount > 0 && <span className="home-calendar-amount-circle">{day.amountLabel}</span>}
+                    {day.holiday && <small>{day.holiday.shortName}</small>}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="home-calendar-note">Tap a date to review that page. Holidays show India-wide and common central observances.</p>
+          </section>
+        )}
+
         <section className="v24-page-start-tools" aria-label="Start today's page">
           <div className="v24-page-start-header">
             <div>
-              <p className="eyebrow">Page Starts Here</p>
-              <h3>Add Today&apos;s Expense</h3>
+              <p className="eyebrow">Write</p>
+              <h3>{entryMode === 'bulk' ? 'Bulk Expense Lines' : 'Add Expense'}</h3>
             </div>
             <div className="v24-mode-switch" role="tablist" aria-label="Choose expense entry mode">
               <button
@@ -7363,7 +7643,7 @@ function V12HomeScreen({
             <div className="v24-normal-add-panel">
               <button className="primary-button v24-normal-add-button" type="button" onClick={() => openAddSheet?.('expense')}>
                 <Pencil size={16} />
-                <span>Write One Expense</span>
+                <span>Add One Expense</span>
               </button>
               <p>Use this for one clean line like tea, petrol, grocery, recharge, or medicine.</p>
             </div>
@@ -7456,20 +7736,6 @@ function V12HomeScreen({
             })}
           </div>
         </section>
-        <dl className="v23-today-page-facts" aria-label="Today page summary">
-          <div>
-            <dt>Lines</dt>
-            <dd>{todaysPreview.count}</dd>
-          </div>
-          <div>
-            <dt>Money written</dt>
-            <dd>{todayWrittenTotal}</dd>
-          </div>
-          <div>
-            <dt>Page total</dt>
-            <dd>{todayDailyTotal}</dd>
-          </div>
-        </dl>
         {todaysPreview.rows.length === 0 ? (
           <div className="empty-ruled-lines" aria-label="Empty notebook page">
             <div className="ruled-line ruled-line-placeholder">
@@ -7482,7 +7748,7 @@ function V12HomeScreen({
             <div className="ruled-line ruled-line-placeholder" aria-hidden="true">
               <span className="ruled-line-fill" />
             </div>
-            <p>Tap &quot;Write Today&apos;s Money&quot; to start this page.</p>
+            <p>Tap &quot;Add One Expense&quot; to start this page.</p>
           </div>
         ) : (
           <div className="v12-notebook-row-list v23-today-page-lines">
@@ -7549,7 +7815,7 @@ function V12HomeScreen({
                   ))}
                 </select>
               </label>
-              <button className="ghost-button v24-history-download" type="button" onClick={() => requestReportExport?.('monthly', { template: 'standard' })}>
+              <button className="ghost-button v24-history-download" type="button" onClick={handleHistoryReportDownload}>
                 <Download size={15} />
                 <span>Download report</span>
               </button>
@@ -7606,32 +7872,6 @@ function V12HomeScreen({
           </section>
         )}
       </section>
-
-      <MoneyCard
-        className="v16-cover-reminder v23-secondary-reminder"
-        eyebrow="Page note"
-        title={reminderTitle}
-        detail={reminderDetail}
-        icon={ReminderIcon}
-        tone={nextBestAction?.tone || 'tint'}
-        footer={(
-          <button
-            className="ghost-button v78-next-action-cta"
-            type="button"
-            onClick={() => {
-              if (nextBestAction) {
-                onNextActionClick?.(nextBestAction, 'home')
-                return
-              }
-
-              openAddSheet?.('expense')
-            }}
-          >
-            <span>{reminderAction}</span>
-            <ChevronRight size={15} />
-          </button>
-        )}
-      />
     </MoneyOSProvider>
   )
 }
@@ -7711,50 +7951,6 @@ function formatHomeNotebookDate(dateKey) {
     month: 'short',
     year: 'numeric',
   })
-}
-
-function formatHomeNotebookMonth(dateKey) {
-  const parsed = new Date(`${String(dateKey || '').slice(0, 10)}T12:00:00`)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Current month'
-  }
-
-  return parsed.toLocaleDateString('en-IN', {
-    month: 'long',
-    year: 'numeric',
-  })
-}
-
-function buildDailyRitualStatus(lineCount = 0, themeExperience = {}) {
-  const hour = new Date().getHours()
-  const copy = themeExperience.copy || {}
-
-  if (lineCount > 0 && hour >= 20) {
-    return {
-      title: copy.homeFinished || "You've finished today's notebook.",
-      detail: `${lineCount} line${lineCount === 1 ? '' : 's'} written today.`,
-    }
-  }
-
-  if (hour < 12) {
-    return {
-      title: copy.homeReady || "Today's page is ready.",
-      detail: 'A fresh page is waiting when money moves.',
-    }
-  }
-
-  if (lineCount > 0) {
-    return {
-      title: `${lineCount} line${lineCount === 1 ? '' : 's'} written today.`,
-      detail: 'Keep adding notes as the day unfolds.',
-    }
-  }
-
-  return {
-    title: copy.homeReady || "Today's page is ready.",
-    detail: 'No pressure. Write the first line when something happens.',
-  }
 }
 
 function buildHomeNotebookPreview(transactions = [], range = {}) {
@@ -8457,12 +8653,12 @@ function ProfileCompanionHome({
       <section className="v13-account-group" aria-labelledby="v13-account-appearance">
         <SectionHeader
           title="Themes"
-          detail="Choose a clean color style. The whole notebook follows this choice."
+          detail="Choose a clean appearance style. The whole app follows this choice."
         />
         <ActionCard
           id="v13-account-appearance"
           title="Theme & appearance"
-          detail="Change notebook, chrome, and paper styling from one place."
+          detail="Change colors, typography, and surface styling from one place."
           actionLabel="Open"
           icon={User}
           tone="tint"
@@ -9749,7 +9945,7 @@ function QuickAddSheet({
 }) {
   const title = {
     menu: 'Notebook actions',
-    expense: "Write Today's Money",
+    expense: "Add Today's Expense",
     income: 'Add income',
     transfer: 'Move to goal',
     borrow: 'Borrow or lend',

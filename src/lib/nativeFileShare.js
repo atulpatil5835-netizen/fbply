@@ -44,8 +44,8 @@ export async function shareBlob(blob, fileName, options = {}) {
 
 export function sharePdfBlob(blob, fileName) {
   return shareBlob(blob, fileName, {
-    title: 'FBPly Financial Report',
-    text: 'Your FBPly financial report is ready.',
+    title: 'FBPLY Report',
+    text: 'Your FBPLY report is ready.',
     dialogTitle: 'Save or share report',
   })
 }

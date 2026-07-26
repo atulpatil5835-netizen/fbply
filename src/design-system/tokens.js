@@ -24,33 +24,33 @@ export const moneyOSThemeOptions = Object.freeze([
   }),
   Object.freeze({
     id: 'minimalWhite',
-    label: 'Chrome White',
-    detail: 'Simple white chrome, crisp paper, quiet contrast.',
-    personality: 'Clean minimal notebook',
+    label: 'Pure White',
+    detail: 'Bright white surfaces, crisp spacing, and quiet system typography.',
+    personality: 'Clean minimal daily page',
   }),
   Object.freeze({
     id: 'blueRegister',
-    label: 'Chrome Blue',
-    detail: 'Cool register styling with calm blue-grey chrome.',
-    personality: 'Clean structured notebook',
+    label: 'Blue Register',
+    detail: 'Cool blue surfaces, structured sections, and precise document rhythm.',
+    personality: 'Calm structured daily page',
   }),
   Object.freeze({
     id: 'emerald',
-    label: 'Chrome Mint',
-    detail: 'Soft green chrome for a fresh, calm money notebook.',
-    personality: 'Fresh premium notebook',
+    label: 'Mint Calm',
+    detail: 'Fresh green accents, soft surfaces, and relaxed readable spacing.',
+    personality: 'Fresh premium daily page',
   }),
   Object.freeze({
     id: 'midnight',
-    label: 'Midnight Chrome',
-    detail: 'Dark professional chrome with readable paper surfaces.',
-    personality: 'Focused evening notebook',
+    label: 'Midnight Focus',
+    detail: 'Dark focus surfaces with high contrast and restrained accents.',
+    personality: 'Focused evening daily page',
   }),
   Object.freeze({
     id: 'sunset',
-    label: 'Warm Notebook',
-    detail: 'Soft warm accents over the same notebook structure.',
-    personality: 'Friendly daily notebook',
+    label: 'Warm Paper',
+    detail: 'Warm editorial paper, soft contrast, and serif-led calm.',
+    personality: 'Friendly premium daily page',
   }),
 ])
 
@@ -228,14 +228,14 @@ export const moneyOSThemeV2 = Object.freeze({
     paperTexture: 'structured-register-paper',
     exportStyle: 'professional-register',
     copy: Object.freeze({
-      homeReady: "Today's register is open.",
-      homeFinished: "Today's register is complete.",
-      emptyLedger: 'No financial entries recorded.',
-      emptyHome: 'No financial entries recorded for this page.',
-      emptyBorrowLend: 'No borrow/lend records added.',
-      emptyTrip: 'No trip records added.',
-      pageFooter: 'FBPLY register record',
-      monthNotebook: 'Monthly register',
+      homeReady: "Today's page is open.",
+      homeFinished: "Today's page is complete.",
+      emptyLedger: 'No expense lines recorded yet.',
+      emptyHome: 'This page has no expense lines yet.',
+      emptyBorrowLend: 'No borrow/lend lines added.',
+      emptyTrip: 'No split lines added.',
+      pageFooter: 'FBPLY daily record',
+      monthNotebook: 'Monthly pages',
     }),
     exportMode: Object.freeze({
       singlePage: 'image',
@@ -329,9 +329,18 @@ export const moneyOSThemeV2 = Object.freeze({
   }),
 })
 
+const moneyOSThemeExperienceAliases = Object.freeze({
+  blueRegister: 'ledgerPro',
+  emerald: 'ledgerPro',
+  midnight: 'ledgerPro',
+  minimalWhite: 'ledgerPro',
+  sunset: 'classic',
+})
+
 export function getMoneyOSThemeExperience(theme = defaultMoneyOSTheme) {
   const themeId = normalizeMoneyOSTheme(theme)
-  return moneyOSThemeV2[themeId] || moneyOSThemeV2[defaultMoneyOSTheme]
+  const experienceThemeId = moneyOSThemeV2[themeId] ? themeId : (moneyOSThemeExperienceAliases[themeId] || defaultMoneyOSTheme)
+  return moneyOSThemeV2[experienceThemeId] || moneyOSThemeV2[defaultMoneyOSTheme]
 }
 
 export const moneyOSTokens = Object.freeze({

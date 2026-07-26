@@ -1,4 +1,5 @@
 const reportCodes = {
+  'expense-history': 'EXP',
   monthly: 'MON',
   trip: 'TRIP',
   settlement: 'SET',
@@ -6,6 +7,7 @@ const reportCodes = {
 }
 
 const reportNames = {
+  'expense-history': 'Expense History Report',
   monthly: 'Monthly Budget Report',
   trip: 'Trip Report',
   settlement: 'Settlement Report',
