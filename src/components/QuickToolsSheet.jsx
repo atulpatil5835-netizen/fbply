@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calculator, CreditCard, Divide, Receipt } from 'lucide-react'
+import { Calculator, CreditCard, Divide, Percent, Receipt } from 'lucide-react'
 import {
   AmountInput,
   BottomSheet,
@@ -33,6 +33,13 @@ const QUICK_TOOLS = [
     detail: 'Add or exclude GST',
     icon: Receipt,
     tone: 'success',
+  },
+  {
+    key: 'percentage',
+    label: 'Percentage',
+    detail: 'Discounts and shares',
+    icon: Percent,
+    tone: 'tint',
   },
   {
     key: 'emi',

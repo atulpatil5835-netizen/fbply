@@ -22,20 +22,50 @@ export const moneyOSThemeOptions = Object.freeze([
     detail: 'Thermal paper texture, compact rhythm, receipt-style entries.',
     personality: 'Fast store-receipt notebook',
   }),
+  Object.freeze({
+    id: 'minimalWhite',
+    label: 'Chrome White',
+    detail: 'Simple white chrome, crisp paper, quiet contrast.',
+    personality: 'Clean minimal notebook',
+  }),
+  Object.freeze({
+    id: 'blueRegister',
+    label: 'Chrome Blue',
+    detail: 'Cool register styling with calm blue-grey chrome.',
+    personality: 'Clean structured notebook',
+  }),
+  Object.freeze({
+    id: 'emerald',
+    label: 'Chrome Mint',
+    detail: 'Soft green chrome for a fresh, calm money notebook.',
+    personality: 'Fresh premium notebook',
+  }),
+  Object.freeze({
+    id: 'midnight',
+    label: 'Midnight Chrome',
+    detail: 'Dark professional chrome with readable paper surfaces.',
+    personality: 'Focused evening notebook',
+  }),
+  Object.freeze({
+    id: 'sunset',
+    label: 'Warm Notebook',
+    detail: 'Soft warm accents over the same notebook structure.',
+    personality: 'Friendly daily notebook',
+  }),
 ])
 
 export const moneyOSThemeIds = Object.freeze(moneyOSThemeOptions.map((theme) => theme.id))
 
 export const moneyOSThemeAliases = Object.freeze({
-  blueRegister: 'ledgerPro',
+  blueRegister: 'blueRegister',
   brownJournal: 'classic',
-  emerald: 'ledgerPro',
+  emerald: 'emerald',
   executive: 'ledgerPro',
   minimal: 'receipt',
-  minimalWhite: 'receipt',
-  midnight: 'ledgerPro',
+  minimalWhite: 'minimalWhite',
+  midnight: 'midnight',
   navy: 'classic',
-  sunset: 'classic',
+  sunset: 'sunset',
   vintageDiary: 'classic',
 })
 

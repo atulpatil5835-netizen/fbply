@@ -1,11 +1,13 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
+  Calculator,
   CheckCircle2,
   ChevronRight,
   CreditCard,
   Download,
   Pencil,
+  Percent,
   PiggyBank,
   Plane,
   Plus,
@@ -40,6 +42,13 @@ import { isLegacyProgressLayer, percentFromParts, trackProgressComponentsViewed 
 import { displayPersonName, reconcileSharedGroup } from '../lib/financialActivity'
 
 const HISTORY_GROUP_BATCH_SIZE = 12
+
+const NOTEBOOK_TOOL_BUTTONS = [
+  { key: 'calculator', label: 'Calculator', icon: Calculator },
+  { key: 'gst', label: 'GST', icon: Receipt },
+  { key: 'percentage', label: 'Percent', icon: Percent },
+  { key: 'split', label: 'Split', icon: Plane },
+]
 
 function isLegacyPeopleExperience() {
   return typeof window !== 'undefined' && Boolean(
@@ -153,6 +162,35 @@ function MonthSelector({ selectedMonthKey, setSelectedMonthKey, monthOptions = [
         ))}
       </select>
     </label>
+  )
+}
+
+function NotebookToolRail({ onOpenTool, label = 'Calculator tools' }) {
+  if (!onOpenTool) {
+    return null
+  }
+
+  return (
+    <section className="v24-calculator-tools v24-section-tools" aria-label={label}>
+      <div className="v24-calculator-tools-heading">
+        <span>{label}</span>
+        <small>Quick math stays close to the notebook page.</small>
+      </div>
+      <div className="v24-tool-grid">
+        {NOTEBOOK_TOOL_BUTTONS.map((tool) => {
+          const ToolIcon = tool.icon
+
+          return (
+            <button className="v24-tool-button" type="button" key={tool.key} onClick={() => onOpenTool(tool.key)}>
+              <ToolIcon size={15} />
+              <span>
+                <strong>{tool.label}</strong>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
@@ -350,6 +388,7 @@ export default function ActivityScreen({
   monthOptions,
   onEditExpense,
   openAddSheet,
+  openQuickTools,
   requestReportExport,
   moneyTheme = defaultMoneyOSTheme,
   view = 'people',
@@ -362,13 +401,18 @@ export default function ActivityScreen({
   const deferredGroups = useDeferredValue(groups)
   const deferredSearch = useDeferredValue(activitySearch)
   const isLedgerView = view === 'ledger'
+  const isBorrowView = view === 'borrow'
+  const isSplitView = view === 'split'
+  const lockedActivityFilter = isBorrowView ? 'borrow' : isSplitView ? 'shared' : ''
   const themeExperience = useMemo(() => getMoneyOSThemeExperience(moneyTheme), [moneyTheme])
-  const effectiveActivityFilter = isLedgerView && activityFilter === 'income' ? 'all' : activityFilter
+  const effectiveActivityFilter = lockedActivityFilter || (isLedgerView && activityFilter === 'income' ? 'all' : activityFilter)
   const visibleActivityFilterOptions = useMemo(
-    () => isLedgerView
+    () => lockedActivityFilter
+      ? activityFilterOptions.filter((option) => option.key === lockedActivityFilter)
+      : isLedgerView
       ? activityFilterOptions.filter((option) => option.key !== 'income')
       : activityFilterOptions,
-    [isLedgerView],
+    [isLedgerView, lockedActivityFilter],
   )
   const filteredGroups = useMemo(
     () => deferredGroups
@@ -390,6 +434,8 @@ export default function ActivityScreen({
   const hasHistory = filteredGroups.some((group) => group.items.length > 0)
   const hasSearchQuery = activitySearch.trim().length > 0
   const hasCustomLedgerFilter = effectiveActivityFilter !== 'all' || hasSearchQuery
+  const hasLockedActivityFilter = Boolean(lockedActivityFilter)
+  const canResetActivityFilters = hasCustomLedgerFilter && !hasLockedActivityFilter
   const selectedMonthLabel = monthOptions?.find((month) => month.key === selectedMonthKey)?.label || selectedMonthKey || 'Current month'
   const expensesById = useMemo(
     () => new Map(expenses.map((expense) => [String(expense.id), expense])),
@@ -465,8 +511,45 @@ export default function ActivityScreen({
     })
     setMoneyBookModalEntry({ kind: 'given', date: todayDateKey() })
   }, [])
+  const openSharedGroupFromHeader = useCallback(() => {
+    trackEvent('feature_discovery_click', {
+      surface: 'split',
+      source: 'header',
+      feature: 'shared_expenses',
+      target: 'add_split_group',
+    })
+
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.setTimeout(() => {
+      const target = document.getElementById('shared-group-name') || document.getElementById('shared-expenses-section')
+      target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+      target?.focus?.()
+    }, 40)
+  }, [])
   const useLegacyPeople = isLegacyPeopleExperience()
-  const emptyStateCopy = ledgerEmptyStateCopy({ deferredSearch, effectiveActivityFilter, themeExperience })
+  const resetActivityFilters = () => {
+    setActivitySearch('')
+    setActivityFilter('all')
+  }
+  const emptyStateCopy = isBorrowView
+    ? {
+        title: 'No borrow/lend entries yet.',
+        detail: 'Add a person and amount when money needs a clear note.',
+      }
+    : isSplitView
+      ? {
+          title: 'No split entries yet.',
+          detail: 'Create a trip or shared-cost page to start settlement history.',
+        }
+      : ledgerEmptyStateCopy({ deferredSearch, effectiveActivityFilter, themeExperience })
+  const lockedHistoryEmptyAction = isBorrowView
+    ? { label: 'Add borrow/lend', onClick: () => openMoneyBookFromDiscovery('empty_state') }
+    : isSplitView
+      ? { label: 'Create trip', onClick: openSharedGroupFromHeader }
+      : null
   const ledgerDailySummaryContent = isLedgerView ? (
     <section className="v16-ledger-summary-grid" aria-label="Today's ledger summary">
       <HistorySummaryCard label="Today's Balance" value={ledgerTodaySummary.balance} tone={ledgerTodaySummary.balance >= 0 ? 'incoming' : 'outgoing'} />
@@ -485,13 +568,13 @@ export default function ActivityScreen({
     <>
       <div className="ledger-search-cluster">
         <label className="ledger-search-field">
-          <span className="sr-only">Search ledger</span>
+          <span className="sr-only">{isBorrowView ? 'Search borrow/lend history' : isSplitView ? 'Search split history' : 'Search ledger'}</span>
           <input
             type="search"
             value={activitySearch}
-            placeholder="Search ledger"
+            placeholder={isBorrowView ? 'Search borrow/lend' : isSplitView ? 'Search split' : 'Search ledger'}
             autoComplete="off"
-            aria-label="Search ledger entries"
+            aria-label={isBorrowView ? 'Search borrow/lend entries' : isSplitView ? 'Search split entries' : 'Search ledger entries'}
             onChange={(event) => setActivitySearch(event.target.value)}
           />
         </label>
@@ -509,11 +592,8 @@ export default function ActivityScreen({
           {effectiveActivityFilter !== 'all' ? ` in ${effectiveActivityFilter}` : ''}
           {hasSearchQuery ? ` for "${activitySearch.trim()}"` : ''}
         </span>
-        {hasCustomLedgerFilter && (
-          <button type="button" onClick={() => {
-            setActivitySearch('')
-            setActivityFilter('all')
-          }}>
+        {canResetActivityFilters && (
+          <button type="button" onClick={resetActivityFilters}>
             Reset
           </button>
         )}
@@ -544,11 +624,8 @@ export default function ActivityScreen({
           <MoneyOSEmptyState
             title={emptyStateCopy.title}
             detail={emptyStateCopy.detail}
-            action={hasCustomLedgerFilter ? { label: 'Reset ledger', onClick: () => {
-              setActivitySearch('')
-              setActivityFilter('all')
-            } } : { label: 'Add expense', onClick: openExpenseFromEmptyState }}
-            secondaryAction={hasCustomLedgerFilter ? { label: 'Add expense', onClick: openExpenseFromEmptyState } : null}
+            action={lockedHistoryEmptyAction || (canResetActivityFilters ? { label: 'Reset history', onClick: resetActivityFilters } : { label: 'Add expense', onClick: openExpenseFromEmptyState })}
+            secondaryAction={!hasLockedActivityFilter && canResetActivityFilters ? { label: 'Add expense', onClick: openExpenseFromEmptyState } : null}
             icon={CalendarDays}
           />
         ) : visibleGroups.map((group) => {
@@ -643,7 +720,7 @@ export default function ActivityScreen({
             </section>
           </div>
         </details>
-      ) : (
+      ) : hasLockedActivityFilter ? null : (
         <>
           <section className="history-summary-grid" aria-label="Money activity summary">
             <HistorySummaryCard label="Earned" value={summary.incoming} tone="incoming" />
@@ -656,32 +733,113 @@ export default function ActivityScreen({
       )}
     </>
   )
+  const borrowToolsContent = (
+    <MoneyBookPanel
+      summary={moneyBookSummary}
+      themeExperience={themeExperience}
+      onAdd={openMoneyBookFromDiscovery}
+      onDownloadSettlement={() => requestReportExport?.('settlement', { template: 'standard' })}
+      onEdit={(entry) => setMoneyBookModalEntry(entry)}
+      onToggleSettled={onToggleMoneyBookSettlement}
+      onDelete={onDeleteMoneyBookEntry}
+    />
+  )
+  const splitToolsContent = (
+    <SharedExpensesPanel
+      groups={sharedGroups}
+      profile={profile}
+      sharedSummary={sharedSummary}
+      addSharedGroup={addSharedGroup}
+      addSharedPayment={addSharedPayment}
+      markSharedSettlementReceived={markSharedSettlementReceived}
+      removeSharedGroup={removeSharedGroup}
+      onExportTripPdf={(groupId) => requestReportExport?.('trip', { groupId, template: 'standard' })}
+      experienceCopy={themeExperience.copy}
+      variant="activity"
+    />
+  )
   const peopleToolsContent = (
     <>
-      <MoneyBookPanel
-        summary={moneyBookSummary}
-        themeExperience={themeExperience}
-        onAdd={openMoneyBookFromDiscovery}
-        onDownloadSettlement={() => requestReportExport?.('settlement', { template: 'standard' })}
-        onEdit={(entry) => setMoneyBookModalEntry(entry)}
-        onToggleSettled={onToggleMoneyBookSettlement}
-        onDelete={onDeleteMoneyBookEntry}
-      />
-
-      <SharedExpensesPanel
-        groups={sharedGroups}
-        profile={profile}
-        sharedSummary={sharedSummary}
-        addSharedGroup={addSharedGroup}
-        addSharedPayment={addSharedPayment}
-        markSharedSettlementReceived={markSharedSettlementReceived}
-        removeSharedGroup={removeSharedGroup}
-        onExportTripPdf={(groupId) => requestReportExport?.('trip', { groupId, template: 'standard' })}
-        experienceCopy={themeExperience.copy}
-        variant="activity"
-      />
+      {borrowToolsContent}
+      {splitToolsContent}
     </>
   )
+
+  if (isBorrowView || isSplitView) {
+    const pageTitle = isBorrowView ? 'Borrow & Lend' : 'Split'
+    const pageDetail = isBorrowView
+      ? 'Write money you gave, money you took, and what still needs settling.'
+      : 'Create trip or shared-cost pages, add people, then settle calmly.'
+    const addLabel = isBorrowView ? 'Add Borrow/Lend' : 'Add Split Group'
+    const reportLabel = isBorrowView ? 'Download report' : 'Download split report'
+    const reportAction = () => {
+      if (isBorrowView) {
+        requestReportExport?.('settlement', { template: 'standard' })
+        return
+      }
+
+      requestReportExport?.('trip', { groupId: sharedGroups[0]?.id, template: 'standard' })
+    }
+
+    return (
+      <section className={`screen-content history-screen v24-section-page ${isBorrowView ? 'v24-borrow-page' : 'v24-split-page'}`}>
+        <div className="screen-heading v24-section-heading">
+          <div>
+            <p className="eyebrow">Notebook</p>
+            <h1>{pageTitle}</h1>
+          </div>
+          <MonthSelector
+            monthOptions={monthOptions}
+            selectedMonthKey={selectedMonthKey}
+            setSelectedMonthKey={setSelectedMonthKey}
+          />
+        </div>
+
+        <article className="v24-section-cover" aria-label={`${pageTitle} page`}>
+          <div>
+            <span>{selectedMonthLabel}</span>
+            <strong>{pageTitle}</strong>
+            <p>{pageDetail}</p>
+          </div>
+          <div className="v24-section-cover-actions">
+            <button className="primary-button" type="button" onClick={isBorrowView ? () => openMoneyBookFromDiscovery('header') : openSharedGroupFromHeader}>
+              <Plus size={15} />
+              <span>{addLabel}</span>
+            </button>
+            <button className="ghost-button" type="button" onClick={reportAction}>
+              <Download size={15} />
+              <span>{reportLabel}</span>
+            </button>
+          </div>
+        </article>
+
+        <NotebookToolRail onOpenTool={openQuickTools} label={isBorrowView ? 'Borrow/Lend calculator tools' : 'Split calculator tools'} />
+
+        {isBorrowView ? borrowToolsContent : splitToolsContent}
+
+        <details className="money-os mos-people-secondary-details v24-section-history" open>
+          <summary>
+            <span>
+              <strong>{isBorrowView ? 'Borrow/Lend History' : 'Split History'}</strong>
+              <small>{filteredItemCount} related entr{filteredItemCount === 1 ? 'y' : 'ies'} in this view.</small>
+            </span>
+            <StatusBadge>History</StatusBadge>
+          </summary>
+          <div className="mos-people-secondary-stack">
+            {activityTimelineContent}
+          </div>
+        </details>
+
+        {moneyBookModalEntry && (
+          <MoneyBookEntryModal
+            entry={moneyBookModalEntry}
+            onClose={closeMoneyBookModal}
+            onSave={saveMoneyBookFromModal}
+          />
+        )}
+      </section>
+    )
+  }
 
   if (isLedgerView) {
     return (

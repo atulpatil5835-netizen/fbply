@@ -18,6 +18,7 @@ import {
   Mic,
   MoreVertical,
   Pencil,
+  Percent,
   PiggyBank,
   Plane,
   Plus,
@@ -439,9 +440,9 @@ const legacyNavItems = [
 
 const companionNavItems = [
   { key: 'home', label: 'Home', ariaLabel: 'Home - Daily money notebook', icon: House },
-  { key: 'ledger', label: 'Ledger', ariaLabel: 'Ledger - Money activity timeline', icon: Receipt },
-  { key: 'people', label: 'People', ariaLabel: 'People - Borrow, lend, and trips', icon: User },
-  { key: 'account', label: 'Account', ariaLabel: 'Account - Profile, backup, and support', icon: Wallet },
+  { key: 'ledger', label: 'Borrow', ariaLabel: 'Borrow and Lend - Money book', icon: CreditCard },
+  { key: 'people', label: 'Split', ariaLabel: 'Split - Trip and shared expense notebook', icon: Plane },
+  { key: 'account', label: 'Profile', ariaLabel: 'Profile - Money visuals, themes, backup, and support', icon: User },
 ]
 
 const LEGACY_TAB_VIEW_EVENTS = {
@@ -7000,6 +7001,44 @@ function DailyCompanionEntry({
 
 const DAILY_FLOW_MAX_ITEMS = 20
 
+const HOME_QUICK_TOOLS = [
+  { key: 'calculator', label: 'Calculator', detail: 'Add or total quickly', icon: Calculator },
+  { key: 'gst', label: 'GST', detail: 'Tax included or extra', icon: Receipt },
+  { key: 'percentage', label: 'Percent', detail: 'Discounts and shares', icon: Percent },
+  { key: 'split', label: 'Split', detail: 'Divide a bill', icon: Plane },
+  { key: 'emi', label: 'EMI', detail: 'Monthly estimate', icon: CreditCard },
+]
+
+function isHomeDailyExpenseTransaction(transaction = {}) {
+  return transaction?.tone === 'outgoing' &&
+    transaction?.sourceModule !== 'Shared' &&
+    transaction?.sourceModule !== 'Money Book'
+}
+
+function buildHomeDateBox(dateKey = todayDateKey()) {
+  const parsed = new Date(`${String(dateKey || todayDateKey()).slice(0, 10)}T12:00:00`)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return {
+      weekday: 'Today',
+      day: '--',
+      month: 'Daily page',
+      full: 'Today',
+    }
+  }
+
+  return {
+    weekday: parsed.toLocaleDateString('en-IN', { weekday: 'long' }),
+    day: parsed.toLocaleDateString('en-IN', { day: '2-digit' }),
+    month: parsed.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+    full: parsed.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }),
+  }
+}
+
 function parseDailyFlowInput(text) {
   const parts = String(text || '')
     .split(/[\n,;]+/)
@@ -7031,10 +7070,13 @@ function V12HomeScreen({
   nextBestAction,
   onNextActionClick,
   openAddSheet,
+  openQuickTools,
+  requestReportExport,
   saveDailyFlowEntries,
   moneyTheme = defaultMoneyOSTheme,
 }) {
   const [historyFilter, setHistoryFilter] = useState('today')
+  const [entryMode, setEntryMode] = useState('normal')
   const [customDate, setCustomDate] = useState(todayDateKey())
   const [stampActive, setStampActive] = useState(false)
   const [dailyInsight, setDailyInsight] = useState('')
@@ -7047,6 +7089,10 @@ function V12HomeScreen({
   const closePageTimerRef = useRef(null)
   const dailyFlowTimerRef = useRef(null)
   const themeExperience = useMemo(() => getMoneyOSThemeExperience(moneyTheme), [moneyTheme])
+  const homeExpenseTransactions = useMemo(
+    () => todayTransactions.filter(isHomeDailyExpenseTransaction),
+    [todayTransactions],
+  )
   const historyRange = useMemo(
     () => buildHomeNotebookHistoryRange(historyFilter, customDate),
     [customDate, historyFilter],
@@ -7065,12 +7111,12 @@ function V12HomeScreen({
     [dailyFlowValidItems],
   )
   const notebookPreview = useMemo(
-    () => buildHomeNotebookPreview(todayTransactions, historyRange),
-    [historyRange, todayTransactions],
+    () => buildHomeNotebookPreview(homeExpenseTransactions, historyRange),
+    [historyRange, homeExpenseTransactions],
   )
   const todaysPreview = useMemo(
-    () => buildHomeNotebookPreview(todayTransactions, buildHomeNotebookHistoryRange('today')),
-    [todayTransactions],
+    () => buildHomeNotebookPreview(homeExpenseTransactions, buildHomeNotebookHistoryRange('today')),
+    [homeExpenseTransactions],
   )
   const ritualStatus = useMemo(
     () => buildDailyRitualStatus(todaysPreview.count, themeExperience),
@@ -7096,7 +7142,8 @@ function V12HomeScreen({
     : 'Write the first line when money moves today.'
   const showSelectedPagePreview = historyFilter !== 'today'
   const ambientTimeClass = getHomeAmbientTimeClass()
-  const previousPageCount = Math.max(todayTransactions.length - todaysPreview.count, 0)
+  const todayDateBox = buildHomeDateBox(todayDateKey())
+  const previousPageCount = Math.max(homeExpenseTransactions.length - todaysPreview.count, 0)
   const previousPageDetail = previousPageCount > 0
     ? `${previousPageCount} note${previousPageCount === 1 ? '' : 's'} from earlier pages.`
     : 'Your past entries will rest here quietly.'
@@ -7236,25 +7283,25 @@ function V12HomeScreen({
 
   return (
     <MoneyOSProvider as="section" className={`screen-content v12-home v16-notebook-cover money-os-daily-companion ${ambientTimeClass}`}>
-      <section className="v16-cover-title v23-home-hero" aria-label="Today's notebook page">
-        <div className="v23-home-hero-copy">
+      <section className="v16-cover-title v23-home-hero v24-home-opening" aria-label="Today's money notebook opening">
+        <div className="v23-home-hero-copy v24-home-opening-copy">
           <p className="eyebrow">Daily Money Notebook</p>
-          <h1 className="handwritten-title">Open today&apos;s page</h1>
-          <p>Write the money that moved today. Keep the page simple, honest, and calm.</p>
-          <div className="v17-cover-meta" aria-label="Notebook status">
-            <span>{currentMonthLabel}</span>
+          <h1 className="handwritten-title">Today&apos;s Money</h1>
+          <p>Start with today. Write only the money that actually moved, then let the notebook keep the rest calm.</p>
+          <div className="v17-cover-meta v24-home-opening-note" aria-label="Notebook status">
+            <span>{todayDateBox.full}</span>
             <strong>{ritualStatus.title}</strong>
             <small>{ritualStatus.detail}</small>
           </div>
           <button className="primary-button v16-cover-write-button v23-home-primary-cta cta-handwritten" type="button" onClick={() => openAddSheet?.('expense')}>
             <Pencil size={16} />
-            <span>Write Today&apos;s Money</span>
+            <span>Add Today&apos;s Expense</span>
           </button>
         </div>
-        <aside className="v23-home-page-mark" aria-label="Today page marker">
-          <span>Today</span>
-          <strong>{todaysPreview.count}</strong>
-          <small>line{todaysPreview.count === 1 ? '' : 's'}</small>
+        <aside className="v23-home-page-mark v24-date-box" aria-label="Today's date">
+          <span>{todayDateBox.weekday}</span>
+          <strong>{todayDateBox.day}</strong>
+          <small>{todayDateBox.month}</small>
         </aside>
       </section>
 
@@ -7284,70 +7331,131 @@ function V12HomeScreen({
             )}
           </div>
         </div>
-        <form className="daily-flow-entry" onSubmit={saveDailyFlow}>
-          <label className="daily-flow-label" htmlFor="daily-flow-input">
-            <span>Daily Flow</span>
-            <small>Write several lines at once: tea 20, bread 10, lunch 200</small>
-          </label>
-          <textarea
-            id="daily-flow-input"
-            value={dailyFlowInput}
-            placeholder="tea 20, bread 10, lunch 200"
-            rows={2}
-            onChange={(event) => {
-              setDailyFlowInput(event.target.value)
-              if (dailyFlowMessage) {
-                setDailyFlowMessage('')
-              }
-            }}
-          />
-
-          {dailyFlowPreview.items.length > 0 && (
-            <div className="daily-flow-preview" aria-label="Daily Flow preview">
-              <div className="daily-flow-preview-list">
-                {dailyFlowPreview.items.map((item) => (
-                  <div className={`daily-flow-preview-line ${item.isValid ? '' : 'needs-amount'}`.trim()} key={item.id}>
-                    <span>
-                      <strong>{item.description}</strong>
-                      <small>{item.isValid ? 'Ready to write' : 'Needs amount'}</small>
-                    </span>
-                    <b>{item.isValid ? rupees(item.amount) : 'Add amount'}</b>
-                  </div>
-                ))}
-                {dailyFlowPreview.overflowCount > 0 && (
-                  <p className="daily-flow-overflow">
-                    + {dailyFlowPreview.overflowCount} more line{dailyFlowPreview.overflowCount === 1 ? '' : 's'} ignored for this batch.
-                  </p>
-                )}
-              </div>
-              <div className="daily-flow-total-row">
-                <span>{dailyFlowValidItems.length} ready line{dailyFlowValidItems.length === 1 ? '' : 's'}</span>
-                <strong>{rupees(dailyFlowTotal)}</strong>
-              </div>
+        <section className="v24-page-start-tools" aria-label="Start today's page">
+          <div className="v24-page-start-header">
+            <div>
+              <p className="eyebrow">Page Starts Here</p>
+              <h3>Add Today&apos;s Expense</h3>
             </div>
-          )}
-
-          {dailyFlowMessage && <p className="daily-flow-message" role="status">{dailyFlowMessage}</p>}
-
-          {dailyFlowPreview.items.length > 0 && (
-            <div className="daily-flow-actions">
-              <button className="daily-flow-clear" type="button" onClick={clearDailyFlow}>
-                Clear
+            <div className="v24-mode-switch" role="tablist" aria-label="Choose expense entry mode">
+              <button
+                className={entryMode === 'normal' ? 'active' : ''}
+                type="button"
+                role="tab"
+                aria-selected={entryMode === 'normal'}
+                onClick={() => setEntryMode('normal')}
+              >
+                Normal
               </button>
               <button
-                className="daily-flow-save"
-                type="submit"
-                disabled={isDailyFlowSaving || dailyFlowValidItems.length === 0 || dailyFlowHasInvalidItems}
+                className={entryMode === 'bulk' ? 'active' : ''}
+                type="button"
+                role="tab"
+                aria-selected={entryMode === 'bulk'}
+                onClick={() => setEntryMode('bulk')}
               >
-                {isDailyFlowSaving
-                  ? 'Writing...'
-                  : dailyFlowHasInvalidItems
-                    ? 'Add Amounts First'
-                    : `Write ${dailyFlowValidItems.length || 0} Line${dailyFlowValidItems.length === 1 ? '' : 's'}`}
+                Bulk
               </button>
             </div>
+          </div>
+
+          {entryMode === 'normal' ? (
+            <div className="v24-normal-add-panel">
+              <button className="primary-button v24-normal-add-button" type="button" onClick={() => openAddSheet?.('expense')}>
+                <Pencil size={16} />
+                <span>Write One Expense</span>
+              </button>
+              <p>Use this for one clean line like tea, petrol, grocery, recharge, or medicine.</p>
+            </div>
+          ) : (
+            <form className="daily-flow-entry" onSubmit={saveDailyFlow}>
+              <label className="daily-flow-label" htmlFor="daily-flow-input">
+                <span>Bulk Lines</span>
+                <small>Write several lines at once: tea 20, bread 10, lunch 200</small>
+              </label>
+              <textarea
+                id="daily-flow-input"
+                value={dailyFlowInput}
+                placeholder="tea 20, bread 10, lunch 200"
+                rows={2}
+                onChange={(event) => {
+                  setDailyFlowInput(event.target.value)
+                  if (dailyFlowMessage) {
+                    setDailyFlowMessage('')
+                  }
+                }}
+              />
+
+              {dailyFlowPreview.items.length > 0 && (
+                <div className="daily-flow-preview" aria-label="Daily Flow preview">
+                  <div className="daily-flow-preview-list">
+                    {dailyFlowPreview.items.map((item) => (
+                      <div className={`daily-flow-preview-line ${item.isValid ? '' : 'needs-amount'}`.trim()} key={item.id}>
+                        <span>
+                          <strong>{item.description}</strong>
+                          <small>{item.isValid ? 'Ready to write' : 'Needs amount'}</small>
+                        </span>
+                        <b>{item.isValid ? rupees(item.amount) : 'Add amount'}</b>
+                      </div>
+                    ))}
+                    {dailyFlowPreview.overflowCount > 0 && (
+                      <p className="daily-flow-overflow">
+                        + {dailyFlowPreview.overflowCount} more line{dailyFlowPreview.overflowCount === 1 ? '' : 's'} ignored for this batch.
+                      </p>
+                    )}
+                  </div>
+                  <div className="daily-flow-total-row">
+                    <span>{dailyFlowValidItems.length} ready line{dailyFlowValidItems.length === 1 ? '' : 's'}</span>
+                    <strong>{rupees(dailyFlowTotal)}</strong>
+                  </div>
+                </div>
+              )}
+
+              {dailyFlowMessage && <p className="daily-flow-message" role="status">{dailyFlowMessage}</p>}
+
+              {dailyFlowPreview.items.length > 0 && (
+                <div className="daily-flow-actions">
+                  <button className="daily-flow-clear" type="button" onClick={clearDailyFlow}>
+                    Clear
+                  </button>
+                  <button
+                    className="daily-flow-save"
+                    type="submit"
+                    disabled={isDailyFlowSaving || dailyFlowValidItems.length === 0 || dailyFlowHasInvalidItems}
+                  >
+                    {isDailyFlowSaving
+                      ? 'Writing...'
+                      : dailyFlowHasInvalidItems
+                        ? 'Add Amounts First'
+                        : `Write ${dailyFlowValidItems.length || 0} Line${dailyFlowValidItems.length === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              )}
+            </form>
           )}
-        </form>
+        </section>
+
+        <section className="v24-calculator-tools" aria-label="Quick calculator tools">
+          <div className="v24-calculator-tools-heading">
+            <span>Calculator Tools</span>
+            <small>Keep math beside the page, not above writing.</small>
+          </div>
+          <div className="v24-tool-grid">
+            {HOME_QUICK_TOOLS.map((tool) => {
+              const ToolIcon = tool.icon
+
+              return (
+                <button className="v24-tool-button" type="button" key={tool.key} onClick={() => openQuickTools?.(tool.key)}>
+                  <ToolIcon size={15} />
+                  <span>
+                    <strong>{tool.label}</strong>
+                    <small>{tool.detail}</small>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
         <dl className="v23-today-page-facts" aria-label="Today page summary">
           <div>
             <dt>Lines</dt>
@@ -7420,25 +7528,32 @@ function V12HomeScreen({
         </div>
 
         <section className="v16-history-selector v23-history-secondary" aria-label="Notebook history selector">
-          <SectionHeader
-            eyebrow="Review"
-            title="Review another page"
-            detail="Today stays first. Older pages are here when needed."
-            actions={<StatusBadge>{notebookPreview.count} line{notebookPreview.count === 1 ? '' : 's'}</StatusBadge>}
-          />
-          <div className="v16-history-selector-row" role="radiogroup" aria-label="Choose notebook preview range">
-            {HOME_HISTORY_OPTIONS.map((option) => (
-              <button
-                className={historyFilter === option.key ? 'active' : ''}
-                type="button"
-                role="radio"
-                aria-checked={historyFilter === option.key}
-                key={option.key}
-                onClick={() => setHistoryFilter(option.key)}
-              >
-                {option.label}
+          <div className="v24-history-toolbar">
+            <div>
+              <p className="eyebrow">History</p>
+              <h3>Expense pages</h3>
+              <small>{notebookPreview.count} line{notebookPreview.count === 1 ? '' : 's'} in this view.</small>
+            </div>
+            <div className="v24-history-actions">
+              <label className="v24-history-select">
+                <span>View</span>
+                <select
+                  value={historyFilter}
+                  onChange={(event) => setHistoryFilter(event.target.value)}
+                  aria-label="Choose expense history range"
+                >
+                  {HOME_HISTORY_OPTIONS.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="ghost-button v24-history-download" type="button" onClick={() => requestReportExport?.('monthly', { template: 'standard' })}>
+                <Download size={15} />
+                <span>Download report</span>
               </button>
-            ))}
+            </div>
           </div>
           {historyFilter === 'custom' && (
             <label className="v16-history-custom-date">
@@ -7522,10 +7637,10 @@ function V12HomeScreen({
 }
 
 const HOME_HISTORY_OPTIONS = [
-  { key: 'today', label: 'Today' },
-  { key: 'yesterday', label: 'Yesterday' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
+  { key: 'today', label: 'Daily' },
+  { key: 'week', label: 'Weekly' },
+  { key: 'month', label: 'Monthly' },
+  { key: 'year', label: 'Yearly' },
   { key: 'custom', label: 'Custom' },
 ]
 
@@ -7571,6 +7686,10 @@ function buildHomeNotebookHistoryRange(filter = 'today', customDate = todayDateK
 
   if (filter === 'month') {
     return { start: `${todayKey.slice(0, 7)}-01`, end: todayKey, label: 'This month' }
+  }
+
+  if (filter === 'year') {
+    return { start: `${todayKey.slice(0, 4)}-01-01`, end: todayKey, label: 'This year' }
   }
 
   if (filter === 'custom') {
@@ -8271,6 +8390,9 @@ function InsightsCompanionOverview({
 
 function ProfileCompanionHome({
   authUser,
+  expenses = [],
+  transactionSummary = {},
+  selectedMonthKey = currentMonthKey(),
   openSettings,
   onEnableBackup,
   supportEmail,
@@ -8279,24 +8401,68 @@ function ProfileCompanionHome({
   founderLinkedInUrl,
 }) {
   const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
+  const monthExpenses = useMemo(
+    () => expenses.filter((expense) => String(expense?.date || expense?.dateKey || '').startsWith(selectedMonthKey)),
+    [expenses, selectedMonthKey],
+  )
+  const categorySummary = useMemo(() => aggregateExpenses(monthExpenses), [monthExpenses])
+  const topCategory = categorySummary.categories[0]
+  const categoryChart = useMemo(() => ({
+    title: 'Money Visuals',
+    subtitle: 'Where this month is going',
+    totalLabel: rupees(categorySummary.total || 0),
+    tone: 'matte',
+    entries: categorySummary.categories.slice(0, 6).map((item, index) => ({
+      name: item.name,
+      value: item.value,
+      color: item.color || categoryColor(item.name) || getFinanceColor(item.name, index),
+    })),
+  }), [categorySummary])
+  const profileInsight = topCategory
+    ? `${topCategory.name} is the biggest visible spend area at ${rupees(topCategory.value)}.`
+    : 'Write a few expenses and this page will turn them into simple visuals.'
 
   return (
-    <MoneyOSProvider as="section" className="screen-content v7-profile-home v13-account-home money-os-profile">
+    <MoneyOSProvider as="section" className="screen-content v7-profile-home v13-account-home v24-profile-page money-os-profile">
       <SectionHeader
-        title="Account"
-        detail="Appearance, backup, support, and product details."
+        eyebrow="Profile"
+        title="Your Money Picture"
+        detail="Simple visuals from the notebook, without turning the app into a dashboard."
         actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
       />
 
+      <section className="v24-profile-visual-grid" aria-label="Money visuals">
+        <FinanceDonut chart={categoryChart} />
+        <div className="v24-profile-explain-card">
+          <p className="eyebrow">Simple Explanation</p>
+          <h2>{topCategory ? 'Main spend area' : 'Your picture is forming'}</h2>
+          <p>{profileInsight}</p>
+          <div className="v24-profile-mini-stats">
+            <span>
+              <small>Entries</small>
+              <strong>{categorySummary.count}</strong>
+            </span>
+            <span>
+              <small>Spent</small>
+              <strong>{rupees(categorySummary.total || transactionSummary.outgoing || 0)}</strong>
+            </span>
+            <span>
+              <small>Categories</small>
+              <strong>{categorySummary.categories.length}</strong>
+            </span>
+          </div>
+        </div>
+      </section>
+
       <section className="v13-account-group" aria-labelledby="v13-account-appearance">
         <SectionHeader
-          title="Appearance"
-          detail="Theme and notebook presentation."
+          title="Themes"
+          detail="Choose a clean color style. The whole notebook follows this choice."
         />
         <ActionCard
           id="v13-account-appearance"
-          title="Notebook theme"
-          detail="Choose the visual style FBPLY uses across the app."
+          title="Theme & appearance"
+          detail="Change notebook, chrome, and paper styling from one place."
           actionLabel="Open"
           icon={User}
           tone="tint"
@@ -8306,7 +8472,7 @@ function ProfileCompanionHome({
 
       <section className="v13-account-group" aria-labelledby="v13-account-backup">
         <SectionHeader
-          title="Backup & Sync"
+          title="Backup"
           detail="Data protection for this notebook."
         />
         <MoneyCard
@@ -8345,7 +8511,7 @@ function ProfileCompanionHome({
 
       <section className="v13-account-group" aria-labelledby="v13-account-about">
         <SectionHeader
-          title="About"
+          title="About & Privacy"
           detail="FBPLY product and founder details."
         />
         <div className="v13-account-about-grid">
@@ -8883,6 +9049,8 @@ function MainApp(props) {
                 nextBestAction={nextBestAction}
                 onNextActionClick={handleNextActionClick}
                 openAddSheet={openAddSheet}
+                openQuickTools={openQuickTools}
+                requestReportExport={requestReportExport}
                 saveDailyFlowEntries={saveDailyFlowEntries}
                 moneyTheme={moneyTheme}
               />
@@ -8911,7 +9079,7 @@ function MainApp(props) {
         {!useLegacyNavigation && activeNavigationTab === 'ledger' && (
           <Suspense fallback={<DailyBookScreenFallback />}>
             <ActivityScreen
-              view="ledger"
+              view="borrow"
               groups={historyGroups}
               summary={transactionSummary}
               cashflowTimeline={cashflowTimeline}
@@ -8934,6 +9102,7 @@ function MainApp(props) {
               onEditExpense={editExpense}
               setActiveTab={setCompanionActiveTab}
               openAddSheet={openAddSheet}
+              openQuickTools={openQuickTools}
               requestReportExport={requestReportExport}
               moneyTheme={moneyTheme}
             />
@@ -8951,7 +9120,7 @@ function MainApp(props) {
             )}
             <Suspense fallback={<DailyBookScreenFallback />}>
               <ActivityScreen
-                view={useLegacyNavigation ? 'people' : 'people'}
+                view={useLegacyNavigation ? 'people' : 'split'}
                 groups={historyGroups}
                 summary={transactionSummary}
                 cashflowTimeline={cashflowTimeline}
@@ -8974,6 +9143,7 @@ function MainApp(props) {
                 onEditExpense={editExpense}
                 setActiveTab={setCompanionActiveTab}
                 openAddSheet={openAddSheet}
+                openQuickTools={openQuickTools}
                 requestReportExport={requestReportExport}
                 moneyTheme={moneyTheme}
               />
@@ -9048,6 +9218,9 @@ function MainApp(props) {
             {!useLegacyNavigation && (
               <ProfileCompanionHome
                 authUser={authUser}
+                expenses={expenses}
+                transactionSummary={transactionSummary}
+                selectedMonthKey={selectedMonthKey}
                 onEnableBackup={onEnableBackup}
                 supportEmail={supportEmail}
                 supportPaymentUrl={supportPaymentUrl}
@@ -9071,8 +9244,8 @@ function MainApp(props) {
               >
                 <summary>
                   <span>
-                    <strong>Saved downloads</strong>
-                    <small>Statement review and older notebook downloads</small>
+                    <strong>Report downloads</strong>
+                    <small>Older notebook reports and statement downloads</small>
                   </span>
                   <StatusBadge>{isInsightsReportsOpen ? 'Open' : 'Hidden'}</StatusBadge>
                 </summary>
@@ -9089,8 +9262,8 @@ function MainApp(props) {
               >
                 <summary>
                   <span>
-                    <strong>Profile & Preferences</strong>
-                    <small>Themes, bills, voice entry, savings, and developer utilities</small>
+                    <strong>Settings & Preferences</strong>
+                    <small>Themes, backup, bills, voice entry, and advanced controls</small>
                   </span>
                   <StatusBadge>Advanced</StatusBadge>
                 </summary>
