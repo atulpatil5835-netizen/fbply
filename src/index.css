@@ -1,4 +1,3 @@
-:root,
 :root[data-money-theme="classic"],
 [data-money-theme="classic"],
 :root[data-money-theme="brownJournal"],
@@ -41,12 +40,15 @@
   --theme-empty: color-mix(in srgb, var(--theme-paper-soft) 74%, var(--theme-paper));
   --theme-motion-intensity: 1;
   --theme-preview: linear-gradient(135deg, #214646, #587D69 58%, #A84F45);
+  --font-notebook-readable: "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
+  --font-notebook-sticky: "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
+  --font-notebook-accent: "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
   --experience-font-heading: var(--font-notebook-accent);
   --experience-font-date: var(--font-notebook-accent);
   --experience-font-section: var(--font-notebook-accent);
   --experience-font-note: var(--font-notebook-accent);
   --experience-font-body: var(--font-notebook-readable);
-  --experience-font-amount: var(--font-monospace);
+  --experience-font-amount: var(--font-notebook-readable);
   --experience-paper-texture: var(--notebook-paper-bg);
   --experience-card-bg: var(--notebook-card-bg);
   --experience-row-bg: transparent;
@@ -89,7 +91,7 @@
   --experience-entry-accent-opacity: 0.72;
   --experience-entry-accent-width: 3px;
   --experience-entry-title-font: var(--font-notebook-readable);
-  --experience-entry-note-font: var(--font-notebook-sticky);
+  --experience-entry-note-font: var(--font-notebook-readable);
   --experience-entry-chip-bg: color-mix(in srgb, var(--theme-paper-soft) 78%, transparent);
   --experience-entry-chip-border: color-mix(in srgb, var(--theme-line) 72%, transparent);
   --experience-entry-avatar-bg: linear-gradient(135deg, var(--theme-primary-strong), var(--theme-primary));
@@ -103,12 +105,15 @@
   --experience-sheet-control-bg: transparent;
   --experience-sheet-amount-width: min(100%, 280px);
   --experience-sheet-radius: 24px;
-  --experience-sheet-action-font: var(--font-notebook-sticky);
+  --experience-sheet-action-font: var(--font-notebook-readable);
   --experience-sheet-action-size: 22px;
   --experience-action-font-size: 21px;
   --experience-secondary-action-font-size: 18px;
 }
 
+:root,
+:root[data-money-theme="minimalWhite"],
+[data-money-theme="minimalWhite"],
 :root[data-money-theme="ledgerPro"],
 [data-money-theme="ledgerPro"],
 :root[data-money-theme="blueRegister"],
@@ -151,7 +156,7 @@
   --experience-font-section: var(--font-primary-ui);
   --experience-font-note: var(--font-primary-ui);
   --experience-font-body: var(--font-primary-ui);
-  --experience-font-amount: var(--font-monospace);
+  --experience-font-amount: var(--font-primary-ui);
   --experience-paper-texture:
     radial-gradient(circle at 94% 8%, color-mix(in srgb, var(--theme-accent) 10%, transparent), transparent 32%),
     linear-gradient(180deg, color-mix(in srgb, var(--theme-paper) 98%, white 2%), color-mix(in srgb, var(--theme-paper-soft) 48%, var(--theme-paper))),
@@ -248,9 +253,7 @@
 :root[data-money-theme="receipt"],
 [data-money-theme="receipt"],
 :root[data-money-theme="minimal"],
-[data-money-theme="minimal"],
-:root[data-money-theme="minimalWhite"],
-[data-money-theme="minimalWhite"] {
+[data-money-theme="minimal"] {
   --theme-bg: #F7F7F5;
   --theme-paper: #FFFFFF;
   --theme-paper-soft: #F1F1EF;
@@ -275,14 +278,14 @@
   --theme-empty: color-mix(in srgb, var(--theme-paper-soft) 78%, var(--theme-paper));
   --theme-motion-intensity: 0.55;
   --theme-preview: linear-gradient(135deg, #09090B, #71717A 58%, #D4D4D8);
-  --font-notebook-readable: var(--font-primary-ui);
+  --font-notebook-readable: var(--font-monospace);
   --font-notebook-sticky: var(--font-monospace);
   --font-notebook-accent: var(--font-monospace);
   --experience-font-heading: var(--font-monospace);
   --experience-font-date: var(--font-monospace);
   --experience-font-section: var(--font-monospace);
   --experience-font-note: var(--font-monospace);
-  --experience-font-body: var(--font-primary-ui);
+  --experience-font-body: var(--font-monospace);
   --experience-font-amount: var(--font-monospace);
   --experience-paper-texture:
     radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--theme-text) 4%, transparent), transparent 28%),
@@ -352,8 +355,8 @@
   --experience-entry-shadow: var(--experience-shadow-depth);
   --experience-entry-accent-opacity: 0;
   --experience-entry-accent-width: 0;
-  --experience-entry-title-font: var(--font-primary-ui);
-  --experience-entry-note-font: var(--font-primary-ui);
+  --experience-entry-title-font: var(--font-monospace);
+  --experience-entry-note-font: var(--font-monospace);
   --experience-entry-chip-bg: color-mix(in srgb, var(--theme-card-soft) 74%, var(--theme-card));
   --experience-entry-chip-border: color-mix(in srgb, var(--theme-border) 72%, transparent);
   --experience-entry-avatar-bg: linear-gradient(135deg, var(--theme-primary), var(--theme-accent));
@@ -367,12 +370,13 @@
   --experience-sheet-control-bg: var(--experience-lined-input-bg, color-mix(in srgb, var(--theme-card) 92%, transparent));
   --experience-sheet-amount-width: 100%;
   --experience-sheet-radius: var(--experience-card-radius);
-  --experience-sheet-action-font: var(--font-primary-ui);
+  --experience-sheet-action-font: var(--font-monospace);
   --experience-sheet-action-size: 13px;
   --experience-action-font-size: 13px;
   --experience-secondary-action-font-size: 12px;
 }
 
+:root,
 :root[data-money-theme="minimalWhite"],
 [data-money-theme="minimalWhite"] {
   --theme-bg: #F8FAFC;
@@ -393,12 +397,15 @@
   --theme-warning: #B45309;
   --theme-danger: #B91C1C;
   --theme-preview: linear-gradient(135deg, #FFFFFF, #E2E8F0 56%, #111827);
+  --font-notebook-readable: var(--font-primary-ui);
   --font-notebook-sticky: var(--font-primary-ui);
   --font-notebook-accent: var(--font-primary-ui);
   --experience-font-heading: var(--font-primary-ui);
   --experience-font-date: var(--font-primary-ui);
   --experience-font-section: var(--font-primary-ui);
   --experience-font-note: var(--font-primary-ui);
+  --experience-font-body: var(--font-primary-ui);
+  --experience-font-amount: var(--font-primary-ui);
   --experience-paper-texture:
     linear-gradient(180deg, #FFFFFF, #F8FAFC),
     var(--theme-paper);
@@ -417,6 +424,9 @@
   --experience-button-radius: 10px;
   --experience-fab-radius: 999px;
   --experience-shadow-depth: 0 12px 28px color-mix(in srgb, #0F172A 8%, transparent);
+  --experience-entry-title-font: var(--font-primary-ui);
+  --experience-entry-note-font: var(--font-primary-ui);
+  --experience-sheet-action-font: var(--font-primary-ui);
 }
 
 :root[data-money-theme="blueRegister"],
@@ -563,6 +573,7 @@
   --experience-font-section: Georgia, "Times New Roman", Times, serif;
   --experience-font-note: Georgia, "Times New Roman", Times, serif;
   --experience-font-body: Georgia, "Times New Roman", Times, serif;
+  --experience-font-amount: Georgia, "Times New Roman", Times, serif;
   --experience-paper-texture:
     radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--theme-accent) 10%, transparent), transparent 30%),
     linear-gradient(180deg, #FFF9F1, #F7F0E7);
@@ -600,6 +611,7 @@
   --experience-page-footer-line-opacity: 0.32;
   --experience-entry-title-font: Georgia, "Times New Roman", Times, serif;
   --experience-entry-note-font: Georgia, "Times New Roman", Times, serif;
+  --experience-sheet-action-font: Georgia, "Times New Roman", Times, serif;
   --experience-sheet-field-border-width: 1px;
   --experience-sheet-field-border-style: solid;
   --experience-sheet-field-radius: 10px;
@@ -862,9 +874,9 @@
   --z-modal: 80;
   --z-toast: 90;
   --font-primary-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-notebook-readable: Georgia, "Times New Roman", Times, serif;
-  --font-notebook-sticky: "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
-  --font-notebook-accent: "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
+  --font-notebook-readable: var(--font-primary-ui);
+  --font-notebook-sticky: var(--font-primary-ui);
+  --font-notebook-accent: var(--font-primary-ui);
   --font-monospace: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --font-size-display-xl: 40px;
   --font-size-display-l: 34px;
@@ -6209,29 +6221,6 @@ img {
   white-space: nowrap;
 }
 
-.home-page-suggestion {
-  width: fit-content;
-  max-width: min(100%, 720px);
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 2px 0 0;
-  padding: 9px 12px;
-  border: 1px solid color-mix(in srgb, var(--theme-accent) 18%, var(--theme-border));
-  border-radius: var(--experience-card-radius, var(--notebook-radius-card));
-  color: color-mix(in srgb, var(--muted) 88%, var(--text));
-  background: color-mix(in srgb, var(--theme-accent) 7%, var(--theme-paper));
-  font-size: var(--type-body-small);
-  line-height: 1.35;
-  font-weight: 760;
-}
-
-.home-page-suggestion svg {
-  flex: 0 0 auto;
-  margin-top: 1px;
-  color: var(--theme-accent);
-}
-
 .home-notebook-paper-actions {
   display: inline-flex;
   align-items: center;
@@ -6271,16 +6260,28 @@ img {
 .home-notebook-total-pill {
   max-width: 166px;
   padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--theme-success) 24%, var(--theme-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
   border-radius: 999px;
-  color: var(--success);
-  background: color-mix(in srgb, var(--theme-success) 10%, var(--theme-paper));
+  color: var(--muted);
+  background: color-mix(in srgb, var(--theme-paper-soft) 54%, var(--theme-paper));
   font-family: var(--experience-font-amount, var(--font-monospace)), ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line);
   font-weight: 950;
   text-align: right;
   white-space: nowrap;
+}
+
+.home-notebook-total-pill.outgoing {
+  border-color: color-mix(in srgb, var(--theme-danger) 34%, var(--theme-border));
+  color: var(--theme-danger);
+  background: color-mix(in srgb, var(--theme-danger) 9%, var(--theme-paper));
+}
+
+.home-notebook-total-pill.incoming {
+  border-color: color-mix(in srgb, var(--theme-success) 28%, var(--theme-border));
+  color: var(--theme-success);
+  background: color-mix(in srgb, var(--theme-success) 9%, var(--theme-paper));
 }
 
 .stamp-icon {
@@ -6414,6 +6415,13 @@ img {
   border-color: color-mix(in srgb, var(--theme-warning) 32%, var(--theme-border));
 }
 
+.home-calendar-day.has-amount {
+  border-color: color-mix(in srgb, var(--theme-danger) 26%, var(--theme-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-danger) 4%, transparent), transparent 52%),
+    color-mix(in srgb, var(--theme-paper) 82%, transparent);
+}
+
 .home-calendar-day-number {
   color: var(--text);
   font-family: var(--experience-font-date, var(--font-monospace)), ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
@@ -6431,7 +6439,7 @@ img {
   align-self: center;
   justify-self: center;
   padding: 5px 7px 6px;
-  color: var(--theme-primary);
+  color: var(--theme-danger);
   font-family: var(--experience-font-amount, var(--font-monospace)), ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 10px;
   line-height: 1;
@@ -6443,11 +6451,11 @@ img {
   content: "";
   position: absolute;
   inset: 0;
-  border: 2px solid color-mix(in srgb, var(--theme-primary) 72%, var(--theme-accent));
+  border: 2px solid color-mix(in srgb, var(--theme-danger) 76%, var(--theme-accent));
   border-radius: 58% 42% 54% 46% / 48% 56% 44% 52%;
   box-shadow:
-    1px 0 0 color-mix(in srgb, var(--theme-primary) 18%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--theme-paper) 28%, transparent);
+    1px 0 0 color-mix(in srgb, var(--theme-danger) 20%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--theme-danger) 8%, transparent);
   transform: rotate(-7deg);
 }
 
@@ -7284,6 +7292,19 @@ img {
   background: color-mix(in srgb, var(--theme-paper) 72%, transparent);
 }
 
+.v25-history-compact-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--notebook-space-sm);
+}
+
+.v24-history-toolbar.v25-history-compact-toolbar h3 {
+  color: var(--text);
+  font-family: var(--font-notebook-readable);
+  font-size: 16px;
+  line-height: 1.1;
+  font-weight: 950;
+}
+
 .previous-pages-heading {
   display: grid;
   gap: 4px;
@@ -7320,10 +7341,20 @@ img {
   flex-wrap: wrap;
 }
 
+.v25-history-compact-actions {
+  align-items: center;
+  gap: 7px;
+  flex-wrap: nowrap;
+}
+
 .v24-history-select {
   min-width: 148px;
   display: grid;
   gap: 4px;
+}
+
+.v25-history-select {
+  min-width: 118px;
 }
 
 .v24-history-select span {
@@ -7344,12 +7375,27 @@ img {
   font-weight: 800;
 }
 
+.v25-history-select select {
+  min-height: 34px;
+  padding-inline: 12px 28px;
+  font-size: 12px;
+}
+
 .v24-history-download {
   min-height: 38px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
   white-space: nowrap;
+}
+
+.v25-history-download-icon {
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 0;
+  border-radius: 999px;
 }
 
 .home-history-list {
@@ -16420,6 +16466,28 @@ img {
     width: 100%;
   }
 
+  .v25-history-compact-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .v25-history-compact-actions {
+    width: auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+
+  .v25-history-select {
+    width: auto;
+    min-width: 112px;
+  }
+
+  .v25-history-download-icon {
+    width: 36px;
+    min-width: 36px;
+    justify-content: center;
+  }
+
   .v24-profile-visual-grid {
     grid-template-columns: 1fr;
   }
@@ -16479,10 +16547,6 @@ img {
 
   .home-page-live-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .home-page-suggestion {
-    width: 100%;
   }
 
   .home-calendar-topline {

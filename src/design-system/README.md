@@ -56,4 +56,4 @@ PPSP Phase 1 is intentionally additive. It standardizes the product foundation a
 - Interaction: `NotebookInteraction`, `NotebookInputSurface`, `NotebookCursor`, `NotebookLineRenderer`
 - Draft and intent: `createDraftSession`, `useDraftSession`, `createDraftState`, `createDraftIntent`, `createDraftPipeline`, `createDraftValidator`, `createIntentResult`, `createIntentContext`, `createIntentAdapter`
 
-Notebook themes available for Phase 2 migration: Classic Notebook, Brown Journal, Blue Register, Minimal White, and Vintage Diary.
+Notebook themes available for Phase 2 migration: Default Clean, Notebook, Brown Journal, Blue Register, and Vintage Diary.

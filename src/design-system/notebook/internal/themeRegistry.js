@@ -1,12 +1,17 @@
 import { freeze } from './freeze.js'
 
-export const defaultNotebookTheme = 'classic'
+export const defaultNotebookTheme = 'minimalWhite'
 
 export const notebookThemeRegistry = freeze({
+  minimalWhite: {
+    id: 'minimalWhite',
+    label: 'Default Clean',
+    description: 'Clean white surfaces, high-contrast ink, subtle separators, and normal typography.',
+  },
   classic: {
     id: 'classic',
-    label: 'Classic Notebook',
-    description: 'Warm white paper, graphite ink, soft blue rules, and a red margin rule.',
+    label: 'Notebook',
+    description: 'Cream paper, clean handwriting, and a ruled-page notebook feel.',
   },
   brownJournal: {
     id: 'brownJournal',
@@ -17,11 +22,6 @@ export const notebookThemeRegistry = freeze({
     id: 'blueRegister',
     label: 'Blue Register',
     description: 'Cool register paper with navy ink, crisp blue rules, and accounting-book clarity.',
-  },
-  minimalWhite: {
-    id: 'minimalWhite',
-    label: 'Minimal White',
-    description: 'Clean white paper, high-contrast ink, pale rules, and a neutral accent.',
   },
   vintageDiary: {
     id: 'vintageDiary',

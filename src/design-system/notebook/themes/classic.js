@@ -3,8 +3,8 @@ import { createNotebookTheme } from '../internal/themeCssVariables.js'
 
 export const classicNotebookTheme = createNotebookTheme({
   id: 'classic',
-  label: 'Classic Notebook',
-  description: 'Warm white paper, graphite ink, soft blue rules, and a red margin rule.',
+  label: 'Notebook',
+  description: 'Cream paper, clean handwriting, and a ruled-page notebook feel.',
   colors: {
     paper: notebookTokens.paperColors.white,
     paperSoft: notebookTokens.paperColors.warm,

@@ -293,13 +293,13 @@ const REPORT_THEME_ALIASES = {
   navy: 'classic',
   vintageDiary: 'classic',
   executive: 'ledgerPro',
-  minimal: 'receipt',
+  minimal: 'minimalWhite',
 }
 
 const REPORT_EXPORT_THEMES = {
   classic: {
     pdfFont: 'times',
-    canvasFont: 'Georgia, "Times New Roman", serif',
+    canvasFont: '"Caveat", "Segoe Print", "Bradley Hand ITC", cursive',
     page: [255, 253, 247],
     card: [255, 251, 242],
     soft: [248, 241, 230],
@@ -395,9 +395,9 @@ const REPORT_EXPORT_THEMES = {
   },
 }
 
-function resolveReportTheme(themeId = 'classic') {
+function resolveReportTheme(themeId = 'minimalWhite') {
   const normalized = REPORT_THEME_ALIASES[themeId] || themeId
-  return REPORT_EXPORT_THEMES[normalized] || REPORT_EXPORT_THEMES.classic
+  return REPORT_EXPORT_THEMES[normalized] || REPORT_EXPORT_THEMES.minimalWhite
 }
 
 function rgbToCss(color = COLORS.text) {

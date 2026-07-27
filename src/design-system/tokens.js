@@ -1,13 +1,19 @@
 import { motionTokens } from './motionTokens.js'
 
 export const moneyOSThemeClass = 'money-os'
-export const defaultMoneyOSTheme = 'classic'
+export const defaultMoneyOSTheme = 'minimalWhite'
 
 export const moneyOSThemeOptions = Object.freeze([
   Object.freeze({
+    id: 'minimalWhite',
+    label: 'Default Clean',
+    detail: 'Bright white surfaces, crisp spacing, and normal system typography.',
+    personality: 'Clean minimal daily page',
+  }),
+  Object.freeze({
     id: 'classic',
-    label: 'Classic Notebook',
-    detail: 'Cream paper, blue ruled lines, red margin, handwritten headings.',
+    label: 'Notebook',
+    detail: 'Cream paper, ruled lines, and clean handwriting throughout.',
     personality: 'Premium daily notebook',
   }),
   Object.freeze({
@@ -21,12 +27,6 @@ export const moneyOSThemeOptions = Object.freeze([
     label: 'Receipt',
     detail: 'Thermal paper texture, compact rhythm, receipt-style entries.',
     personality: 'Fast store-receipt notebook',
-  }),
-  Object.freeze({
-    id: 'minimalWhite',
-    label: 'Pure White',
-    detail: 'Bright white surfaces, crisp spacing, and quiet system typography.',
-    personality: 'Clean minimal daily page',
   }),
   Object.freeze({
     id: 'blueRegister',
@@ -61,7 +61,7 @@ export const moneyOSThemeAliases = Object.freeze({
   brownJournal: 'classic',
   emerald: 'emerald',
   executive: 'ledgerPro',
-  minimal: 'receipt',
+  minimal: 'minimalWhite',
   minimalWhite: 'minimalWhite',
   midnight: 'midnight',
   navy: 'classic',
@@ -76,9 +76,9 @@ export function normalizeMoneyOSTheme(theme) {
 
 export const moneyOSThemeV2 = Object.freeze({
   classic: Object.freeze({
-    label: 'Classic Notebook',
+    label: 'Notebook',
     experience: 'daily-money-notebook',
-    personality: 'Premium notebook with cream paper, blue ruled lines, and handwritten headings.',
+    personality: 'Premium notebook with cream paper, ruled lines, and clean handwriting.',
     paper: 'var(--theme-paper)',
     ink: 'var(--theme-text)',
     lines: 'var(--theme-line)',
@@ -92,7 +92,7 @@ export const moneyOSThemeV2 = Object.freeze({
       date: 'var(--font-notebook-accent)',
       section: 'var(--font-notebook-accent)',
       body: 'var(--font-notebook-readable)',
-      amount: 'var(--font-monospace)',
+      amount: 'var(--font-notebook-readable)',
     }),
     texture: Object.freeze({
       paper: 'ruled',
@@ -159,6 +159,90 @@ export const moneyOSThemeV2 = Object.freeze({
     }),
     motionIntensity: 'medium',
   }),
+  minimalWhite: Object.freeze({
+    label: 'Default Clean',
+    experience: 'clean-daily-page',
+    personality: 'Clean normal daily money page with bright surfaces and system typography.',
+    paper: 'var(--theme-paper)',
+    ink: 'var(--theme-text)',
+    lines: 'var(--theme-line)',
+    accent: 'var(--theme-accent)',
+    cards: 'var(--theme-card)',
+    borders: 'var(--theme-border)',
+    icons: 'var(--theme-icon)',
+    emptyState: 'var(--theme-empty)',
+    typography: Object.freeze({
+      heading: 'var(--font-primary-ui)',
+      date: 'var(--font-primary-ui)',
+      section: 'var(--font-primary-ui)',
+      body: 'var(--font-primary-ui)',
+      amount: 'var(--font-primary-ui)',
+    }),
+    texture: Object.freeze({
+      paper: 'clean-paper',
+      card: 'clean-card',
+      ledgerRows: 'subtle-separators',
+      dialogs: 'clean-sheet',
+      exports: 'clean-report',
+    }),
+    components: Object.freeze({
+      cards: 'clean-panels',
+      ledgerRows: 'clean-row',
+      buttons: 'clean-actions',
+      fab: 'primary-pill',
+      icons: 'simple-line',
+      emptyStates: 'quiet-page',
+      illustrations: 'simple-lines',
+    }),
+    motion: Object.freeze({
+      profile: 'calm-clean',
+      paper: 'soft-rise',
+      ink: 'subtle-line-appear',
+      lineInsertion: 'clean-row',
+      themeSwitch: 'clean-crossfade',
+    }),
+    rhythm: Object.freeze({
+      verticalSpacing: '16px',
+      lineHeight: '30px',
+      sectionSpacing: '22px',
+      dividerThickness: '1px',
+      cardDensity: 'comfortable',
+    }),
+    divider: Object.freeze({
+      style: 'subtle-separator',
+      thickness: '1px',
+    }),
+    shape: Object.freeze({
+      cardRadius: '10px',
+      buttonRadius: '10px',
+      sheetRadius: '12px',
+    }),
+    shadow: Object.freeze({
+      style: 'soft-clean',
+      depth: 'low',
+    }),
+    spacing: Object.freeze({
+      density: 'comfortable',
+      rhythm: 'clean-page',
+    }),
+    paperTexture: 'clean-white-paper',
+    exportStyle: 'clean-daily-page',
+    copy: Object.freeze({
+      homeReady: "Today's page is open.",
+      homeFinished: "Today's page is complete.",
+      emptyLedger: 'This page is waiting for your first expense.',
+      emptyHome: 'This page has no expense lines yet.',
+      emptyBorrowLend: 'No borrow/lend lines added yet.',
+      emptyTrip: 'No split lines added yet.',
+      pageFooter: 'FBPLY daily money notebook',
+      monthNotebook: 'Monthly pages',
+    }),
+    exportMode: Object.freeze({
+      singlePage: 'image',
+      multiPage: 'pdf',
+    }),
+    motionIntensity: 'polished',
+  }),
   ledgerPro: Object.freeze({
     label: 'Ledger Pro',
     experience: 'accounting-register',
@@ -176,7 +260,7 @@ export const moneyOSThemeV2 = Object.freeze({
       date: 'var(--font-primary-ui)',
       section: 'var(--font-primary-ui)',
       body: 'var(--font-primary-ui)',
-      amount: 'var(--font-monospace)',
+      amount: 'var(--font-primary-ui)',
     }),
     texture: Object.freeze({
       paper: 'register-paper',
@@ -259,7 +343,7 @@ export const moneyOSThemeV2 = Object.freeze({
       heading: 'var(--font-monospace)',
       date: 'var(--font-monospace)',
       section: 'var(--font-monospace)',
-      body: 'var(--font-primary-ui)',
+      body: 'var(--font-monospace)',
       amount: 'var(--font-monospace)',
     }),
     texture: Object.freeze({
@@ -333,7 +417,6 @@ const moneyOSThemeExperienceAliases = Object.freeze({
   blueRegister: 'ledgerPro',
   emerald: 'ledgerPro',
   midnight: 'ledgerPro',
-  minimalWhite: 'ledgerPro',
   sunset: 'classic',
 })
 
