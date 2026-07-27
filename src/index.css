@@ -8466,6 +8466,10 @@ img {
     var(--experience-entry-panel-bg, var(--surface-bg));
 }
 
+.money-book-panel--compact-page {
+  gap: 8px;
+}
+
 .money-book-header-actions {
   min-width: 0;
   display: flex;
@@ -9780,6 +9784,77 @@ img {
 .money-book-form-body {
   display: grid;
   gap: 11px;
+}
+
+.money-book-interest-field {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.money-book-interest-label-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.money-book-interest-label-row .input-label {
+  margin: 0;
+}
+
+.money-book-interest-toggle {
+  flex: 0 0 auto;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-paper) 84%, transparent);
+}
+
+.money-book-interest-toggle button {
+  min-height: 24px;
+  min-width: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.money-book-interest-toggle button.active {
+  color: var(--theme-on-primary);
+  background: var(--theme-primary);
+}
+
+.money-book-interest-control {
+  padding-right: 7px;
+}
+
+.money-book-interest-control input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.money-book-interest-mirror {
+  flex: 0 0 auto;
+  max-width: 92px;
+  overflow: hidden;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--theme-primary);
+  background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .money-book-form-actions {
@@ -16742,6 +16817,85 @@ img {
   .money-book-header-actions .small-button {
     flex: 1 1 160px;
     justify-content: center;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+
+  .screen-panel,
+  .app-shell .screen-content {
+    width: 100%;
+  }
+
+  .notebook-foundation > .screen-content:not(.v12-home),
+  .notebook-foundation > .v73-insights-reports-details,
+  .notebook-foundation > .v12-account-secondary-details,
+  .notebook-foundation > .v83-profile-advanced-details {
+    padding: 10px;
+  }
+
+  .app-shell :where(
+    .money-book-panel,
+    .money-book-entry,
+    .v24-section-cover,
+    .v24-section-history,
+    .history-summary-card,
+    .shared-panel,
+    .shared-card,
+    .report-section-card,
+    .report-snapshot-card,
+    .profile-hero-card,
+    .profile-quick-expense-card,
+    .finance-donut-card,
+    .recurring-manager,
+    .savings-manager,
+    .bucket-card
+  ) {
+    border-radius: 12px;
+  }
+
+  .app-shell :where(
+    .money-book-panel,
+    .v24-section-cover,
+    .v24-section-history,
+    .shared-panel,
+    .report-section-card,
+    .profile-hero-card,
+    .finance-donut-card,
+    .recurring-manager,
+    .savings-manager
+  ) {
+    padding: 12px;
+  }
+
+  .money-book-panel--compact-page {
+    padding: 10px;
+  }
+
+  .money-book-summary-grid {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding-left: max(6px, env(safe-area-inset-left));
+    padding-right: max(6px, env(safe-area-inset-right));
+  }
+
+  .notebook-foundation > .screen-content:not(.v12-home),
+  .notebook-foundation > .v73-insights-reports-details,
+  .notebook-foundation > .v12-account-secondary-details,
+  .notebook-foundation > .v83-profile-advanced-details {
+    padding: 8px;
+  }
+
+  .app-shell .screen-content {
+    gap: 8px;
   }
 }
 

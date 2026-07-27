@@ -33,7 +33,7 @@ import {
   getMoneyOSThemeExperience,
 } from '../design-system'
 import { buildRelatedTransactionGroups } from '../lib/financeIntelligence'
-import { addMoney, normalizeMoney, sumMoney } from '../lib/money'
+import { addMoney, getCurrencySymbol, normalizeMoney, sumMoney } from '../lib/money'
 import { rupees, shortRupees } from '../lib/ruleEngine'
 import { focusInvalidField } from '../lib/uiHelpers'
 import SharedExpensesPanel from './SharedExpenseScreen.jsx'
@@ -735,6 +735,7 @@ export default function ActivityScreen({
   )
   const borrowToolsContent = (
     <MoneyBookPanel
+      compactPage={isBorrowView}
       summary={moneyBookSummary}
       themeExperience={themeExperience}
       onAdd={openMoneyBookFromDiscovery}
@@ -817,18 +818,20 @@ export default function ActivityScreen({
 
         {isBorrowView ? borrowToolsContent : splitToolsContent}
 
-        <details className="money-os mos-people-secondary-details v24-section-history" open>
-          <summary>
-            <span>
-              <strong>{isBorrowView ? 'Borrow/Lend History' : 'Split History'}</strong>
-              <small>{filteredItemCount} related entr{filteredItemCount === 1 ? 'y' : 'ies'} in this view.</small>
-            </span>
-            <StatusBadge>History</StatusBadge>
-          </summary>
-          <div className="mos-people-secondary-stack">
-            {activityTimelineContent}
-          </div>
-        </details>
+        {!isBorrowView && (
+          <details className="money-os mos-people-secondary-details v24-section-history" open>
+            <summary>
+              <span>
+                <strong>Split History</strong>
+                <small>{filteredItemCount} related entr{filteredItemCount === 1 ? 'y' : 'ies'} in this view.</small>
+              </span>
+              <StatusBadge>History</StatusBadge>
+            </summary>
+            <div className="mos-people-secondary-stack">
+              {activityTimelineContent}
+            </div>
+          </details>
+        )}
 
         {moneyBookModalEntry && (
           <MoneyBookEntryModal
@@ -1444,28 +1447,30 @@ function HistoryRelatedGroup({ group, isOpen, onToggle, getExpenseEditHandler })
   )
 }
 
-function MoneyBookPanel({ summary = {}, themeExperience = {}, onAdd, onDownloadSettlement, onEdit, onToggleSettled, onDelete }) {
+function MoneyBookPanel({ summary = {}, themeExperience = {}, compactPage = false, onAdd, onDownloadSettlement, onEdit, onToggleSettled, onDelete }) {
   const entries = summary.visibleEntries || []
   const hasEntries = entries.length > 0
 
   return (
-    <section className="money-book-panel" id="money-book-section" aria-label="Borrow/lend records">
-      <div className="money-book-header">
-        <div>
-          <p className="eyebrow">Borrow/Lend</p>
-          <h2>Borrow & lend</h2>
+    <section className={`money-book-panel ${compactPage ? 'money-book-panel--compact-page' : ''}`.trim()} id="money-book-section" aria-label="Borrow/lend records">
+      {!compactPage && (
+        <div className="money-book-header">
+          <div>
+            <p className="eyebrow">Borrow/Lend</p>
+            <h2>Borrow & lend</h2>
+          </div>
+          <div className="money-book-header-actions">
+            <button className="ghost-button small-button" type="button" onClick={onDownloadSettlement}>
+              <Download size={15} />
+              Download settlement sheet
+            </button>
+            <button className="primary-button small-button" type="button" onClick={() => onAdd?.('header')}>
+              <Plus size={15} />
+              Add entry
+            </button>
+          </div>
         </div>
-        <div className="money-book-header-actions">
-          <button className="ghost-button small-button" type="button" onClick={onDownloadSettlement}>
-            <Download size={15} />
-            Download settlement sheet
-          </button>
-          <button className="primary-button small-button" type="button" onClick={() => onAdd?.('header')}>
-            <Plus size={15} />
-            Add entry
-          </button>
-        </div>
-      </div>
+      )}
 
       <div className="money-book-summary-grid">
         <HistorySummaryCard label="You Gave" value={summary.totalGiven} tone="outgoing" />
@@ -1484,11 +1489,11 @@ function MoneyBookPanel({ summary = {}, themeExperience = {}, onAdd, onDownloadS
           title={themeExperience.copy?.emptyBorrowLend || 'No borrow/lend entries yet.'}
           detail="Record money given or taken when it needs a note."
           icon={Wallet}
-          action={{ label: 'Add entry', onClick: () => onAdd?.('empty_state') }}
+          action={compactPage ? null : { label: 'Add entry', onClick: () => onAdd?.('empty_state') }}
         />
       ) : (
         <div className="money-book-entry-list">
-          {entries.slice(0, 5).map((entry) => (
+          {entries.map((entry) => (
             <MoneyBookEntryCard
               entry={entry}
               key={entry.id}
@@ -1535,6 +1540,43 @@ function MoneyBookEntryCard({ entry, onEdit, onToggleSettled, onDelete }) {
   )
 }
 
+function normalizeInterestRate(value) {
+  const clean = String(value ?? '').replace('%', '').trim()
+  const parsed = Number(clean)
+  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0
+}
+
+function formatInterestRate(value) {
+  const rate = normalizeInterestRate(value)
+  if (rate <= 0) {
+    return ''
+  }
+
+  return String(Math.round(rate * 100) / 100).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')
+}
+
+function interestAmountFromRate(amount, rate) {
+  const principal = normalizeMoney(amount)
+  const cleanRate = normalizeInterestRate(rate)
+
+  if (principal <= 0 || cleanRate <= 0) {
+    return 0
+  }
+
+  return normalizeMoney((principal * cleanRate) / 100)
+}
+
+function interestRateFromAmount(amount, interest) {
+  const principal = normalizeMoney(amount)
+  const interestAmount = normalizeMoney(interest)
+
+  if (principal <= 0 || interestAmount <= 0) {
+    return 0
+  }
+
+  return Math.round((interestAmount / principal) * 10000) / 100
+}
+
 function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
   const [kind, setKind] = useState(entry.kind === 'taken' ? 'taken' : 'given')
   const [person, setPerson] = useState(entry.person || '')
@@ -1543,7 +1585,21 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
   const [dueDate, setDueDate] = useState(entry.dueDate || '')
   const [note, setNote] = useState(entry.note || '')
   const [interest, setInterest] = useState(entry.interest ? String(entry.interest) : '')
+  const [interestMode, setInterestMode] = useState('amount')
+  const [interestPercent, setInterestPercent] = useState(() => formatInterestRate(interestRateFromAmount(entry.amount, entry.interest)))
   const [errors, setErrors] = useState({})
+  const calculatedInterestAmount = useMemo(
+    () => interestAmountFromRate(amount, interestPercent),
+    [amount, interestPercent],
+  )
+  const calculatedInterestRate = useMemo(
+    () => interestRateFromAmount(amount, interest),
+    [amount, interest],
+  )
+  const resolvedInterestAmount = interestMode === 'percent' ? calculatedInterestAmount : normalizeMoney(interest)
+  const interestMirrorText = interestMode === 'percent'
+    ? rupees(calculatedInterestAmount)
+    : `${formatInterestRate(calculatedInterestRate) || '0'}%`
 
   const clearError = useCallback((field) => {
     setErrors((current) => {
@@ -1563,7 +1619,7 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
 
     const fieldErrors = {}
     const parsedAmount = normalizeMoney(amount)
-    const parsedInterest = normalizeMoney(interest)
+    const parsedInterest = resolvedInterestAmount
 
     if (!String(person || '').trim()) {
       fieldErrors.person = 'Add a person name.'
@@ -1577,8 +1633,8 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
       fieldErrors.date = 'Choose a date.'
     }
 
-    if (parsedInterest < 0) {
-      fieldErrors.interest = 'Interest cannot be negative.'
+    if (interestMode === 'percent' && Number(String(interestPercent || '').replace('%', '')) < 0) {
+      fieldErrors.interest = 'Interest percentage cannot be negative.'
     }
 
     if (Object.keys(fieldErrors).length > 0) {
@@ -1604,7 +1660,22 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
       setErrors({ form: 'Check the highlighted fields before saving.' })
       focusInvalidField(form)
     }
-  }, [amount, date, dueDate, entry, interest, kind, note, onSave, person])
+  }, [amount, date, dueDate, entry, interestMode, interestPercent, kind, note, onSave, person, resolvedInterestAmount])
+
+  const switchInterestMode = useCallback((mode) => {
+    if (mode === interestMode) {
+      return
+    }
+
+    if (mode === 'percent') {
+      setInterestPercent(formatInterestRate(calculatedInterestRate))
+    } else {
+      setInterest(calculatedInterestAmount > 0 ? String(calculatedInterestAmount) : '')
+    }
+
+    setInterestMode(mode)
+    clearError('interest')
+  }, [calculatedInterestAmount, calculatedInterestRate, clearError, interestMode])
 
   return (
     <AppModal onClose={onClose} labelledBy="money-book-entry-title" sheetClassName="editor-sheet money-book-modal">
@@ -1669,16 +1740,50 @@ function MoneyBookEntryModal({ entry = {}, onClose, onSave }) {
             {errors.date && <small className="field-helper">{errors.date}</small>}
           </label>
 
-          <CurrencyInput
-            label="Interest / Vyaj"
-            id="money-book-interest"
-            value={interest}
-            onChange={(value) => {
-              setInterest(value)
-              clearError('interest')
-            }}
-            error={errors.interest}
-          />
+          <div className="money-book-interest-field">
+            <div className="money-book-interest-label-row">
+              <label className="input-label" htmlFor="money-book-interest">Interest / Vyaj</label>
+              <div className="money-book-interest-toggle" aria-label="Interest input mode">
+                <button
+                  className={interestMode === 'amount' ? 'active' : ''}
+                  type="button"
+                  onClick={() => switchInterestMode('amount')}
+                >
+                  Amt
+                </button>
+                <button
+                  className={interestMode === 'percent' ? 'active' : ''}
+                  type="button"
+                  onClick={() => switchInterestMode('percent')}
+                >
+                  %
+                </button>
+              </div>
+            </div>
+            <div className={`currency-input money-book-interest-control ${errors.interest ? 'field-invalid' : ''}`.trim()}>
+              <span>{interestMode === 'percent' ? '%' : getCurrencySymbol()}</span>
+              <input
+                id="money-book-interest"
+                min="0"
+                type="number"
+                inputMode="decimal"
+                autoComplete="off"
+                aria-label={interestMode === 'percent' ? 'Interest percentage' : 'Interest amount'}
+                value={interestMode === 'percent' ? interestPercent : interest}
+                placeholder="0"
+                onChange={(event) => {
+                  if (interestMode === 'percent') {
+                    setInterestPercent(event.target.value)
+                  } else {
+                    setInterest(event.target.value)
+                  }
+                  clearError('interest')
+                }}
+              />
+              <b className="money-book-interest-mirror">{interestMirrorText}</b>
+            </div>
+            {errors.interest && <small className="field-helper">{errors.interest}</small>}
+          </div>
 
           <label>
             <span className="input-label">Due Date</span>
