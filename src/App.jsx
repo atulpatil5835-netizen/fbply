@@ -7637,6 +7637,28 @@ function V12HomeScreen({
           </section>
         )}
 
+        <section className="v24-calculator-tools" aria-label="Quick calculator tools">
+          <div className="v24-calculator-tools-heading">
+            <span>Calculator Tools</span>
+            <small>Do quick math first, then write the expense line clearly.</small>
+          </div>
+          <div className="v24-tool-grid">
+            {HOME_QUICK_TOOLS.map((tool) => {
+              const ToolIcon = tool.icon
+
+              return (
+                <button className="v24-tool-button" type="button" key={tool.key} onClick={() => openQuickTools?.(tool.key)}>
+                  <ToolIcon size={15} />
+                  <span>
+                    <strong>{tool.label}</strong>
+                    <small>{tool.detail}</small>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
         <section className="v24-page-start-tools" aria-label="Start today's page">
           <div className="v24-page-start-header">
             <div>
@@ -7825,27 +7847,6 @@ function V12HomeScreen({
           )}
         </section>
 
-        <section className="v24-calculator-tools" aria-label="Quick calculator tools">
-          <div className="v24-calculator-tools-heading">
-            <span>Calculator Tools</span>
-            <small>Keep math beside the page, not above writing.</small>
-          </div>
-          <div className="v24-tool-grid">
-            {HOME_QUICK_TOOLS.map((tool) => {
-              const ToolIcon = tool.icon
-
-              return (
-                <button className="v24-tool-button" type="button" key={tool.key} onClick={() => openQuickTools?.(tool.key)}>
-                  <ToolIcon size={15} />
-                  <span>
-                    <strong>{tool.label}</strong>
-                    <small>{tool.detail}</small>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </section>
       </section>
     </MoneyOSProvider>
   )
