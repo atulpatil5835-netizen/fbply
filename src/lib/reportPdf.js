@@ -421,6 +421,45 @@ function setThemeFont(doc, theme, weight = 'normal', size = 9) {
   doc.setFontSize(size)
 }
 
+function mixColor(color = COLORS.text, target = COLORS.white, amount = 0.35) {
+  return color.map((channel, index) => {
+    const next = channel + (target[index] - channel) * amount
+    return Math.max(0, Math.min(255, Math.round(next)))
+  })
+}
+
+function themeChartColors(theme = resolveReportTheme()) {
+  return EXPENSE_REPORT_CHART_COLORS.map((color, index) => {
+    if (index === 0) {
+      return theme.accent
+    }
+
+    const tintAmount = index % 2 === 0 ? 0.22 : 0.34
+    return mixColor(color, theme.accent, tintAmount)
+  })
+}
+
+function themeSeriesColor(theme = resolveReportTheme(), index = 0) {
+  const colors = themeChartColors(theme)
+  return colors[index % colors.length] || theme.accent
+}
+
+function limitPdfLines(lines = [], maxLines = 2) {
+  const visible = lines.slice(0, maxLines)
+
+  if (lines.length > maxLines && visible.length > 0) {
+    const lastIndex = visible.length - 1
+    const last = cleanPdfText(visible[lastIndex])
+    visible[lastIndex] = last.length > 4 ? `${last.slice(0, -3)}...` : last
+  }
+
+  return visible.length > 0 ? visible : ['-']
+}
+
+function splitPdfLines(doc, text, width, maxLines = 2) {
+  return limitPdfLines(doc.splitTextToSize(cleanPdfText(text) || '-', width), maxLines)
+}
+
 function reportBottomY() {
   return PAGE.height - 22
 }
@@ -534,7 +573,7 @@ function drawSimpleMetrics(doc, y, title, items = [], meta = {}, theme = resolve
     doc.text(cleanPdfText(item.label).toUpperCase(), x + 4, top + 6)
 
     drawFittedText(doc, item.value || '-', x + 4, top + 13, width - 8, {
-      color: item.tone || theme.text,
+      color: theme.accent,
       font: theme.pdfFont,
       minSize: 7,
       size: 10.5,
@@ -594,48 +633,120 @@ function drawSimpleRows(doc, y, section, meta = {}, theme = resolveReportTheme()
     }) + 2
   }
 
-  visible.forEach((item) => {
-    const rowHeight = section.kind === 'bars' ? 13 : 12
+  if (section.kind === 'bars') {
+    visible.forEach((item, index) => {
+      const rowHeight = 15
 
-    if (y + rowHeight > reportBottomY()) {
-      y = addSimpleReportPage(doc, meta, theme)
-      y = drawSimpleSectionHeading(doc, section.title, y, theme)
-    }
+      if (y + rowHeight > reportBottomY()) {
+        y = addSimpleReportPage(doc, meta, theme)
+        y = drawSimpleSectionHeading(doc, section.title, y, theme)
+      }
 
-    setThemeStroke(doc, theme.border)
-    doc.setLineWidth(0.12)
-    doc.line(PAGE.margin, y + rowHeight - 3, PAGE.width - PAGE.margin, y + rowHeight - 3)
+      setThemeStroke(doc, theme.border)
+      doc.setLineWidth(0.12)
+      doc.line(PAGE.margin, y + rowHeight - 3.5, PAGE.width - PAGE.margin, y + rowHeight - 3.5)
 
-    drawFittedText(doc, item.label || '-', PAGE.margin, y, 58, {
-      color: theme.text,
-      font: theme.pdfFont,
-      minSize: 6.2,
-      size: 7.8,
-      weight: 'bold',
-    })
-    drawFittedText(doc, item.value || item.detail || '', PAGE.width - PAGE.margin - 42, y, 42, {
-      align: 'right',
-      color: theme.text,
-      font: theme.pdfFont,
-      minSize: 6.2,
-      size: 7.6,
-      weight: 'bold',
-    })
+      drawFittedText(doc, item.label || '-', PAGE.margin, y, 58, {
+        color: theme.text,
+        font: theme.pdfFont,
+        minSize: 6.2,
+        size: 7.8,
+        weight: 'bold',
+      })
+      drawFittedText(doc, item.value || item.detail || '', PAGE.width - PAGE.margin - 42, y, 42, {
+        align: 'right',
+        color: theme.text,
+        font: theme.pdfFont,
+        minSize: 6.2,
+        size: 7.6,
+        weight: 'bold',
+      })
 
-    if (section.kind === 'bars') {
       const barX = PAGE.margin + 64
       const barWidth = PAGE.width - PAGE.margin * 2 - 112
       const percent = Math.max(0, Math.min(safeAmount(item.barValue ?? item.percentage), 100))
       setThemeFill(doc, theme.soft)
       doc.roundedRect(barX, y - 3, barWidth, 2.4, 1.2, 1.2, 'F')
-      setThemeFill(doc, item.tone || theme.accent)
+      setThemeFill(doc, item.color || themeSeriesColor(theme, index))
       doc.roundedRect(barX, y - 3, Math.max(2, (barWidth * percent) / 100), 2.4, 1.2, 1.2, 'F')
-    } else if (item.detail) {
-      setThemeText(doc, theme, theme.muted)
-      setThemeFont(doc, theme, 'normal', 7)
-      doc.text(doc.splitTextToSize(cleanPdfText(item.detail), 76).slice(0, 1), PAGE.margin + 64, y)
+      y += rowHeight
+    })
+
+    return y + 4
+  }
+
+  const columns = section.columns || [
+    { key: 'label', label: 'Item', width: 62 },
+    { key: 'value', label: 'Amount', width: 42, align: 'right' },
+    { key: 'detail', label: 'Detail', width: 78 },
+  ]
+  const rowLineLimit = section.maxLines || (visible.length <= 8 ? 4 : visible.length <= 18 ? 3 : 2)
+  const drawHeader = () => {
+    let x = PAGE.margin
+    setThemeText(doc, theme, theme.muted)
+    setThemeFont(doc, theme, 'bold', 6.6)
+    columns.forEach((column) => {
+      doc.text(cleanPdfText(column.label).toUpperCase(), column.align === 'right' ? x + column.width - 3 : x, y, {
+        align: column.align || 'left',
+      })
+      x += column.width
+    })
+    setThemeStroke(doc, theme.border)
+    doc.setLineWidth(0.12)
+    doc.line(PAGE.margin, y + 3, PAGE.width - PAGE.margin, y + 3)
+    y += 8
+  }
+
+  drawHeader()
+
+  visible.forEach((item) => {
+    const preparedCells = columns.map((column) => {
+      const text = cleanPdfText(item[column.key] || '-')
+      const lines = column.align === 'right'
+        ? [text]
+        : splitPdfLines(doc, text, column.width - 5, column.maxLines || rowLineLimit)
+
+      return {
+        column,
+        lines,
+      }
+    })
+    const maxLines = Math.max(1, ...preparedCells.map((cell) => cell.lines.length))
+    const rowHeight = Math.max(11, maxLines * 4 + 5)
+
+    if (y + rowHeight > reportBottomY()) {
+      y = addSimpleReportPage(doc, meta, theme)
+      y = drawSimpleSectionHeading(doc, section.title, y, theme)
+      drawHeader()
     }
 
+    let x = PAGE.margin
+    preparedCells.forEach(({ column, lines }, columnIndex) => {
+      const isAmount = column.align === 'right' || column.key === 'value'
+      const color = isAmount ? theme.accent : theme.text
+      const weight = columnIndex === 0 || isAmount ? 'bold' : 'normal'
+
+      if (column.align === 'right') {
+        drawFittedText(doc, lines[0], x, y, column.width - 3, {
+          align: 'right',
+          color,
+          font: theme.pdfFont,
+          minSize: 6,
+          size: 7.4,
+          weight,
+        })
+      } else {
+        setThemeText(doc, theme, color)
+        setThemeFont(doc, theme, weight, 7.2)
+        doc.text(lines, x, y)
+      }
+
+      x += column.width
+    })
+
+    setThemeStroke(doc, theme.border)
+    doc.setLineWidth(0.1)
+    doc.line(PAGE.margin, y + rowHeight - 3, PAGE.width - PAGE.margin, y + rowHeight - 3)
     y += rowHeight
   })
 
@@ -685,7 +796,7 @@ function buildSimpleReportPdfDocument({
   return doc
 }
 
-function drawCanvasText(context, text, x, y, width, lineHeight, maxLines = 4) {
+function canvasTextLines(context, text, width, maxLines = 4) {
   const words = cleanPdfText(text).split(/\s+/).filter(Boolean)
   const lines = []
   let current = ''
@@ -708,6 +819,12 @@ function drawCanvasText(context, text, x, y, width, lineHeight, maxLines = 4) {
   if (lines.length > maxLines && visible.length > 0) {
     visible[visible.length - 1] = `${visible[visible.length - 1].replace(/\.*$/, '')}...`
   }
+
+  return visible.length > 0 ? visible : ['-']
+}
+
+function drawCanvasText(context, text, x, y, width, lineHeight, maxLines = 4) {
+  const visible = canvasTextLines(context, text, width, maxLines)
 
   visible.forEach((line, index) => {
     context.fillText(line, x, y + index * lineHeight)
@@ -752,6 +869,7 @@ async function createSimpleReportJpegBlob({
   executiveNumbers = [],
   keyNumbers = [],
   observations = [],
+  analysisSections = [],
   recommendations = [],
 }) {
   if (typeof document === 'undefined') {
@@ -846,6 +964,80 @@ async function createSimpleReportJpegBlob({
       y = drawCanvasText(context, item, margin + 54, y, width - 54, 34, 2) + 24
     })
   }
+
+  const bottomLimit = canvas.height - 150
+  const sections = analysisSections
+    .filter((section) => section?.items?.length)
+    .slice(0, 3)
+
+  sections.forEach((section) => {
+    if (y > bottomLimit - 120) {
+      return
+    }
+
+    context.fillStyle = rgbToCss(theme.accent)
+    context.font = `800 22px ${theme.canvasFont}`
+    context.fillText(cleanPdfText(section.title || 'Details').toUpperCase(), margin, y)
+    y += 36
+
+    if (section.subtitle) {
+      context.fillStyle = rgbToCss(theme.muted)
+      context.font = `500 18px ${theme.canvasFont}`
+      y = drawCanvasText(context, section.subtitle, margin, y, width, 25, 2) + 18
+    }
+
+    const items = section.items.filter(Boolean).slice(0, section.kind === 'bars' ? 6 : 5)
+    const maxValue = Math.max(1, ...items.map((item) => safeAmount(item.amount)))
+
+    items.forEach((item, index) => {
+      if (y > bottomLimit - 58) {
+        return
+      }
+
+      const rowTop = y
+      const rowHeight = section.kind === 'bars' ? 54 : 66
+      context.strokeStyle = rgbToCss(theme.border)
+      context.lineWidth = 1
+      context.beginPath()
+      context.moveTo(margin, rowTop + rowHeight - 16)
+      context.lineTo(canvas.width - margin, rowTop + rowHeight - 16)
+      context.stroke()
+
+      context.fillStyle = rgbToCss(theme.text)
+      context.font = `800 20px ${theme.canvasFont}`
+      drawCanvasText(context, item.label || '-', margin, rowTop, 360, 24, 1)
+
+      context.fillStyle = rgbToCss(theme.accent)
+      context.font = `800 20px ${theme.canvasFont}`
+      context.textAlign = 'right'
+      context.fillText(item.value || '', canvas.width - margin, rowTop)
+      context.textAlign = 'left'
+
+      if (section.kind === 'bars') {
+        const percent = safeAmount(item.barValue ?? item.percentage)
+        const barX = margin + 430
+        const barY = rowTop - 7
+        const barWidth = width - 620
+        const fillPercent = percent > 0 ? percent : (safeAmount(item.amount) / maxValue) * 100
+        context.fillStyle = rgbToCss(theme.soft)
+        context.beginPath()
+        drawCanvasRoundRect(context, barX, barY, barWidth, 10, 5)
+        context.fill()
+        context.fillStyle = rgbToCss(item.color || themeSeriesColor(theme, index))
+        context.beginPath()
+        drawCanvasRoundRect(context, barX, barY, Math.max(12, (barWidth * fillPercent) / 100), 10, 5)
+        context.fill()
+      } else if (item.detail) {
+        context.fillStyle = rgbToCss(theme.muted)
+        context.font = `500 17px ${theme.canvasFont}`
+        drawCanvasText(context, item.detail, margin + 430, rowTop, width - 650, 22, 2)
+      }
+
+      y += rowHeight
+    })
+
+    y += 22
+  })
 
   context.strokeStyle = rgbToCss(theme.border)
   context.lineWidth = 2
@@ -1005,9 +1197,132 @@ function dateKeySequence(startKey, endKey, maxDays = 370) {
   return keys
 }
 
+function parseReportDateKey(dateKey) {
+  const parsed = new Date(`${String(dateKey || '').slice(0, 10)}T12:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function expenseWeekBucket(dateKey) {
+  const parsed = parseReportDateKey(dateKey)
+
+  if (!parsed) {
+    return {
+      key: cleanPdfText(dateKey) || 'week-unknown',
+      label: 'Week',
+      detail: '',
+    }
+  }
+
+  const weekNumber = Math.floor((parsed.getDate() - 1) / 7) + 1
+  const month = parsed.toLocaleDateString('en-IN', { month: 'short' })
+  const startDay = (weekNumber - 1) * 7 + 1
+  const endDay = Math.min(new Date(parsed.getFullYear(), parsed.getMonth() + 1, 0).getDate(), weekNumber * 7)
+
+  return {
+    key: `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-W${weekNumber}`,
+    label: `Week ${weekNumber}, ${month}`,
+    detail: `${startDay}-${endDay} ${month}`,
+  }
+}
+
+function expenseMonthBucket(dateKey) {
+  const parsed = parseReportDateKey(dateKey)
+
+  if (!parsed) {
+    return {
+      key: cleanPdfText(dateKey) || 'month-unknown',
+      label: 'Month',
+      detail: '',
+    }
+  }
+
+  const label = parsed.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+
+  return {
+    key: `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`,
+    label,
+    detail: label,
+  }
+}
+
+function buildExpenseTrendTotals({ mode = 'weekly', rows = [], rangeKeys = [], currency = 'INR' } = {}) {
+  if (mode === 'daily') {
+    return []
+  }
+
+  if (mode === 'weekly') {
+    const dayMap = new Map()
+    rows.forEach((row) => {
+      dayMap.set(row.dateKey, safeAmount(dayMap.get(row.dateKey)) + row.amount)
+    })
+    const keys = rangeKeys.length > 0 ? rangeKeys : Array.from(dayMap.keys()).sort()
+
+    return keys.map((key) => {
+      const amount = safeAmount(dayMap.get(key))
+
+      return {
+        key,
+        label: expenseReportShortDateLabel(key),
+        detail: expenseReportDateLabel(key),
+        amount,
+        amountLabel: currencyMoney(amount, currency),
+      }
+    })
+  }
+
+  const bucketFromDate = mode === 'yearly' ? expenseMonthBucket : expenseWeekBucket
+  const sourceKeys = rangeKeys.length > 0 ? rangeKeys : rows.map((row) => row.dateKey).sort()
+  const buckets = new Map()
+
+  sourceKeys.forEach((key) => {
+    const bucket = bucketFromDate(key)
+
+    if (!buckets.has(bucket.key)) {
+      buckets.set(bucket.key, {
+        ...bucket,
+        amount: 0,
+      })
+    }
+  })
+
+  rows.forEach((row) => {
+    const bucket = bucketFromDate(row.dateKey)
+    const current = buckets.get(bucket.key) || {
+      ...bucket,
+      amount: 0,
+    }
+
+    current.amount = safeAmount(current.amount) + row.amount
+    buckets.set(bucket.key, current)
+  })
+
+  return Array.from(buckets.values()).map((item) => ({
+    ...item,
+    amountLabel: currencyMoney(item.amount, currency),
+  }))
+}
+
+function expenseTrendTitle(mode) {
+  if (mode === 'weekly') {
+    return 'Day-wise bar chart'
+  }
+
+  if (mode === 'monthly') {
+    return 'Week-wise bar chart'
+  }
+
+  if (mode === 'yearly') {
+    return 'Month-wise bar chart'
+  }
+
+  return ''
+}
+
 function buildExpenseHistoryReportModel({ reportMeta = {}, expenses = [], range = {} } = {}) {
   const mode = expenseReportMode(reportMeta, range)
   const currency = reportMeta.currency || 'INR'
+  const theme = resolveReportTheme(reportMeta.theme)
+  const chartColors = themeChartColors(theme)
   const safeRange = {
     start: range.start || '',
     end: range.end || range.start || '',
@@ -1056,14 +1371,17 @@ function buildExpenseHistoryReportModel({ reportMeta = {}, expenses = [], range 
 
   const total = sumMoney(rows, (row) => row.amount)
   const categories = Array.from(categoryMap.entries())
-    .map(([label, amount], index) => ({
+    .map(([label, amount]) => ({
       label,
       amount,
       amountLabel: currencyMoney(amount, currency),
       percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
-      color: EXPENSE_REPORT_CHART_COLORS[index % EXPENSE_REPORT_CHART_COLORS.length],
     }))
     .sort((a, b) => b.amount - a.amount)
+    .map((item, index) => ({
+      ...item,
+      color: chartColors[index % chartColors.length],
+    }))
   const rangeKeys = safeRange.start && safeRange.end ? dateKeySequence(safeRange.start, safeRange.end) : []
   const dayKeys = rangeKeys.length > 0
     ? rangeKeys
@@ -1074,6 +1392,13 @@ function buildExpenseHistoryReportModel({ reportMeta = {}, expenses = [], range 
     amount: safeAmount(dayMap.get(key)),
     amountLabel: currencyMoney(dayMap.get(key), currency),
   }))
+  const trendTotals = buildExpenseTrendTotals({
+    mode,
+    rows,
+    rangeKeys,
+    currency,
+  })
+  const trendChartTitle = expenseTrendTitle(mode)
 
   return {
     currency,
@@ -1081,9 +1406,12 @@ function buildExpenseHistoryReportModel({ reportMeta = {}, expenses = [], range 
     title: expenseReportTitle(mode),
     periodLabel: safeRange.label,
     includeDayBars: mode !== 'daily',
+    includeTrendBars: mode !== 'daily',
+    trendChartTitle,
     rows,
     categories,
     dayTotals,
+    trendTotals,
     total,
     totalLabel: currencyMoney(total, currency),
   }
@@ -1162,12 +1490,13 @@ function drawExpensePieCanvas(context, model, theme, box) {
 
 function drawExpenseDayBarsCanvas(context, model, theme, box) {
   const { x, y, width, height } = box
-  const maxAmount = Math.max(1, ...model.dayTotals.map((item) => item.amount))
+  const totals = model.trendTotals?.length ? model.trendTotals : model.dayTotals
+  const maxAmount = Math.max(1, ...totals.map((item) => item.amount))
   const chartX = x + 58
   const chartY = y + 76
   const chartWidth = width - 100
   const chartHeight = height - 132
-  const visibleDays = model.dayTotals.slice(0, 62)
+  const visibleDays = totals.slice(0, 62)
   const gap = Math.max(4, Math.min(10, chartWidth / Math.max(visibleDays.length, 1) * 0.2))
   const barWidth = Math.max(5, (chartWidth - gap * Math.max(visibleDays.length - 1, 0)) / Math.max(visibleDays.length, 1))
 
@@ -1181,7 +1510,7 @@ function drawExpenseDayBarsCanvas(context, model, theme, box) {
 
   context.fillStyle = rgbToCss(theme.accent)
   context.font = `800 24px ${theme.canvasFont}`
-  context.fillText('DAY-WISE BAR CHART', x + 34, y + 46)
+  context.fillText((model.trendChartTitle || 'Day-wise bar chart').toUpperCase(), x + 34, y + 46)
 
   context.strokeStyle = rgbToCss(theme.border)
   context.lineWidth = 2
@@ -1245,7 +1574,7 @@ function createExpenseReportChartImages(model, theme) {
         height: canvas.height - 56,
       })
     }),
-    bars: model.includeDayBars
+    bars: (model.includeTrendBars ?? model.includeDayBars)
       ? createExpenseChartDataUrl((context, canvas) => {
         context.fillStyle = rgbToCss(theme.page)
         context.fillRect(0, 0, canvas.width, canvas.height)
@@ -1328,6 +1657,7 @@ function drawExpenseHistoryTablePdf(doc, y, model, meta = {}, theme = resolveRep
     { key: 'title', label: 'Line', width: 54, wrap: true },
     { key: 'amountLabel', label: 'Amount', width: 37, align: 'right' },
   ]
+  const rowLineLimit = model.rows.length <= 8 ? 4 : model.rows.length <= 20 ? 3 : 2
   const drawHeader = () => {
     let x = PAGE.margin
     setThemeText(doc, theme, theme.muted)
@@ -1350,7 +1680,7 @@ function drawExpenseHistoryTablePdf(doc, y, model, meta = {}, theme = resolveRep
     const preparedCells = columns.map((column) => {
       const text = cleanPdfText(row[column.key] || '-')
       const lines = column.wrap
-        ? doc.splitTextToSize(text, column.width - 4).slice(0, 2)
+        ? splitPdfLines(doc, text, column.width - 4, rowLineLimit)
         : [text]
 
       return {
@@ -1479,7 +1809,7 @@ async function createExpenseHistoryReportJpegBlob({ meta, model, theme }) {
   })
   y += 468
 
-  if (model.includeDayBars) {
+  if (model.includeTrendBars ?? model.includeDayBars) {
     drawExpenseDayBarsCanvas(context, model, theme, {
       x: margin,
       y,
@@ -1507,7 +1837,13 @@ async function createExpenseHistoryReportJpegBlob({ meta, model, theme }) {
 
   const bottomLimit = canvas.height - 126
   model.rows.forEach((row) => {
-    const rowHeight = 58
+    const titleLineLimit = model.rows.length <= 6 ? 4 : model.rows.length <= 16 ? 3 : 2
+    const categoryLineLimit = model.rows.length <= 6 ? 2 : 1
+    context.font = `800 19px ${theme.canvasFont}`
+    const categoryLines = canvasTextLines(context, row.category, 180, categoryLineLimit)
+    context.font = `500 17px ${theme.canvasFont}`
+    const titleLines = canvasTextLines(context, row.title, 330, titleLineLimit)
+    const rowHeight = Math.max(50, Math.max(categoryLines.length * 22, titleLines.length * 22) + 30)
 
     if (y + rowHeight > bottomLimit) {
       return
@@ -1527,11 +1863,15 @@ async function createExpenseHistoryReportJpegBlob({ meta, model, theme }) {
 
     context.fillStyle = rgbToCss(theme.accent)
     context.font = `800 19px ${theme.canvasFont}`
-    drawCanvasText(context, row.category, margin + 340, y, 180, 22, 1)
+    categoryLines.forEach((line, index) => {
+      context.fillText(line, margin + 340, y + index * 22)
+    })
 
     context.fillStyle = rgbToCss(theme.muted)
     context.font = `500 17px ${theme.canvasFont}`
-    drawCanvasText(context, row.title, margin + 560, y, 330, 22, 2)
+    titleLines.forEach((line, index) => {
+      context.fillText(line, margin + 560, y + index * 22)
+    })
 
     context.fillStyle = rgbToCss(theme.text)
     context.font = `800 19px ${theme.canvasFont}`
@@ -1574,8 +1914,8 @@ async function createExpenseHistoryReportBlob(reportData = {}) {
   let y = drawExpenseReportIntroPdf(doc, PAGE.margin + 18, model, meta, theme)
   y = drawExpenseChartPdf(doc, y, 'Category pie chart', chartImages.pie, model.categories, meta, theme)
 
-  if (model.includeDayBars) {
-    y = drawExpenseChartPdf(doc, y, 'Day-wise bar chart', chartImages.bars, model.dayTotals, meta, theme)
+  if (model.includeTrendBars ?? model.includeDayBars) {
+    y = drawExpenseChartPdf(doc, y, model.trendChartTitle || 'Day-wise bar chart', chartImages.bars, model.trendTotals || model.dayTotals, meta, theme)
   }
 
   drawExpenseHistoryTablePdf(doc, y, model, meta, theme)
@@ -1708,6 +2048,41 @@ function barItems(items = [], currency = 'INR', { valueKey = 'value', labelKey =
       amount: item.amount,
     }
   })
+}
+
+function expenseTrendBarItemsFromExpenses(expenses = [], currency = 'INR', mode = 'monthly') {
+  const rows = expenses
+    .filter((item) => safeAmount(item.amount ?? item.value) > 0)
+    .map((item) => {
+      const dateKey = expenseReportDateKey(item)
+      const amount = safeAmount(item.amount ?? item.value)
+
+      return {
+        dateKey,
+        amount,
+      }
+    })
+    .filter((item) => item.dateKey)
+  const total = sumMoney(rows, (row) => row.amount)
+
+  return buildExpenseTrendTotals({
+    mode,
+    rows,
+    currency,
+  })
+    .filter((item) => safeAmount(item.amount) > 0)
+    .map((item) => {
+      const share = total > 0 ? Math.round((item.amount / total) * 100) : 0
+
+      return {
+        label: item.label,
+        value: item.amountLabel,
+        detail: item.detail || `${share}% of spending`,
+        percentage: share,
+        barValue: share,
+        amount: item.amount,
+      }
+    })
 }
 
 function drawDocumentHeading(doc, title, y, subtitle = '') {
@@ -2231,6 +2606,7 @@ export async function createMonthlyBudgetReportPdfBlob(reportData = {}) {
   const openSettlementCount = safeAmount(moneyBookSummary.pendingCount) + (sharedPending > 0 ? 1 : 0)
   const openSettlementValue = safeAmount(moneyBookSummary.pendingSettlements) + sharedPending
   const topCategories = barItems(reportData.expenseBreakdown || [], currency, { valueKey: 'value', total: expenses })
+  const weekwiseExpenseBars = expenseTrendBarItemsFromExpenses(reportData.expenses || [], currency, 'monthly')
   const topCategory = topCategories[0]
   const storyItems = [
     ...(report.pressureAnalysis || []),
@@ -2283,6 +2659,13 @@ export async function createMonthlyBudgetReportPdfBlob(reportData = {}) {
       title: 'Category Analysis',
       subtitle: 'Spending categories are sorted from highest to lowest and shown as a share of monthly spending.',
       items: topCategories,
+    },
+    {
+      kind: 'bars',
+      title: 'Week-wise Spending',
+      subtitle: 'Monthly spending grouped by week so the report shows when money moved, not only where it went.',
+      items: weekwiseExpenseBars,
+      limit: 6,
     },
     {
       title: 'Bills And Commitments',

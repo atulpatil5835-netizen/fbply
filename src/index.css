@@ -935,7 +935,7 @@
   );
   color: var(--text);
   background: var(--bg);
-  font-family: var(--font-notebook-readable);
+  font-family: var(--experience-font-body, var(--font-notebook-readable));
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -6307,7 +6307,7 @@ img {
   display: grid;
   gap: var(--notebook-space-sm);
   padding: clamp(12px, 2vw, 16px);
-  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
   border-radius: var(--experience-card-radius, var(--notebook-radius-card));
   background: var(--experience-card-bg, color-mix(in srgb, var(--theme-paper) 90%, transparent));
   box-shadow:
@@ -6356,7 +6356,7 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--nb-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--nb-border, var(--theme-border)));
   border-radius: var(--experience-button-radius, var(--notebook-radius-control));
   color: var(--theme-primary);
   background: color-mix(in srgb, var(--theme-paper) 82%, transparent);
@@ -6555,7 +6555,7 @@ img {
 .v24-mode-switch {
   display: inline-flex;
   padding: 4px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
   border-radius: 999px;
   background: color-mix(in srgb, var(--theme-paper-soft) 58%, var(--theme-paper));
 }
@@ -6655,7 +6655,7 @@ img {
   align-items: center;
   justify-content: flex-start;
   gap: 9px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--nb-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--nb-border, var(--theme-border)));
   border-radius: var(--notebook-radius-card);
   padding: 9px 11px;
   color: var(--theme-primary);
@@ -7366,7 +7366,7 @@ img {
 
 .v24-history-select select {
   min-height: 38px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
   border-radius: 999px;
   padding: 0 34px 0 14px;
   color: var(--text);
@@ -7435,7 +7435,7 @@ img {
   width: 34px;
   height: 34px;
   padding: 8px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--nb-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--nb-border, var(--theme-border)));
   border-radius: 999px;
   color: var(--theme-primary);
   background: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-paper));
@@ -7464,7 +7464,7 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
   border-radius: 999px;
   padding: 0 18px;
   color: var(--theme-primary);
@@ -7487,8 +7487,8 @@ img {
 
 .v24-section-cover {
   padding: clamp(18px, 2.5vw, 28px);
-  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
-  border-bottom: 2px solid color-mix(in srgb, var(--nb-border) 88%, var(--theme-line));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
+  border-bottom: 2px solid color-mix(in srgb, var(--nb-border, var(--theme-border)) 88%, var(--theme-line));
   border-radius: var(--notebook-radius-card);
   background: var(--experience-section-cover-bg,
     linear-gradient(
@@ -7564,7 +7564,7 @@ img {
 }
 
 .v24-section-history {
-  border-color: color-mix(in srgb, var(--theme-border) 80%, var(--nb-border));
+  border-color: color-mix(in srgb, var(--theme-border) 80%, var(--nb-border, var(--theme-border)));
   background: color-mix(in srgb, var(--theme-paper) 76%, transparent);
 }
 
@@ -7585,7 +7585,7 @@ img {
   align-content: center;
   gap: var(--notebook-space-sm);
   padding: clamp(18px, 2.4vw, 24px);
-  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
   border-radius: var(--notebook-radius-card);
   background: color-mix(in srgb, var(--theme-paper) 78%, transparent);
   box-shadow: var(--premium-app-shadow-soft);
@@ -15670,8 +15670,8 @@ img {
 .notebook-foundation > .v83-profile-advanced-details {
   align-content: start;
   padding: clamp(16px, 2.2vw, 24px);
-  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
-  border-bottom: 2px solid color-mix(in srgb, var(--nb-border) 88%, var(--theme-line));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
+  border-bottom: 2px solid color-mix(in srgb, var(--nb-border, var(--theme-border)) 88%, var(--theme-line));
   border-radius: var(--notebook-radius-card);
   background: var(--notebook-foundation-page-bg);
   box-shadow:
@@ -15696,7 +15696,7 @@ img {
   .v83-profile-advanced-details > summary
 ) strong {
   color: var(--theme-text);
-  font-family: var(--font-notebook-sticky);
+  font-family: var(--experience-font-heading, var(--font-notebook-sticky));
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -15718,7 +15718,7 @@ img {
 }
 
 .notebook-foundation > :not(.v12-home) :where(p, li, td, input, select, textarea) {
-  font-family: var(--font-notebook-readable);
+  font-family: var(--experience-font-body, var(--font-notebook-readable));
 }
 
 .notebook-foundation > :not(.v12-home) :where(
@@ -15815,7 +15815,7 @@ img {
 
 .notebook-foundation > .ledger-screen .ledger-search-field input {
   border: 0;
-  border-bottom: 2px dashed color-mix(in srgb, var(--theme-line) 74%, var(--nb-border));
+  border-bottom: 2px dashed color-mix(in srgb, var(--theme-line) 74%, var(--nb-border, var(--theme-border)));
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -15827,15 +15827,15 @@ img {
 }
 
 .notebook-foundation > .ledger-screen .activity-filter-row button {
-  border-color: color-mix(in srgb, var(--theme-border) 76%, var(--nb-border));
+  border-color: color-mix(in srgb, var(--theme-border) 76%, var(--nb-border, var(--theme-border)));
   color: var(--theme-muted);
   background: color-mix(in srgb, var(--theme-paper) 82%, transparent);
-  font-family: var(--font-notebook-readable);
+  font-family: var(--experience-font-body, var(--font-notebook-readable));
   box-shadow: none;
 }
 
 .notebook-foundation > .ledger-screen .activity-filter-row button.active {
-  border-color: color-mix(in srgb, var(--theme-primary) 34%, var(--nb-border));
+  border-color: color-mix(in srgb, var(--theme-primary) 34%, var(--nb-border, var(--theme-border)));
   color: var(--theme-primary-strong);
   background: color-mix(in srgb, var(--theme-primary) 10%, var(--theme-paper));
 }
@@ -15867,7 +15867,7 @@ img {
   width: 100%;
   border-collapse: collapse;
   color: var(--theme-text);
-  font-family: var(--font-notebook-readable);
+  font-family: var(--experience-font-body, var(--font-notebook-readable));
 }
 
 .notebook-foundation > :not(.v12-home) :where(th, td) {
@@ -15877,14 +15877,14 @@ img {
 
 .notebook-foundation > :not(.v12-home) th {
   color: var(--theme-muted);
-  font-family: var(--font-notebook-sticky);
+  font-family: var(--experience-font-section, var(--experience-font-heading, var(--font-notebook-sticky)));
   font-size: 20px;
   font-weight: 700;
   text-align: left;
 }
 
 .app-shell .bottom-nav {
-  border-color: color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
+  border-color: color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
   background: color-mix(in srgb, var(--theme-paper) 92%, transparent);
 }
 
@@ -15900,7 +15900,7 @@ img {
 }
 
 .legal-page-card {
-  border-color: color-mix(in srgb, var(--theme-border) 82%, var(--nb-border));
+  border-color: color-mix(in srgb, var(--theme-border) 82%, var(--nb-border, var(--theme-border)));
   border-radius: var(--notebook-radius-card);
   background: var(--experience-legal-page-bg, var(--notebook-foundation-ruled-page-bg,
     linear-gradient(
@@ -15925,7 +15925,7 @@ img {
 .legal-page-hero h1,
 .legal-section h2 {
   color: var(--theme-text);
-  font-family: var(--font-notebook-sticky);
+  font-family: var(--experience-font-heading, var(--font-notebook-sticky));
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -15933,12 +15933,12 @@ img {
 .legal-page-hero p,
 .legal-section p,
 .legal-contact-panel p {
-  font-family: var(--font-notebook-readable);
+  font-family: var(--experience-font-body, var(--font-notebook-readable));
 }
 
 .legal-section,
 .legal-contact-panel {
-  border-color: color-mix(in srgb, var(--theme-border) 78%, var(--nb-border));
+  border-color: color-mix(in srgb, var(--theme-border) 78%, var(--nb-border, var(--theme-border)));
   border-radius: var(--notebook-radius-card);
   background: color-mix(in srgb, var(--theme-paper) 78%, transparent);
 }
@@ -17165,6 +17165,368 @@ img {
     opacity: 0;
     transform: scaleX(1);
   }
+}
+
+/* Theme consistency bridge: catches older app surfaces and utility-style classes that predate the theme system. */
+.app-root {
+  color: var(--theme-text);
+  background: var(--page-bg);
+  font-family: var(--experience-font-body, var(--font-primary-ui));
+}
+
+.app-root :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  .screen-heading h1,
+  .screen-heading h2,
+  .mos-section-header h2,
+  .mos-card__title,
+  .sticky-note-title,
+  .money-book-panel-title,
+  .report-history-heading h2,
+  .professional-export-heading h2,
+  .v12-home .handwritten-title,
+  .v12-home .handwritten-subtitle,
+  .v12-home .sticky-note-title,
+  .v23-home-primary-cta.cta-handwritten,
+  .v24-page-start-header h3,
+  .v24-history-toolbar h3,
+  .v24-calculator-tools-heading span,
+  .daily-flow-label span,
+  .notebook-spread-sheet .mos-sheet__title h2,
+  .notebook-spread-sheet .editor-sheet-header h2,
+  .legal-page-hero h1,
+  .legal-section h2
+) {
+  color: var(--theme-text);
+  font-family: var(--experience-font-heading, var(--font-primary-ui)) !important;
+  letter-spacing: 0;
+}
+
+.app-root :where(
+  .eyebrow,
+  .input-label,
+  .mos-eyebrow,
+  .screen-kicker,
+  .theme-choice-copy small,
+  .report-history-heading span,
+  .professional-export-heading span,
+  .v24-history-toolbar small,
+  .v24-calculator-tools-heading small,
+  .daily-flow-label small,
+  .notebook-spread-sheet .mos-sheet__title p
+) {
+  color: var(--theme-muted);
+  font-family: var(--experience-font-section, var(--experience-font-body, var(--font-primary-ui))) !important;
+  letter-spacing: 0;
+}
+
+.app-root :where(
+  p,
+  li,
+  label,
+  small,
+  td,
+  input,
+  select,
+  textarea,
+  button
+) {
+  font-family: var(--experience-font-body, var(--font-primary-ui));
+  letter-spacing: 0;
+}
+
+.app-root :where(
+  .daily-flow-entry textarea,
+  .v24-tool-button strong,
+  .v24-tool-button small,
+  .theme-choice-copy strong,
+  .theme-choice-copy small,
+  .legal-page-hero p,
+  .legal-section p,
+  .legal-contact-panel p
+) {
+  font-family: var(--experience-font-body, var(--font-primary-ui)) !important;
+}
+
+.app-root :where(
+  .amount,
+  .money-amount,
+  .daily-book-expense-amount,
+  .history-item-amount,
+  .finance-donut-actions strong,
+  .finance-donut strong,
+  .home-notebook-total-pill,
+  .v74-progress-metric strong,
+  .savings-overview-item > strong,
+  .quick-tools-result strong
+) {
+  font-family: var(--experience-font-amount, var(--experience-font-body, var(--font-primary-ui)));
+}
+
+.app-root .auth-card,
+.app-root .setup-flow-card,
+.app-root .welcome-card,
+.app-root .legal-page-card,
+.app-root .legal-section,
+.app-root .legal-contact-panel,
+.app-root .cookie-consent,
+.app-root .offline-banner,
+.app-root .quick-add-sheet,
+.app-root .settings-sheet,
+.app-root .profile-menu-sheet,
+.app-root .notification-popover-sheet,
+.app-root .editor-sheet,
+.app-root .statement-upload-sheet,
+.app-root .money-book-modal,
+.app-root .rewarded-card,
+.app-root .mos-sheet,
+.app-root .mos-card,
+.app-root .mos-state,
+.app-root .theme-choice-button,
+.app-root .report-history-empty-card,
+.app-root .report-export-guidance,
+.app-root .finance-donut-card {
+  color: var(--theme-text);
+  border-color: var(--premium-app-border, var(--theme-border));
+  border-radius: var(--experience-card-radius, var(--radius-lg));
+  background: var(--experience-card-bg, var(--premium-app-surface, var(--theme-card)));
+  box-shadow: var(--premium-app-shadow-soft);
+}
+
+.app-root .welcome-icon,
+.app-root .splash-brand-card,
+.app-root .theme-choice-swatch,
+.app-root .home-calendar-icon-button,
+.app-root .quick-tools-tab.active,
+.app-root .bottom-nav button.active,
+.app-root .profile-menu-trigger,
+.app-root .top-settings-button,
+.app-root .top-notification-button {
+  color: var(--theme-icon);
+  border-color: color-mix(in srgb, var(--theme-accent) 28%, var(--theme-border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--theme-accent) 14%, transparent),
+      color-mix(in srgb, var(--theme-card) 88%, transparent)
+    ),
+    var(--theme-card);
+}
+
+.app-root .primary-button,
+.app-root .action-button,
+.app-root .history-load-more,
+.app-root .cookie-consent button {
+  color: var(--theme-on-primary);
+  border-color: transparent;
+  border-radius: var(--experience-button-radius, var(--radius-md));
+  background: var(--primary-action-bg);
+  box-shadow: var(--primary-action-shadow);
+}
+
+.app-root :where(
+  .primary-button,
+  .action-button,
+  .ghost-button,
+  .text-action-button,
+  .history-load-more,
+  .v23-home-primary-cta.cta-handwritten,
+  .v24-mode-switch button,
+  .v24-normal-add-button,
+  .quick-tools-tab,
+  .quick-tools-key,
+  .setup-chip,
+  .preference-card
+) {
+  font-family: var(--experience-sheet-action-font, var(--experience-font-body, var(--font-primary-ui))) !important;
+}
+
+.app-root .ghost-button,
+.app-root .text-action-button,
+.app-root .ledger-search-clear,
+.app-root .quick-tools-tab,
+.app-root .quick-tools-key,
+.app-root .setup-chip,
+.app-root .preference-card {
+  color: var(--theme-text);
+  border-color: var(--premium-app-border, var(--theme-border));
+  border-radius: var(--experience-entry-control-radius, var(--radius-md));
+  background: color-mix(in srgb, var(--theme-card) 86%, transparent);
+  box-shadow: none;
+}
+
+.app-root .ghost-button:hover,
+.app-root .text-action-button:hover,
+.app-root .quick-tools-tab:hover,
+.app-root .quick-tools-key:hover,
+.app-root .setup-chip:hover,
+.app-root .preference-card:hover {
+  border-color: color-mix(in srgb, var(--theme-accent) 36%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-accent) 10%, var(--theme-card));
+}
+
+.app-root :where(
+  .v24-mode-switch button.active,
+  .setup-chip.active,
+  .preference-card.active,
+  .theme-choice-button.active
+) {
+  color: var(--theme-on-primary);
+  border-color: color-mix(in srgb, var(--theme-primary) 42%, var(--theme-border));
+  background: linear-gradient(135deg, var(--theme-primary-strong), var(--theme-primary));
+}
+
+.app-root :where(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .plain-input,
+  .input-with-icon,
+  .currency-input,
+  .month-select
+) {
+  color: var(--theme-text);
+  border-color: var(--premium-app-border, var(--theme-border));
+  border-radius: var(--experience-entry-control-radius, var(--radius-md));
+  background: var(--experience-sheet-field-bg, color-mix(in srgb, var(--theme-card) 88%, transparent));
+  caret-color: var(--theme-accent);
+}
+
+.app-root :where(
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+  select:focus,
+  textarea:focus,
+  .plain-input:focus,
+  .input-with-icon:focus-within,
+  .currency-input:focus-within,
+  .month-select:focus
+) {
+  border-color: color-mix(in srgb, var(--theme-accent) 62%, var(--theme-border));
+  background: var(--experience-sheet-field-focus-bg, color-mix(in srgb, var(--theme-card) 96%, transparent));
+  box-shadow: var(--premium-app-focus);
+}
+
+.app-root :where(
+  .bg-white,
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-zinc-50,
+  .bg-zinc-100,
+  .bg-neutral-50,
+  .bg-neutral-100
+) {
+  background-color: var(--theme-card) !important;
+}
+
+.app-root :where(
+  .bg-blue-50,
+  .bg-indigo-50,
+  .bg-cyan-50,
+  .bg-sky-50,
+  .bg-purple-50
+) {
+  background-color: color-mix(in srgb, var(--theme-accent) 12%, var(--theme-card)) !important;
+}
+
+.app-root :where(
+  .text-slate-900,
+  .text-gray-900,
+  .text-zinc-900,
+  .text-neutral-900,
+  .text-slate-800,
+  .text-gray-800
+) {
+  color: var(--theme-text) !important;
+}
+
+.app-root :where(
+  .text-slate-700,
+  .text-slate-600,
+  .text-slate-500,
+  .text-gray-700,
+  .text-gray-600,
+  .text-gray-500,
+  .text-zinc-600,
+  .text-neutral-600
+) {
+  color: var(--theme-muted) !important;
+}
+
+.app-root :where(
+  .text-blue-700,
+  .text-blue-600,
+  .text-indigo-700,
+  .text-indigo-600,
+  .text-cyan-700,
+  .text-cyan-600,
+  .text-sky-700,
+  .text-sky-600,
+  a
+) {
+  color: var(--theme-accent);
+}
+
+.app-root :where(
+  .border-slate-100,
+  .border-slate-200,
+  .border-gray-100,
+  .border-gray-200,
+  .border-zinc-100,
+  .border-zinc-200,
+  .border-neutral-100,
+  .border-neutral-200,
+  .border-blue-100,
+  .border-blue-200,
+  .border-indigo-100,
+  .border-indigo-200
+) {
+  border-color: var(--theme-border) !important;
+}
+
+.app-root :where(
+  .editor-sheet-backdrop,
+  .statement-upload-backdrop,
+  .rewarded-backdrop,
+  .chrome-popover-backdrop
+) {
+  background: color-mix(in srgb, var(--theme-shadow) 42%, transparent);
+}
+
+.app-root :where(
+  .auth-card,
+  .setup-flow-card,
+  .welcome-card,
+  .legal-page-card,
+  .legal-section,
+  .legal-contact-panel,
+  .cookie-consent,
+  .quick-add-sheet,
+  .settings-sheet,
+  .profile-menu-sheet,
+  .notification-popover-sheet,
+  .editor-sheet,
+  .statement-upload-sheet,
+  .money-book-modal,
+  .rewarded-card,
+  .mos-sheet,
+  .mos-card,
+  .mos-state,
+  .theme-choice-button,
+  button,
+  input,
+  select,
+  textarea
+) {
+  transition-property: background-color, border-color, color, box-shadow, transform, opacity;
+  transition-duration: var(--experience-theme-transition-duration, var(--motion-duration-fast));
+  transition-timing-function: var(--motion-ease-standard);
 }
 
 :root.fbply-legacy-motion :where(
