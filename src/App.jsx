@@ -6,6 +6,7 @@ import {
   Car,
   ChartPie,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Coffee,
@@ -717,6 +718,11 @@ const emptyProfile = {
   commitments: [],
 }
 
+const MONTHLY_HISAB_STORAGE_KEY = 'fbply-monthly-hisab-v1'
+const ROUTINE_TRACKER_STARTED_STORAGE_KEY = 'fbply-routine-tracker-started-v1'
+const MONTHLY_HISAB_MAX_ITEMS = 12
+const MONTHLY_HISAB_DAILY_PROMPT_LIMIT = 4
+
 const walkthroughSteps = [
   {
     tab: 'home',
@@ -842,6 +848,370 @@ function formatMonthLabel(monthKey) {
   }
 
   return parsed.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+}
+
+function clampMonthlyHisabDay(value, fallback = 1) {
+  const day = Number(value)
+
+  if (!Number.isFinite(day)) {
+    return fallback
+  }
+
+  return Math.min(Math.max(Math.round(day), 1), 31)
+}
+
+function monthDayDateKey(monthKey, day) {
+  const safeMonthKey = dateMonthKey(`${monthKey || currentMonthKey()}-01`)
+  const [year, month] = safeMonthKey.split('-').map(Number)
+  const lastDay = new Date(year, month, 0).getDate()
+
+  return `${safeMonthKey}-${String(Math.min(clampMonthlyHisabDay(day), lastDay)).padStart(2, '0')}`
+}
+
+function normalizeMonthlyHisabMarks(marks = {}) {
+  return Object.entries(marks && typeof marks === 'object' ? marks : {}).reduce((cleanMarks, [dateKey, mark]) => {
+    const cleanDateKey = normalizeDateKey(dateKey, '')
+
+    if (!cleanDateKey) {
+      return cleanMarks
+    }
+
+    const status = mark?.status === 'no' ? 'no' : 'yes'
+    cleanMarks[cleanDateKey] = {
+      status,
+      dateKey: cleanDateKey,
+      recordedAt: String(mark?.recordedAt || mark?.createdAt || new Date().toISOString()),
+    }
+    return cleanMarks
+  }, {})
+}
+
+function normalizeMonthlyHisabItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map((item, index) => {
+      const name = String(item?.name || item?.label || '').trim().slice(0, 80)
+      const amount = normalizeMoney(item?.amount)
+      const rawCycleStartDay = item?.cycleStartDay || item?.startDay || 1
+      const rawCycleEndDay = item?.cycleEndDay || item?.endDay || rawCycleStartDay
+      const hasStoredCycle = clampMonthlyHisabDay(rawCycleStartDay) !== 1 || clampMonthlyHisabDay(rawCycleEndDay) !== 1
+      const hasCustomCycle = Boolean(item?.hasCustomCycle || item?.customCycle || hasStoredCycle)
+      const cycleStartDay = hasCustomCycle ? clampMonthlyHisabDay(rawCycleStartDay) : 1
+      const cycleEndDay = hasCustomCycle ? clampMonthlyHisabDay(rawCycleEndDay) : 1
+
+      return {
+        id: item?.id || `monthly-hisab-${index}`,
+        name,
+        amount,
+        hasCustomCycle,
+        cycleStartDay,
+        cycleEndDay,
+        createdAt: String(item?.createdAt || new Date().toISOString()),
+        marks: normalizeMonthlyHisabMarks(item?.marks),
+      }
+    })
+    .filter((item) => item.name && item.amount > 0)
+    .slice(0, MONTHLY_HISAB_MAX_ITEMS)
+}
+
+function createMonthlyHisabItem(item = {}) {
+  const name = String(item?.name || '').trim().slice(0, 80)
+  const amount = normalizeMoney(item?.amount)
+  const hasCustomCycle = Boolean(item?.hasCustomCycle)
+  const cycleStartDay = hasCustomCycle ? clampMonthlyHisabDay(item?.cycleStartDay || item?.startDay || 1) : 1
+  const cycleEndDay = hasCustomCycle ? clampMonthlyHisabDay(item?.cycleEndDay || item?.endDay || cycleStartDay) : 1
+
+  if (!name || amount <= 0) {
+    return null
+  }
+
+  return {
+    id: `monthly-hisab-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name,
+    amount,
+    hasCustomCycle,
+    cycleStartDay,
+    cycleEndDay,
+    createdAt: new Date().toISOString(),
+    marks: {},
+  }
+}
+
+function getMonthlyHisabMark(item = {}, dateKey = todayDateKey()) {
+  const cleanDateKey = normalizeDateKey(dateKey, '')
+  return cleanDateKey ? item?.marks?.[cleanDateKey] || null : null
+}
+
+function buildMonthlyHisabCycleRange(item = {}, anchorDateKey = todayDateKey()) {
+  const cleanAnchorDateKey = normalizeDateKey(anchorDateKey)
+  const anchorMonthKey = dateMonthKey(cleanAnchorDateKey)
+  const anchorDay = clampMonthlyHisabDay(cleanAnchorDateKey.slice(8, 10), 1)
+  const startDay = clampMonthlyHisabDay(item.cycleStartDay || 1)
+  const endDay = clampMonthlyHisabDay(item.cycleEndDay || startDay)
+
+  if (startDay === endDay) {
+    const startThisMonth = monthDayDateKey(anchorMonthKey, startDay)
+    const start = cleanAnchorDateKey >= startThisMonth
+      ? startThisMonth
+      : monthDayDateKey(shiftMonthKey(anchorMonthKey, -1), startDay)
+    const nextStart = monthDayDateKey(shiftMonthKey(dateMonthKey(start), 1), startDay)
+
+    return {
+      start,
+      end: shiftDailyDateKey(nextStart, -1),
+      label: `${startDay} to ${endDay}`,
+    }
+  }
+
+  if (startDay < endDay) {
+    return {
+      start: monthDayDateKey(anchorMonthKey, startDay),
+      end: monthDayDateKey(anchorMonthKey, endDay),
+      label: `${startDay} to ${endDay}`,
+    }
+  }
+
+  if (anchorDay >= startDay) {
+    return {
+      start: monthDayDateKey(anchorMonthKey, startDay),
+      end: monthDayDateKey(shiftMonthKey(anchorMonthKey, 1), endDay),
+      label: `${startDay} to ${endDay}`,
+    }
+  }
+
+  return {
+    start: monthDayDateKey(shiftMonthKey(anchorMonthKey, -1), startDay),
+    end: monthDayDateKey(anchorMonthKey, endDay),
+    label: `${startDay} to ${endDay}`,
+  }
+}
+
+function buildMonthlyHisabSummary(item = {}, monthKey = currentMonthKey(), todayKey = todayDateKey()) {
+  const safeMonthKey = dateMonthKey(`${monthKey || currentMonthKey()}-01`)
+  const anchorDateKey = safeMonthKey === dateMonthKey(todayKey)
+    ? normalizeDateKey(todayKey)
+    : monthDayDateKey(safeMonthKey, item.cycleStartDay || 1)
+  const cycle = buildMonthlyHisabCycleRange(item, anchorDateKey)
+  const marks = Object.entries(item.marks || {})
+    .filter(([dateKey]) => dateKey >= cycle.start && dateKey <= cycle.end)
+    .map(([dateKey, mark]) => ({ dateKey, ...mark }))
+  const yesCount = marks.filter((mark) => mark.status === 'yes').length
+  const noCount = marks.filter((mark) => mark.status === 'no').length
+  const total = normalizeMoney(yesCount * normalizeMoney(item.amount))
+  const lastMark = marks
+    .slice()
+    .sort((first, second) => String(second.recordedAt || '').localeCompare(String(first.recordedAt || '')))[0]
+
+  return {
+    ...item,
+    cycle,
+    yesCount,
+    noCount,
+    total,
+    totalLabel: rupees(total),
+    amountLabel: rupees(item.amount),
+    lastMark,
+  }
+}
+
+function monthlyHisabRecordedAtLabel(mark = {}, dateKey = todayDateKey()) {
+  const cleanDateKey = normalizeDateKey(mark.dateKey || dateKey)
+  const recordedAt = new Date(mark.recordedAt || `${cleanDateKey}T12:00:00`)
+  const timeLabel = Number.isNaN(recordedAt.getTime())
+    ? 'time not saved'
+    : recordedAt.toLocaleTimeString('en-IN', {
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+
+  return `${formatHomeNotebookDate(cleanDateKey)} at ${timeLabel}`
+}
+
+function safeCalendarFileSlug(value = 'calendar') {
+  return String(value || 'calendar')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 44) || 'calendar'
+}
+
+function drawHomeCalendarRoundRect(context, x, y, width, height, radius = 12) {
+  const cleanRadius = Math.min(radius, width / 2, height / 2)
+
+  context.beginPath()
+  context.moveTo(x + cleanRadius, y)
+  context.lineTo(x + width - cleanRadius, y)
+  context.quadraticCurveTo(x + width, y, x + width, y + cleanRadius)
+  context.lineTo(x + width, y + height - cleanRadius)
+  context.quadraticCurveTo(x + width, y + height, x + width - cleanRadius, y + height)
+  context.lineTo(x + cleanRadius, y + height)
+  context.quadraticCurveTo(x, y + height, x, y + height - cleanRadius)
+  context.lineTo(x, y + cleanRadius)
+  context.quadraticCurveTo(x, y, x + cleanRadius, y)
+  context.closePath()
+}
+
+function canvasTextWithEllipsis(context, text, maxWidth) {
+  const cleanText = String(text || '')
+
+  if (context.measureText(cleanText).width <= maxWidth) {
+    return cleanText
+  }
+
+  let trimmed = cleanText
+
+  while (trimmed.length > 1 && context.measureText(`${trimmed}...`).width > maxWidth) {
+    trimmed = trimmed.slice(0, -1)
+  }
+
+  return `${trimmed || cleanText.slice(0, 1)}...`
+}
+
+function canvasToJpegBlob(canvas, quality = 0.92) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob)
+        return
+      }
+
+      reject(new Error('Calendar image could not be created.'))
+    }, 'image/jpeg', quality)
+  })
+}
+
+async function createHomeCalendarJpegBlob({ calendarMonth = {}, selectedHisabItem = null } = {}) {
+  if (typeof document === 'undefined') {
+    throw new Error('Calendar image export needs a browser.')
+  }
+
+  const width = 880
+  const height = 810
+  const scale = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2)
+  const canvas = document.createElement('canvas')
+  canvas.width = width * scale
+  canvas.height = height * scale
+  const context = canvas.getContext('2d')
+
+  if (!context) {
+    throw new Error('Calendar image export is not available.')
+  }
+
+  context.scale(scale, scale)
+  context.fillStyle = '#f7f3ea'
+  context.fillRect(0, 0, width, height)
+  context.fillStyle = '#fffdf7'
+  context.strokeStyle = '#d8d1c3'
+  context.lineWidth = 2
+  drawHomeCalendarRoundRect(context, 28, 28, width - 56, height - 56, 24)
+  context.fill()
+  context.stroke()
+
+  context.fillStyle = '#64748b'
+  context.font = '800 15px Inter, Arial, sans-serif'
+  context.fillText('INDIA CALENDAR', 64, 76)
+  context.fillStyle = '#111827'
+  context.font = '900 34px Inter, Arial, sans-serif'
+  context.fillText(calendarMonth.label || 'This month', 64, 116)
+
+  const viewLabel = selectedHisabItem ? selectedHisabItem.name : 'Money Expense'
+  context.fillStyle = '#eef2ff'
+  context.strokeStyle = '#c7d2fe'
+  drawHomeCalendarRoundRect(context, 570, 62, 246, 46, 23)
+  context.fill()
+  context.stroke()
+  context.fillStyle = '#334155'
+  context.font = '800 15px Inter, Arial, sans-serif'
+  context.fillText(canvasTextWithEllipsis(context, `View: ${viewLabel}`, 190), 594, 91)
+
+  const gridX = 64
+  const gridY = 166
+  const gap = 9
+  const cellWidth = 100
+  const cellHeight = 78
+
+  HOME_CALENDAR_WEEKDAYS.forEach((weekday, index) => {
+    context.fillStyle = '#64748b'
+    context.font = '900 14px Inter, Arial, sans-serif'
+    context.textAlign = 'center'
+    context.fillText(weekday.toUpperCase(), gridX + index * (cellWidth + gap) + cellWidth / 2, gridY - 28)
+  })
+
+  context.textAlign = 'left'
+
+  ;(calendarMonth.days || []).forEach((day, index) => {
+    if (day.type === 'blank') {
+      return
+    }
+
+    const column = index % 7
+    const row = Math.floor(index / 7)
+    const x = gridX + column * (cellWidth + gap)
+    const y = gridY + row * (cellHeight + gap)
+    const mark = selectedHisabItem ? getMonthlyHisabMark(selectedHisabItem, day.dateKey) : null
+
+    context.fillStyle = day.isWeekend ? '#f8fafc' : '#ffffff'
+    context.strokeStyle = day.isToday ? '#2563eb' : day.holiday ? '#d97706' : mark ? '#10b981' : day.amount > 0 ? '#ef4444' : '#e2e8f0'
+    context.lineWidth = day.isToday ? 3 : 2
+    drawHomeCalendarRoundRect(context, x, y, cellWidth, cellHeight, 12)
+    context.fill()
+    context.stroke()
+
+    context.fillStyle = '#0f172a'
+    context.font = '900 18px ui-monospace, Consolas, monospace'
+    context.fillText(String(day.day), x + 12, y + 24)
+
+    if (selectedHisabItem) {
+      if (mark) {
+        const isYes = mark.status === 'yes'
+        context.fillStyle = isYes ? '#dcfce7' : '#fee2e2'
+        context.strokeStyle = isYes ? '#16a34a' : '#dc2626'
+        context.lineWidth = 2
+        context.beginPath()
+        context.arc(x + cellWidth / 2, y + 43, 17, 0, Math.PI * 2)
+        context.fill()
+        context.stroke()
+        context.fillStyle = isYes ? '#166534' : '#991b1b'
+        context.font = '950 11px Inter, Arial, sans-serif'
+        context.textAlign = 'center'
+        context.fillText(isYes ? 'YES' : 'NO', x + cellWidth / 2, y + 47)
+        context.textAlign = 'left'
+      }
+    } else if (day.amount > 0) {
+      context.fillStyle = '#fee2e2'
+      context.strokeStyle = '#ef4444'
+      context.lineWidth = 2
+      drawHomeCalendarRoundRect(context, x + 23, y + 30, 54, 27, 14)
+      context.fill()
+      context.stroke()
+      context.fillStyle = '#991b1b'
+      context.font = '950 13px ui-monospace, Consolas, monospace'
+      context.textAlign = 'center'
+      context.fillText(compactCalendarAmountLabel(day.amount), x + cellWidth / 2, y + 48)
+      context.textAlign = 'left'
+    }
+
+    if (day.holiday?.shortName) {
+      context.fillStyle = '#b45309'
+      context.font = '800 10px Inter, Arial, sans-serif'
+      context.fillText(canvasTextWithEllipsis(context, day.holiday.shortName, cellWidth - 20), x + 10, y + cellHeight - 12)
+    }
+  })
+
+  const footerY = height - 82
+  context.fillStyle = '#475569'
+  context.font = '800 15px Inter, Arial, sans-serif'
+  context.fillText(
+    selectedHisabItem
+      ? `${selectedHisabItem.name}: checked dates show YES or NO for this month.`
+      : 'Money Expense view shows compact daily totals for this month.',
+    64,
+    footerY,
+  )
+  context.fillStyle = '#94a3b8'
+  context.font = '700 12px Inter, Arial, sans-serif'
+  context.fillText('Generated by FBPly', 64, footerY + 26)
+
+  return canvasToJpegBlob(canvas)
 }
 
 function normalizeMoneyBookEntries(entries = []) {
@@ -1187,6 +1557,18 @@ function readLocalVoiceMemoryCache(fallback = {}) {
   return storedMemory
 }
 
+function readLocalMonthlyHisabCache(fallback = []) {
+  flushStorageQueue()
+  const fallbackItems = normalizeMonthlyHisabItems(fallback)
+  const storedItems = normalizeMonthlyHisabItems(readStoredJson(MONTHLY_HISAB_STORAGE_KEY, fallbackItems))
+
+  if (fallbackItems.length > 0) {
+    return fallbackItems
+  }
+
+  return storedItems
+}
+
 function backupMigrationCompletedKey(userId) {
   return `fbply-backup-migration-completed-v1-${userId}`
 }
@@ -1223,6 +1605,7 @@ function hasMeaningfulLocalBackupData() {
     buildSharedGroupsSyncRecords(readStoredJson('fbply-shared-groups', [])).length > 0 ||
     normalizeMoneyBookEntries(readStoredJson('fbply-money-book', [])).length > 0 ||
     normalizeReportHistory(readStoredJson('fbply-report-history', [])).length > 0 ||
+    normalizeMonthlyHisabItems(readStoredJson(MONTHLY_HISAB_STORAGE_KEY, [])).length > 0 ||
     Object.keys(normalizeStatementMappings(readStoredJson('fbply-statement-category-mappings', {}))).length > 0 ||
     Object.keys(normalizeVoiceMemory(readStoredJson('fbply-voice-memory', {}))).length > 0,
   )
@@ -1673,6 +2056,7 @@ function App() {
   const [reportExportPrompt, setReportExportPrompt] = useState(null)
   const [reportTemplate, setReportTemplate] = useState('standard')
   const [reportHistory, setReportHistory] = useState(() => normalizeReportHistory(readStoredJson('fbply-report-history', [])))
+  const [monthlyHisabItems, setMonthlyHisabItems] = useState(() => readLocalMonthlyHisabCache([]))
   const recognitionRef = useRef(null)
   const voiceSessionRef = useRef(null)
   const rewardTimerRef = useRef(null)
@@ -2722,6 +3106,14 @@ function App() {
 
     safeStorageSetQueued('fbply-report-history', JSON.stringify(reportHistory))
   }, [isPublicSeoPage, reportHistory])
+
+  useEffect(() => {
+    if (isPublicSeoPage) {
+      return
+    }
+
+    safeStorageSetQueued(MONTHLY_HISAB_STORAGE_KEY, JSON.stringify(normalizeMonthlyHisabItems(monthlyHisabItems)))
+  }, [isPublicSeoPage, monthlyHisabItems])
 
   useEffect(() => {
     return () => {
@@ -5081,6 +5473,52 @@ function App() {
     setRecurringSchedules((current) => current.filter((schedule) => schedule.id !== id))
   }, [])
 
+  const addMonthlyHisabItem = useCallback((item) => {
+    const saved = createMonthlyHisabItem(item)
+
+    if (!saved) {
+      return null
+    }
+
+    setMonthlyHisabItems((current) => normalizeMonthlyHisabItems([saved, ...current]))
+    trackFeatureUsage('monthly_hisab_item_added', {
+      surface: 'home',
+    })
+    return saved
+  }, [])
+
+  const removeMonthlyHisabItem = useCallback((id) => {
+    setMonthlyHisabItems((current) => current.filter((item) => item.id !== id))
+  }, [])
+
+  const recordMonthlyHisabTick = useCallback((id, dateKey = todayDateKey(), status = 'yes') => {
+    const cleanDateKey = normalizeDateKey(dateKey)
+    const cleanStatus = status === 'no' ? 'no' : status === 'clear' ? 'clear' : 'yes'
+
+    setMonthlyHisabItems((current) => current.map((item) => {
+      if (item.id !== id) {
+        return item
+      }
+
+      const marks = { ...(item.marks || {}) }
+
+      if (cleanStatus === 'clear') {
+        delete marks[cleanDateKey]
+      } else {
+        marks[cleanDateKey] = {
+          status: cleanStatus,
+          dateKey: cleanDateKey,
+          recordedAt: new Date().toISOString(),
+        }
+      }
+
+      return {
+        ...item,
+        marks,
+      }
+    }))
+  }, [])
+
   const toggleRecurringSchedule = useCallback((id) => {
     setRecurringSchedules((current) =>
       current.map((schedule) => (schedule.id === id ? { ...schedule, paused: !schedule.paused } : schedule)),
@@ -5383,7 +5821,7 @@ function App() {
       const tripGroups = reconciledGroups.filter((group) => group.amount > 0 || group.settlements?.length > 0)
       const selectedGroup = overrides.groupId
         ? tripGroups.find((group) => group.id === overrides.groupId) || tripGroups[0]
-        : tripGroups[0]
+        : null
 
       return {
         type,
@@ -5395,7 +5833,7 @@ function App() {
             reportType: 'trip',
           },
           profile,
-          groups: selectedGroup ? [selectedGroup] : [],
+          groups: selectedGroup ? [selectedGroup] : tripGroups,
         },
       }
     }
@@ -5928,6 +6366,10 @@ function App() {
               clearExpenseFieldError={clearExpenseFieldError}
               addExpense={addExpense}
               saveDailyFlowEntries={saveDailyFlowEntries}
+              monthlyHisabItems={monthlyHisabItems}
+              addMonthlyHisabItem={addMonthlyHisabItem}
+              recordMonthlyHisabTick={recordMonthlyHisabTick}
+              removeMonthlyHisabItem={removeMonthlyHisabItem}
               voiceState={voiceState}
               voiceDraft={voiceDraft}
               voiceDrafts={voiceDrafts}
@@ -7194,6 +7636,34 @@ function getIndianCalendarHoliday(dateKey) {
   return INDIAN_FIXED_HOLIDAYS[cleanDateKey.slice(5)] || null
 }
 
+function compactCalendarAmountLabel(value) {
+  const amount = normalizeMoney(value)
+
+  if (amount <= 0) {
+    return ''
+  }
+
+  const symbol = getCurrencySymbol()
+  const compactNumber = (number) => {
+    const rounded = number >= 10 ? Math.round(number) : Number(number.toFixed(1))
+    return String(rounded).replace(/\.0$/, '')
+  }
+
+  if (amount >= 10000000) {
+    return `${symbol}${compactNumber(amount / 10000000)}Cr`
+  }
+
+  if (amount >= 100000) {
+    return `${symbol}${compactNumber(amount / 100000)}L`
+  }
+
+  if (amount >= 1000) {
+    return `${symbol}${compactNumber(amount / 1000)}k`
+  }
+
+  return `${symbol}${Math.round(amount)}`
+}
+
 function buildHomeCalendarMonth({ monthKey = currentMonthKey(), transactions = [], todayKey = todayDateKey() } = {}) {
   const safeMonthKey = dateMonthKey(`${monthKey || currentMonthKey()}-01`)
   const firstDay = new Date(`${safeMonthKey}-01T12:00:00`)
@@ -7245,7 +7715,7 @@ function buildHomeCalendarMonth({ monthKey = currentMonthKey(), transactions = [
       isToday: dateKey === todayKey,
       isWeekend: parsed.getDay() === 0 || parsed.getDay() === 6,
       amount: amountRecord.amount,
-      amountLabel: amountRecord.amount > 0 ? shortRupees(amountRecord.amount) : '',
+      amountLabel: amountRecord.amount > 0 ? compactCalendarAmountLabel(amountRecord.amount) : '',
       count: amountRecord.count,
       holiday,
     }
@@ -7290,23 +7760,45 @@ function V12HomeScreen({
   openQuickTools,
   requestReportExport,
   saveDailyFlowEntries,
+  monthlyHisabItems = [],
+  addMonthlyHisabItem,
+  recordMonthlyHisabTick,
+  removeMonthlyHisabItem,
 }) {
   const [historyFilter, setHistoryFilter] = useState('today')
   const [entryMode, setEntryMode] = useState('normal')
   const [customDate, setCustomDate] = useState(todayDateKey())
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [calendarMonthKey, setCalendarMonthKey] = useState(currentMonthKey())
+  const [calendarViewId, setCalendarViewId] = useState('expenses')
+  const [calendarHisabInfo, setCalendarHisabInfo] = useState(null)
+  const [isCalendarDownloading, setIsCalendarDownloading] = useState(false)
   const [historyDisplay, setHistoryDisplay] = useState({ key: '', count: 8 })
   const [stampActive, setStampActive] = useState(false)
   const [dailyInsight, setDailyInsight] = useState('')
   const [dailyFlowInput, setDailyFlowInput] = useState('')
   const [dailyFlowMessage, setDailyFlowMessage] = useState('')
   const [isDailyFlowSaving, setIsDailyFlowSaving] = useState(false)
+  const [isRoutineTrackerStarted, setIsRoutineTrackerStarted] = useState(() =>
+    safeStorageGet(ROUTINE_TRACKER_STARTED_STORAGE_KEY, 'false') === 'true',
+  )
+  const [hisabDraft, setHisabDraft] = useState({
+    name: '',
+    amount: '',
+    hasCustomCycle: false,
+    cycleStartDay: '1',
+    cycleEndDay: '1',
+  })
+  const [hisabMessage, setHisabMessage] = useState('')
+  const [isHisabAddOpen, setIsHisabAddOpen] = useState(false)
+  const [hisabSlideIndex, setHisabSlideIndex] = useState(0)
   const [isPageClosed, setIsPageClosed] = useState(false)
   const [newEntryId, setNewEntryId] = useState(null)
   const previousTodayCountRef = useRef(null)
   const closePageTimerRef = useRef(null)
   const dailyFlowTimerRef = useRef(null)
+  const calendarHoldTimerRef = useRef(null)
+  const calendarHoldTriggeredRef = useRef(false)
   const homeExpenseTransactions = useMemo(
     () => todayTransactions.filter(isHomeDailyExpenseTransaction),
     [todayTransactions],
@@ -7357,6 +7849,31 @@ function V12HomeScreen({
     }),
     [calendarMonthKey, homeExpenseTransactions],
   )
+  const safeCalendarViewId = calendarViewId === 'expenses' || monthlyHisabItems.some((item) => item.id === calendarViewId)
+    ? calendarViewId
+    : 'expenses'
+  const selectedCalendarHisabItem = useMemo(
+    () => monthlyHisabItems.find((item) => item.id === safeCalendarViewId) || null,
+    [safeCalendarViewId, monthlyHisabItems],
+  )
+  const monthlyHisabSummaries = useMemo(
+    () => monthlyHisabItems.map((item) => buildMonthlyHisabSummary(item, calendarMonthKey)),
+    [calendarMonthKey, monthlyHisabItems],
+  )
+  const safeHisabSlideIndex = monthlyHisabSummaries.length > 0 ? hisabSlideIndex % monthlyHisabSummaries.length : 0
+  const activeHisabSummary = monthlyHisabSummaries.length > 0
+    ? monthlyHisabSummaries[safeHisabSlideIndex]
+    : null
+  const todayHisabRows = useMemo(
+    () => monthlyHisabItems.slice(0, MONTHLY_HISAB_DAILY_PROMPT_LIMIT).map((item) => ({
+      item,
+      summary: buildMonthlyHisabSummary(item, currentMonthKey()),
+      mark: getMonthlyHisabMark(item, todayDateKey()),
+    })),
+    [monthlyHisabItems],
+  )
+  const isRoutineTrackerVisible = isRoutineTrackerStarted || monthlyHisabItems.length > 0
+  const calendarViewLabel = selectedCalendarHisabItem ? selectedCalendarHisabItem.name : 'Money Expense'
   const todayHasLines = todaysPreview.count > 0
   const todayWrittenTotal = rupees(addMoney(todaysPreview.spent, todaysPreview.received))
   const todayDailyTotal = todaysPreview.spent > 0
@@ -7399,6 +7916,18 @@ function V12HomeScreen({
       count: visibleHistoryCount + 12,
     })
   }, [historyListKey, visibleHistoryCount])
+
+  useEffect(() => {
+    if (monthlyHisabItems.length <= 1 || typeof window === 'undefined') {
+      return undefined
+    }
+
+    const timer = window.setInterval(() => {
+      setHisabSlideIndex((current) => (current + 1) % monthlyHisabItems.length)
+    }, 5000)
+
+    return () => window.clearInterval(timer)
+  }, [monthlyHisabItems.length])
 
   useEffect(() => {
     if (previousTodayCountRef.current === null) {
@@ -7444,6 +7973,10 @@ function V12HomeScreen({
 
     if (dailyFlowTimerRef.current && typeof window !== 'undefined') {
       window.clearTimeout(dailyFlowTimerRef.current)
+    }
+
+    if (calendarHoldTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(calendarHoldTimerRef.current)
     }
   }, [])
 
@@ -7531,6 +8064,133 @@ function V12HomeScreen({
     }
   }
 
+  const clearCalendarHisabHold = () => {
+    if (calendarHoldTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(calendarHoldTimerRef.current)
+      calendarHoldTimerRef.current = null
+    }
+  }
+
+  const showCalendarHisabInfo = (item, dateKey, mark) => {
+    if (!item || !mark) {
+      return
+    }
+
+    setCalendarHisabInfo({
+      key: `${item.id}-${dateKey}-${mark.recordedAt || ''}`,
+      name: item.name,
+      status: mark.status === 'yes' ? 'Marked yes' : 'Marked no',
+      detail: monthlyHisabRecordedAtLabel(mark, dateKey),
+    })
+  }
+
+  const startCalendarHisabHold = (item, dateKey, mark) => {
+    clearCalendarHisabHold()
+    calendarHoldTriggeredRef.current = false
+
+    if (!item || !mark || typeof window === 'undefined') {
+      return
+    }
+
+    calendarHoldTimerRef.current = window.setTimeout(() => {
+      calendarHoldTriggeredRef.current = true
+      showCalendarHisabInfo(item, dateKey, mark)
+    }, 620)
+  }
+
+  const startRoutineTracker = () => {
+    setIsRoutineTrackerStarted(true)
+    setIsHisabAddOpen(true)
+    safeStorageSet(ROUTINE_TRACKER_STARTED_STORAGE_KEY, 'true')
+  }
+
+  const handleMonthlyHisabSubmit = (event) => {
+    event.preventDefault()
+    const saved = addMonthlyHisabItem?.(hisabDraft)
+
+    if (!saved) {
+      setHisabMessage('Add a name and a positive per-day amount.')
+      return
+    }
+
+    setHisabDraft({
+      name: '',
+      amount: '',
+      hasCustomCycle: false,
+      cycleStartDay: '1',
+      cycleEndDay: '1',
+    })
+    setHisabMessage(`${saved.name} added. Daily check is ready.`)
+    setCalendarViewId(saved.id)
+    setHisabSlideIndex(0)
+    setIsHisabAddOpen(false)
+  }
+
+  const markMonthlyHisabToday = (item, status) => {
+    recordMonthlyHisabTick?.(item.id, todayDateKey(), status)
+    setHisabMessage(`${item.name} marked ${status === 'yes' ? 'yes' : 'no'} for today.`)
+  }
+
+  const removeHisabItem = (item) => {
+    removeMonthlyHisabItem?.(item.id)
+    setHisabMessage(`${item.name} removed from Routine Tracker.`)
+  }
+
+  const toggleCalendarHisabDate = (dateKey) => {
+    if (!selectedCalendarHisabItem) {
+      return
+    }
+
+    const currentMark = getMonthlyHisabMark(selectedCalendarHisabItem, dateKey)
+    const nextStatus = currentMark?.status === 'yes' ? 'clear' : 'yes'
+
+    recordMonthlyHisabTick?.(selectedCalendarHisabItem.id, dateKey, nextStatus)
+    setCalendarHisabInfo(null)
+    setHisabMessage(nextStatus === 'clear'
+      ? `${selectedCalendarHisabItem.name} cleared for ${formatHomeNotebookDate(dateKey)}.`
+      : `${selectedCalendarHisabItem.name} marked yes for ${formatHomeNotebookDate(dateKey)}.`)
+  }
+
+  const downloadCalendarImage = async () => {
+    if (isCalendarDownloading) {
+      return
+    }
+
+    setIsCalendarDownloading(true)
+    setHisabMessage('Preparing calendar image...')
+
+    try {
+      const blob = await createHomeCalendarJpegBlob({
+        calendarMonth,
+        selectedHisabItem: selectedCalendarHisabItem,
+      })
+      const viewSlug = safeCalendarFileSlug(calendarViewLabel)
+      const filename = `FBPly-calendar-${viewSlug}-${calendarMonth.monthKey}.jpg`
+      const { isNativeMobileApp, shareBlob } = await import('./lib/nativeFileShare')
+
+      if (isNativeMobileApp()) {
+        await shareBlob(blob, filename, {
+          title: 'FBPly Calendar',
+          text: `${calendarViewLabel} calendar is ready.`,
+          dialogTitle: 'Save calendar image',
+        })
+      } else {
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = filename
+        anchor.click()
+        URL.revokeObjectURL(url)
+      }
+
+      setHisabMessage('Calendar image saved as JPG.')
+    } catch {
+      setHisabMessage('Could not save the calendar image. Please try again.')
+    } finally {
+      setIsCalendarDownloading(false)
+    }
+  }
+
   const openCalendarDate = (dateKey) => {
     setCustomDate(dateKey)
     setHistoryFilter('custom')
@@ -7584,57 +8244,315 @@ function V12HomeScreen({
         )}
 
         {isCalendarOpen && (
-          <section className="home-calendar-popover" id="home-india-calendar" aria-label="Indian calendar with daily expense totals">
-            <div className="home-calendar-topline">
-              <div>
-                <span>India Calendar</span>
-                <strong>{calendarMonth.label}</strong>
+          <section className="home-calendar-popover" id="home-india-calendar" aria-label="Indian calendar">
+            <div className={`home-calendar-export-surface ${selectedCalendarHisabItem ? 'hisab-view' : 'expense-view'}`}>
+              <div className="home-calendar-topline">
+                <div>
+                  <span>India Calendar</span>
+                  <strong>{calendarMonth.label}</strong>
+                </div>
+                <div className="home-calendar-month-actions">
+                  <button type="button" aria-label="Previous month" onClick={() => setCalendarMonthKey((monthKey) => shiftMonthKey(monthKey, -1))}>
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button type="button" aria-label="Next month" onClick={() => setCalendarMonthKey((monthKey) => shiftMonthKey(monthKey, 1))}>
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
               </div>
-              <div className="home-calendar-month-actions">
-                <button type="button" aria-label="Previous month" onClick={() => setCalendarMonthKey((monthKey) => shiftMonthKey(monthKey, -1))}>
-                  <ChevronLeft size={16} />
-                </button>
-                <button type="button" aria-label="Next month" onClick={() => setCalendarMonthKey((monthKey) => shiftMonthKey(monthKey, 1))}>
-                  <ChevronRight size={16} />
-                </button>
+
+              <div className="home-calendar-viewbar">
+                <label className="home-calendar-view-select">
+                  <span>View</span>
+                  <select
+                    value={safeCalendarViewId}
+                    onChange={(event) => {
+                      setCalendarViewId(event.target.value)
+                      setCalendarHisabInfo(null)
+                    }}
+                    aria-label="Choose calendar view"
+                  >
+                    <option value="expenses">Money Expense</option>
+                    {monthlyHisabItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span className="home-calendar-view-hint">
+                  {selectedCalendarHisabItem ? 'Tap empty dates to mark yes. Hold a mark for saved time.' : 'Tap a date to review that expense page.'}
+                </span>
               </div>
+
+              <div className="home-calendar-weekdays" aria-hidden="true">
+                {HOME_CALENDAR_WEEKDAYS.map((weekday) => (
+                  <span key={weekday}>{weekday}</span>
+                ))}
+              </div>
+              <div className="home-calendar-grid">
+                {calendarMonth.days.map((day) => {
+                  if (day.type === 'blank') {
+                    return <span className="home-calendar-day blank" key={day.key} aria-hidden="true" />
+                  }
+
+                  const mark = selectedCalendarHisabItem ? getMonthlyHisabMark(selectedCalendarHisabItem, day.dateKey) : null
+                  const dayClasses = [
+                    'home-calendar-day',
+                    selectedCalendarHisabItem ? 'hisab-mode' : '',
+                    day.isToday ? 'today' : '',
+                    day.isWeekend ? 'weekend' : '',
+                    day.holiday ? 'holiday' : '',
+                    !selectedCalendarHisabItem && day.amount > 0 ? 'has-amount' : '',
+                    mark ? 'has-hisab-mark' : '',
+                    mark?.status === 'no' ? 'hisab-no' : '',
+                  ].filter(Boolean).join(' ')
+                  const markText = mark?.status === 'yes' ? 'marked yes' : mark?.status === 'no' ? 'marked no' : 'not marked'
+
+                  return (
+                    <button
+                      className={dayClasses}
+                      type="button"
+                      key={day.key}
+                      aria-label={selectedCalendarHisabItem
+                        ? `${day.day} ${calendarMonth.label}, ${selectedCalendarHisabItem.name} ${markText}`
+                        : `${day.day} ${calendarMonth.label}${day.amount > 0 ? `, ${day.amountLabel} written` : ''}${day.holiday ? `, ${day.holiday.name}` : ''}`}
+                      title={mark ? `${selectedCalendarHisabItem.name}: ${markText}. Hold to see saved time.` : undefined}
+                      onClick={() => {
+                        if (calendarHoldTriggeredRef.current) {
+                          calendarHoldTriggeredRef.current = false
+                          return
+                        }
+
+                        if (selectedCalendarHisabItem) {
+                          toggleCalendarHisabDate(day.dateKey)
+                          return
+                        }
+
+                        openCalendarDate(day.dateKey)
+                      }}
+                      onPointerDown={selectedCalendarHisabItem ? () => startCalendarHisabHold(selectedCalendarHisabItem, day.dateKey, mark) : undefined}
+                      onPointerUp={selectedCalendarHisabItem ? clearCalendarHisabHold : undefined}
+                      onPointerLeave={selectedCalendarHisabItem ? clearCalendarHisabHold : undefined}
+                      onPointerCancel={selectedCalendarHisabItem ? clearCalendarHisabHold : undefined}
+                      onContextMenu={(event) => {
+                        if (!selectedCalendarHisabItem || !mark) {
+                          return
+                        }
+
+                        event.preventDefault()
+                        showCalendarHisabInfo(selectedCalendarHisabItem, day.dateKey, mark)
+                      }}
+                    >
+                      <span className="home-calendar-day-number">{day.day}</span>
+                      {selectedCalendarHisabItem ? (
+                        mark ? (
+                          <span className={`home-calendar-hisab-mark ${mark.status}`}>
+                            {mark.status === 'yes' ? <CheckCircle2 size={13} /> : <X size={13} />}
+                          </span>
+                        ) : (
+                          <span className="home-calendar-hisab-empty" aria-hidden="true" />
+                        )
+                      ) : (
+                        day.amount > 0 && <span className="home-calendar-amount-circle">{day.amountLabel}</span>
+                      )}
+                      {day.holiday && <small>{day.holiday.shortName}</small>}
+                    </button>
+                  )
+                })}
+              </div>
+              {calendarHisabInfo && selectedCalendarHisabItem && (
+                <aside className="home-calendar-hisab-info" role="status" key={calendarHisabInfo.key}>
+                  <span>
+                    <strong>{calendarHisabInfo.name}</strong>
+                    <small>{calendarHisabInfo.status} on {calendarHisabInfo.detail}</small>
+                  </span>
+                  <button type="button" aria-label="Close mark information" onClick={() => setCalendarHisabInfo(null)}>
+                    <X size={12} />
+                  </button>
+                </aside>
+              )}
+              <p className="home-calendar-note">
+                {selectedCalendarHisabItem
+                  ? 'This view is only for Routine Tracker marks. It does not add Money Out entries.'
+                  : 'Tap a date to review that page. Holidays show India-wide and common central observances.'}
+              </p>
             </div>
-            <div className="home-calendar-weekdays" aria-hidden="true">
-              {HOME_CALENDAR_WEEKDAYS.map((weekday) => (
-                <span key={weekday}>{weekday}</span>
+            <div className="home-calendar-download-row">
+              <button
+                className="ghost-button home-calendar-download-button"
+                type="button"
+                onClick={downloadCalendarImage}
+                disabled={isCalendarDownloading}
+              >
+                <Download size={15} />
+                <span>{isCalendarDownloading ? 'Saving...' : 'Save JPG'}</span>
+              </button>
+            </div>
+          </section>
+        )}
+
+        {!isRoutineTrackerVisible ? (
+          <section className="monthly-hisab-start-panel" aria-label="Routine tracker">
+            <span className="monthly-hisab-eyebrow">Routine Tracker</span>
+            <strong>Track milk, paper, or attendance</strong>
+            <button className="monthly-hisab-start-button" type="button" onClick={startRoutineTracker}>
+              <Plus size={15} />
+              <span>Start</span>
+            </button>
+          </section>
+        ) : (
+        <section className="monthly-hisab-panel" aria-label="Routine tracker">
+          <div className={`monthly-hisab-strip ${isHisabAddOpen ? 'add-open' : ''}`.trim()}>
+            <div className="monthly-hisab-ledger">
+              <span className="monthly-hisab-eyebrow">Routine Tracker</span>
+              {activeHisabSummary ? (
+                <>
+                  <strong className={`monthly-hisab-name ${activeHisabSummary.name.length > 16 ? 'needs-marquee' : ''}`.trim()}>
+                    <span>{activeHisabSummary.name}</span>
+                  </strong>
+                  <small>{activeHisabSummary.yesCount} days - {activeHisabSummary.totalLabel} so far</small>
+                  <em>{activeHisabSummary.amountLabel}/day{activeHisabSummary.hasCustomCycle ? ` - cycle ${activeHisabSummary.cycle.label}` : ''}</em>
+                </>
+              ) : (
+                <>
+                  <strong className="monthly-hisab-name"><span>Milk, paper, attendance</span></strong>
+                  <small>Add one routine item and answer it daily.</small>
+                  <em>No Money Out entry is created here.</em>
+                </>
+              )}
+            </div>
+            <div className="monthly-hisab-controls">
+              {activeHisabSummary && (
+                <button
+                  className="monthly-hisab-delete"
+                  type="button"
+                  aria-label={`Remove ${activeHisabSummary.name}`}
+                  title={`Remove ${activeHisabSummary.name}`}
+                  onClick={() => removeHisabItem(activeHisabSummary)}
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+              <details
+                className="monthly-hisab-add"
+                open={isHisabAddOpen}
+                onToggle={(event) => setIsHisabAddOpen(event.currentTarget.open)}
+              >
+                <summary>
+                  <Plus size={14} />
+                  <span>Add</span>
+                  <ChevronDown size={14} />
+                </summary>
+                <form className="monthly-hisab-form" onSubmit={handleMonthlyHisabSubmit}>
+                  <label>
+                    <span>Name</span>
+                    <input
+                      className="plain-input"
+                      value={hisabDraft.name}
+                      maxLength={80}
+                      placeholder="Milk"
+                      onChange={(event) => setHisabDraft((current) => ({ ...current, name: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    <span>Amount per day</span>
+                    <span className="currency-input monthly-hisab-amount-input">
+                      <span>{getCurrencySymbol()}</span>
+                      <input
+                        value={hisabDraft.amount}
+                        inputMode="decimal"
+                        placeholder="50"
+                        onChange={(event) => setHisabDraft((current) => ({ ...current, amount: event.target.value }))}
+                      />
+                    </span>
+                  </label>
+                  <label className="monthly-hisab-cycle-toggle">
+                    <input
+                      type="checkbox"
+                      checked={hisabDraft.hasCustomCycle}
+                      onChange={(event) => setHisabDraft((current) => ({ ...current, hasCustomCycle: event.target.checked }))}
+                    />
+                    <span>
+                      <strong>Custom cycle</strong>
+                      <small>Use only for ranges like 24 to 24.</small>
+                    </span>
+                  </label>
+                  {hisabDraft.hasCustomCycle && (
+                    <div className="monthly-hisab-cycle-inputs">
+                      <label>
+                        <span>Cycle start</span>
+                        <input
+                          className="plain-input"
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={hisabDraft.cycleStartDay}
+                          onChange={(event) => setHisabDraft((current) => ({ ...current, cycleStartDay: event.target.value }))}
+                        />
+                      </label>
+                      <label>
+                        <span>Cycle end</span>
+                        <input
+                          className="plain-input"
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={hisabDraft.cycleEndDay}
+                          onChange={(event) => setHisabDraft((current) => ({ ...current, cycleEndDay: event.target.value }))}
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <button className="monthly-hisab-save" type="submit">Save Item</button>
+                </form>
+              </details>
+            </div>
+          </div>
+          {monthlyHisabSummaries.length > 1 && (
+            <div className="monthly-hisab-dots" aria-hidden="true">
+              {monthlyHisabSummaries.map((item, index) => (
+                <span className={index === safeHisabSlideIndex ? 'active' : ''} key={item.id} />
               ))}
             </div>
-            <div className="home-calendar-grid">
-              {calendarMonth.days.map((day) => {
-                if (day.type === 'blank') {
-                  return <span className="home-calendar-day blank" key={day.key} aria-hidden="true" />
-                }
-
-                const dayClasses = [
-                  'home-calendar-day',
-                  day.isToday ? 'today' : '',
-                  day.isWeekend ? 'weekend' : '',
-                  day.holiday ? 'holiday' : '',
-                  day.amount > 0 ? 'has-amount' : '',
-                ].filter(Boolean).join(' ')
-
-                return (
-                  <button
-                    className={dayClasses}
-                    type="button"
-                    key={day.key}
-                    aria-label={`${day.day} ${calendarMonth.label}${day.amount > 0 ? `, ${day.amountLabel} written` : ''}${day.holiday ? `, ${day.holiday.name}` : ''}`}
-                    onClick={() => openCalendarDate(day.dateKey)}
-                  >
-                    <span className="home-calendar-day-number">{day.day}</span>
-                    {day.amount > 0 && <span className="home-calendar-amount-circle">{day.amountLabel}</span>}
-                    {day.holiday && <small>{day.holiday.shortName}</small>}
-                  </button>
-                )
-              })}
+          )}
+          {monthlyHisabItems.length > 0 && (
+            <div className="monthly-hisab-daily-list" aria-label="Daily routine tracker questions">
+              {todayHisabRows.map(({ item, summary, mark }) => (
+                <article className={`monthly-hisab-question ${mark ? 'answered' : ''}`.trim()} key={item.id}>
+                  <span className="monthly-hisab-question-copy">
+                    <strong className="monthly-hisab-question-text">Did you take {item.name} today?</strong>
+                    <small>{mark ? `${mark.status === 'yes' ? 'Yes' : 'No'} saved - ${summary.yesCount} days this cycle` : `Yes adds ${summary.amountLabel} to this cycle`}</small>
+                  </span>
+                  <span className="monthly-hisab-answer-buttons">
+                    <button
+                      className={`monthly-hisab-answer yes ${mark?.status === 'yes' ? 'active' : ''}`.trim()}
+                      type="button"
+                      aria-label={`Yes, ${item.name} today`}
+                      onClick={() => markMonthlyHisabToday(item, 'yes')}
+                    >
+                      <CheckCircle2 size={17} />
+                      <span>Yes</span>
+                    </button>
+                    <button
+                      className={`monthly-hisab-answer no ${mark?.status === 'no' ? 'active' : ''}`.trim()}
+                      type="button"
+                      aria-label={`No, ${item.name} today`}
+                      onClick={() => markMonthlyHisabToday(item, 'no')}
+                    >
+                      <X size={17} />
+                      <span>No</span>
+                    </button>
+                  </span>
+                </article>
+              ))}
+              {monthlyHisabItems.length > MONTHLY_HISAB_DAILY_PROMPT_LIMIT && (
+                <p className="monthly-hisab-more">+ {monthlyHisabItems.length - MONTHLY_HISAB_DAILY_PROMPT_LIMIT} more saved item{monthlyHisabItems.length - MONTHLY_HISAB_DAILY_PROMPT_LIMIT === 1 ? '' : 's'}.</p>
+              )}
             </div>
-            <p className="home-calendar-note">Tap a date to review that page. Holidays show India-wide and common central observances.</p>
-          </section>
+          )}
+          {hisabMessage && <p className="monthly-hisab-message" role="status">{hisabMessage}</p>}
+        </section>
         )}
 
         <section className="v24-calculator-tools" aria-label="Quick calculator tools">
@@ -8780,6 +9698,10 @@ function MainApp(props) {
     clearExpenseFieldError,
     addExpense,
     saveDailyFlowEntries,
+    monthlyHisabItems,
+    addMonthlyHisabItem,
+    recordMonthlyHisabTick,
+    removeMonthlyHisabItem,
     voiceState,
     voiceDraft,
     voiceDrafts,
@@ -9224,6 +10146,10 @@ function MainApp(props) {
                 openQuickTools={openQuickTools}
                 requestReportExport={requestReportExport}
                 saveDailyFlowEntries={saveDailyFlowEntries}
+                monthlyHisabItems={monthlyHisabItems}
+                addMonthlyHisabItem={addMonthlyHisabItem}
+                recordMonthlyHisabTick={recordMonthlyHisabTick}
+                removeMonthlyHisabItem={removeMonthlyHisabItem}
                 moneyTheme={moneyTheme}
               />
             ) : (

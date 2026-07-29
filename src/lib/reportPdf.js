@@ -1,5 +1,6 @@
 import { buildAdvancedReport } from './reportInsights.js'
 import { normalizeMoney, sumMoney } from './money.js'
+import { normalizeSpendCategory } from './categoryIntelligence.js'
 import { displayPersonName } from './financialActivity.js'
 
 const PAGE = {
@@ -619,7 +620,27 @@ function drawSimpleNumberedList(doc, y, title, items = [], meta = {}, theme = re
 function drawSimpleRows(doc, y, section, meta = {}, theme = resolveReportTheme()) {
   const visible = (section.items || []).filter(Boolean).slice(0, resolveSectionItemLimit(meta, section, section.limit || 8))
 
-  if (visible.length === 0) {
+  if (visible.length === 0 && !section.imageDataUrl) {
+    return y
+  }
+
+  if (section.kind === 'image') {
+    const imageHeight = section.imageHeight || 70
+    y = addSimplePageIfNeeded(doc, y, 18 + imageHeight, meta, theme)
+    y = drawSimpleSectionHeading(doc, section.title, y, theme)
+
+    if (section.subtitle) {
+      y = drawSimpleParagraph(doc, section.subtitle, PAGE.margin, y - 1, PAGE.width - PAGE.margin * 2, theme, {
+        size: 7.4,
+        maxLines: 2,
+      }) + 2
+    }
+
+    if (section.imageDataUrl) {
+      doc.addImage(section.imageDataUrl, section.imageFormat || 'JPEG', PAGE.margin, y, PAGE.width - PAGE.margin * 2, imageHeight)
+      return y + imageHeight + 8
+    }
+
     return y
   }
 
@@ -2050,6 +2071,278 @@ function barItems(items = [], currency = 'INR', { valueKey = 'value', labelKey =
   })
 }
 
+function isReportSettlementComplete(item = {}) {
+  return ['received', 'paid', 'settled'].includes(item.status) || safeAmount(item.remainingAmount) <= 0
+}
+
+function tripPaymentCategory(payment = {}) {
+  const normalized = normalizeSpendCategory({
+    label: payment.label,
+    category: payment.category || payment.label,
+    note: payment.label,
+    amount: payment.amount,
+  })
+
+  return normalized.displayCategory || normalized.category || 'Other'
+}
+
+function addTripTotal(map, key, amount) {
+  const label = cleanPdfText(key) || 'Other'
+  const current = map.get(label) || 0
+  map.set(label, safeAmount(current + safeAmount(amount)))
+}
+
+function buildTripReportModels(groups = [], profile = {}, currency = 'INR', theme = resolveReportTheme()) {
+  const chartColors = themeChartColors(theme)
+
+  return groups.map((group, groupIndex) => {
+    const payments = (group.payments || [])
+      .map((payment) => ({
+        ...payment,
+        amount: safeAmount(payment.amount),
+        dateKey: reportDateKey(payment.date || group.date || group.createdAt),
+      }))
+      .filter((payment) => payment.amount > 0)
+    const settlements = group.settlements || []
+    const members = group.people || []
+    const total = safeAmount(group.amount || sumMoney(payments, (payment) => payment.amount))
+    const payerTotals = new Map()
+    const categoryTotals = new Map()
+    const dayTotals = new Map()
+
+    payments.forEach((payment) => {
+      addTripTotal(payerTotals, displayPersonName(payment.paidBy, profile), payment.amount)
+      addTripTotal(categoryTotals, tripPaymentCategory(payment), payment.amount)
+      addTripTotal(dayTotals, payment.dateKey, payment.amount)
+    })
+
+    const withMoneyLabels = (entries) => entries
+      .map(([label, amount], index) => ({
+        label,
+        amount: safeAmount(amount),
+        amountLabel: currencyMoney(amount, currency),
+        value: currencyMoney(amount, currency),
+        percentage: total > 0 ? Math.round((safeAmount(amount) / total) * 100) : 0,
+        barValue: total > 0 ? Math.round((safeAmount(amount) / total) * 100) : 0,
+        color: chartColors[index % chartColors.length],
+      }))
+      .filter((item) => item.amount > 0)
+      .sort((first, second) => second.amount - first.amount)
+      .map((item, index) => ({
+        ...item,
+        color: chartColors[index % chartColors.length],
+      }))
+
+    let cumulative = 0
+    const history = Array.from(dayTotals.entries())
+      .sort(([firstDate], [secondDate]) => firstDate.localeCompare(secondDate))
+      .map(([dateKey, amount], index) => {
+        cumulative = safeAmount(cumulative + safeAmount(amount))
+
+        return {
+          label: expenseReportShortDateLabel(dateKey),
+          dateKey,
+          amount: safeAmount(amount),
+          amountLabel: currencyMoney(amount, currency),
+          cumulative,
+          cumulativeLabel: currencyMoney(cumulative, currency),
+          value: currencyMoney(amount, currency),
+          color: chartColors[index % chartColors.length],
+        }
+      })
+
+    const pendingSettlements = settlements.filter((item) => !isReportSettlementComplete(item))
+    const completedSettlements = settlements.filter(isReportSettlementComplete)
+    const settlementRows = (pendingSettlements.length > 0 ? pendingSettlements : completedSettlements)
+      .map((item) => {
+        const amount = safeAmount(item.remainingAmount || item.amount)
+
+        return {
+          label: settlementReportLabel(item, profile),
+          value: currencyMoney(amount, currency),
+          detail: isReportSettlementComplete(item) ? 'Settled' : 'Pending',
+        }
+      })
+    const payerRows = withMoneyLabels(Array.from(payerTotals.entries()))
+    const categoryRows = withMoneyLabels(Array.from(categoryTotals.entries()))
+    const topPayer = payerRows[0]
+    const topCategory = categoryRows[0]
+    const pendingAmount = sumMoney(pendingSettlements, (item) => item.remainingAmount || item.amount)
+    const settledAmount = sumMoney(completedSettlements, (item) => item.settledAmount || item.amount)
+
+    return {
+      id: group.id || `trip-${groupIndex + 1}`,
+      name: cleanPdfText(group.name) || `Trip ${groupIndex + 1}`,
+      date: group.date || payments[0]?.dateKey || '',
+      payments,
+      members,
+      total,
+      totalLabel: currencyMoney(total, currency),
+      payerRows,
+      categoryRows,
+      history,
+      settlementRows: settlementRows.length > 0
+        ? settlementRows
+        : [{ label: 'No settlement yet', value: '-', detail: 'Add payments to calculate who pays who.' }],
+      topPayer,
+      topCategory,
+      pendingAmount,
+      pendingLabel: currencyMoney(pendingAmount, currency),
+      settledAmount,
+      settledLabel: currencyMoney(settledAmount, currency),
+    }
+  })
+}
+
+function drawTripChartFrame(context, theme, title, subtitle, canvas) {
+  context.fillStyle = rgbToCss(theme.page)
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = rgbToCss(theme.card)
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  drawCanvasRoundRect(context, 28, 28, canvas.width - 56, canvas.height - 56, 28)
+  context.fill()
+  context.stroke()
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 24px ${theme.canvasFont}`
+  context.fillText(cleanPdfText(title).toUpperCase(), 62, 74)
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `600 18px ${theme.canvasFont}`
+  drawCanvasText(context, subtitle, 62, 104, canvas.width - 124, 24, 2)
+}
+
+function drawTripHorizontalBarsCanvas(context, theme, canvas, { title, subtitle, items = [] } = {}) {
+  drawTripChartFrame(context, theme, title, subtitle, canvas)
+  const visible = items.slice(0, 8)
+  const maxAmount = Math.max(1, ...visible.map((item) => item.amount))
+  const labelX = 70
+  const barX = 310
+  const amountX = canvas.width - 80
+  const barWidth = amountX - barX - 150
+  const rowHeight = Math.min(54, Math.max(38, 310 / Math.max(visible.length, 1)))
+  let y = 164
+
+  if (visible.length === 0) {
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `600 24px ${theme.canvasFont}`
+    context.fillText('No trip payments yet', labelX, y)
+    return
+  }
+
+  visible.forEach((item, index) => {
+    const barY = y - 17
+    context.fillStyle = rgbToCss(theme.text)
+    context.font = `800 21px ${theme.canvasFont}`
+    drawCanvasText(context, item.label, labelX, y, 210, 24, 1)
+
+    context.fillStyle = rgbToCss(theme.soft)
+    context.beginPath()
+    drawCanvasRoundRect(context, barX, barY, barWidth, 16, 8)
+    context.fill()
+    context.fillStyle = rgbToCss(item.color || themeSeriesColor(theme, index))
+    context.beginPath()
+    drawCanvasRoundRect(context, barX, barY, Math.max(16, (item.amount / maxAmount) * barWidth), 16, 8)
+    context.fill()
+
+    context.fillStyle = rgbToCss(theme.text)
+    context.font = `800 20px ${theme.canvasFont}`
+    context.textAlign = 'right'
+    context.fillText(item.amountLabel || item.value || '', amountX, y)
+    context.textAlign = 'left'
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `600 16px ${theme.canvasFont}`
+    context.fillText(percentLabel(item.percentage), barX + barWidth + 22, y)
+    y += rowHeight
+  })
+}
+
+function drawTripHistoryCanvas(context, theme, canvas, { items = [], totalLabel = '' } = {}) {
+  drawTripChartFrame(context, theme, 'Total amount history', totalLabel ? `Trip total ${totalLabel}` : 'Payments grouped by date.', canvas)
+  const visible = items.slice(-10)
+  const maxAmount = Math.max(1, ...visible.map((item) => item.amount))
+  const chartX = 76
+  const chartY = 144
+  const chartWidth = canvas.width - 152
+  const chartHeight = 230
+  const gap = Math.max(8, Math.min(22, chartWidth / Math.max(visible.length, 1) * 0.18))
+  const barWidth = Math.max(18, (chartWidth - gap * Math.max(visible.length - 1, 0)) / Math.max(visible.length, 1))
+
+  if (visible.length === 0) {
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `600 24px ${theme.canvasFont}`
+    context.fillText('No dated payments yet', chartX, chartY + 38)
+    return
+  }
+
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(chartX, chartY + chartHeight)
+  context.lineTo(chartX + chartWidth, chartY + chartHeight)
+  context.stroke()
+
+  visible.forEach((item, index) => {
+    const barHeight = Math.max(8, (item.amount / maxAmount) * chartHeight)
+    const x = chartX + index * (barWidth + gap)
+    const y = chartY + chartHeight - barHeight
+
+    context.fillStyle = rgbToCss(item.color || themeSeriesColor(theme, index))
+    context.beginPath()
+    drawCanvasRoundRect(context, x, y, barWidth, barHeight, Math.min(10, barWidth / 2))
+    context.fill()
+
+    context.save()
+    context.translate(x + barWidth / 2, chartY + chartHeight + 28)
+    context.rotate(-Math.PI / 8)
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `600 15px ${theme.canvasFont}`
+    context.textAlign = 'right'
+    context.fillText(item.label, 0, 0)
+    context.restore()
+
+    if (visible.length <= 6) {
+      context.fillStyle = rgbToCss(theme.text)
+      context.font = `800 15px ${theme.canvasFont}`
+      context.textAlign = 'center'
+      context.fillText(item.amountLabel, x + barWidth / 2, y - 12)
+      context.textAlign = 'left'
+    }
+  })
+}
+
+function createTripReportChartImages(model, theme) {
+  return {
+    payers: createExpenseChartDataUrl((context, canvas) => {
+      drawTripHorizontalBarsCanvas(context, theme, canvas, {
+        title: 'Who paid',
+        subtitle: model.topPayer ? `${model.topPayer.label} paid the highest amount.` : 'Payer totals from saved trip payments.',
+        items: model.payerRows,
+      })
+    }),
+    categories: createExpenseChartDataUrl((context, canvas) => {
+      context.fillStyle = rgbToCss(theme.page)
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      drawExpensePieCanvas(context, {
+        categories: model.categoryRows,
+        total: model.total,
+        totalLabel: model.totalLabel,
+      }, theme, {
+        x: 28,
+        y: 28,
+        width: canvas.width - 56,
+        height: canvas.height - 56,
+      })
+    }),
+    history: createExpenseChartDataUrl((context, canvas) => {
+      drawTripHistoryCanvas(context, theme, canvas, {
+        items: model.history,
+        totalLabel: model.totalLabel,
+      })
+    }),
+  }
+}
+
 function expenseTrendBarItemsFromExpenses(expenses = [], currency = 'INR', mode = 'monthly') {
   const rows = expenses
     .filter((item) => safeAmount(item.amount ?? item.value) > 0)
@@ -2738,7 +3031,8 @@ export async function createMonthlyBudgetReportPdfBlob(reportData = {}) {
   })
 }
 
-export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, groups = [] } = {}) {
+// eslint-disable-next-line no-unused-vars -- Retained for legacy report rollback compatibility.
+async function createLegacyTripReportPdfBlob({ reportMeta = {}, profile = {}, groups = [] } = {}) {
   const currency = reportMeta.currency || profile.currency || 'INR'
   const template = reportMeta.template || 'standard'
   const group = groups[0] || {}
@@ -2913,6 +3207,117 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     recommendations,
     accuracy: { recognizedTransactions: payments.length, needsReviewCount: 0, confidenceScore: 100, userOverrides: 0, coverage: 100 },
     finalSummary: 'This trip report is built from saved shared expense records and settlement status. It is suitable for sharing with the group after the pending balances are reviewed.',
+  })
+}
+
+export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, groups = [] } = {}) {
+  const currency = reportMeta.currency || profile.currency || 'INR'
+  const template = reportMeta.template || 'standard'
+  const theme = resolveReportTheme(reportMeta.theme)
+  const tripModels = buildTripReportModels(groups, profile, currency, theme)
+  const totalCost = sumMoney(tripModels, (model) => model.total)
+  const paymentCount = sumMoney(tripModels, (model) => model.payments.length)
+  const memberCount = sumMoney(tripModels, (model) => model.members.length)
+  const pendingAmount = sumMoney(tripModels, (model) => model.pendingAmount)
+  const settledAmount = sumMoney(tripModels, (model) => model.settledAmount)
+  const allPayers = tripModels.flatMap((model) => model.payerRows.map((item) => ({ ...item, trip: model.name })))
+  const allCategories = tripModels.flatMap((model) => model.categoryRows.map((item) => ({ ...item, trip: model.name })))
+  const whoPaidMost = allPayers.sort((first, second) => second.amount - first.amount)[0]
+  const topCategory = allCategories.sort((first, second) => second.amount - first.amount)[0]
+  const analysisSections = tripModels.flatMap((model) => {
+    const charts = createTripReportChartImages(model, theme)
+
+    return [
+      {
+        kind: 'image',
+        title: `${model.name} - Who Paid`,
+        subtitle: 'Bar chart by payer. Shows who paid first for this trip.',
+        imageDataUrl: charts.payers,
+        imageHeight: 70,
+      },
+      {
+        kind: 'image',
+        title: `${model.name} - Categories`,
+        subtitle: 'Pie chart based on saved payment purpose names.',
+        imageDataUrl: charts.categories,
+        imageHeight: 70,
+      },
+      {
+        kind: 'image',
+        title: `${model.name} - Total History`,
+        subtitle: 'Date-wise total amount history for this trip.',
+        imageDataUrl: charts.history,
+        imageHeight: 70,
+      },
+      {
+        title: `${model.name} - Who Pays Who`,
+        subtitle: 'Pending items first. Settled items appear only when nothing is pending.',
+        items: model.settlementRows,
+        limit: 9999,
+        columns: [
+          { key: 'label', label: 'Direction', width: 78, maxLines: 2 },
+          { key: 'value', label: 'Amount', width: 38, align: 'right' },
+          { key: 'detail', label: 'Status', width: 66 },
+        ],
+      },
+    ]
+  })
+  const observations = uniqueSentences([
+    `${tripModels.length || 0} ${plural(tripModels.length || 0, 'trip')} included in this split report.`,
+    `The combined trip total is ${currencyMoney(totalCost, currency)} across ${paymentCount || 0} saved ${plural(paymentCount || 0, 'payment')}.`,
+    whoPaidMost ? `${whoPaidMost.label} paid the highest amount: ${whoPaidMost.amountLabel}.` : '',
+    topCategory ? `${topCategory.label} is the highest category at ${topCategory.amountLabel}.` : '',
+    pendingAmount > 0 ? `${currencyMoney(pendingAmount, currency)} remains pending in who-pays-who settlements.` : 'Saved settlements are currently complete.',
+  ])
+  const recommendations = uniqueSentences([
+    pendingAmount > 0 ? 'Share the who-pays-who section with members before closing the trip.' : '',
+    tripModels.some((model) => model.payments.length === 0) ? 'Add payments before treating an empty trip report as final.' : '',
+    tripModels.length > 1 ? 'Review each trip section separately because every trip has its own payer and category pattern.' : '',
+  ], 3)
+
+  return createProfessionalReportBlob({
+    meta: {
+      title: tripModels.length === 1 ? `${tripModels[0].name} Split Report` : 'Split Trip Reports',
+      typeLabel: 'Split Report',
+      subtitle: 'Simple per-trip charts for payer totals, categories, history, and settlement direction.',
+      preparedFor: profile.name || profile.email || 'FBPly user',
+      currency,
+      period: reportMeta.period || tripModels[0]?.date || currentMonthLabel(),
+      reportId: reportMeta.reportId,
+      generatedAt: reportMeta.generatedAt,
+      theme: reportMeta.theme,
+      exportMode: 'pdf',
+      template,
+      unlimitedSections: true,
+      reportType: 'trip',
+    },
+    executiveSummary: [
+      tripModels.length === 1
+        ? `This split report summarizes ${tripModels[0].name} from saved shared expense records.`
+        : `This split report includes ${tripModels.length || 0} saved trips, separated into individual trip sections.`,
+      `Total amount is ${currencyMoney(totalCost, currency)} for ${paymentCount || 0} ${plural(paymentCount || 0, 'payment')}.`,
+      pendingAmount > 0
+        ? `${currencyMoney(pendingAmount, currency)} remains pending.`
+        : 'Saved settlements are currently marked complete.',
+    ].join(' '),
+    executiveNumbers: [
+      { label: 'Total Amount', value: currencyMoney(totalCost, currency), detail: `${tripModels.length || 0} trip${tripModels.length === 1 ? '' : 's'}` },
+      { label: 'Payments', value: String(paymentCount || 0), detail: `${memberCount || 0} saved participant slots` },
+      { label: 'Pending', value: currencyMoney(pendingAmount, currency), detail: 'Who-pays-who open amount', tone: COLORS.orange },
+      { label: 'Settled', value: currencyMoney(settledAmount, currency), detail: 'Marked complete', tone: COLORS.green },
+      { label: 'Top Payer', value: whoPaidMost ? whoPaidMost.label : 'None', detail: whoPaidMost ? whoPaidMost.amountLabel : 'No payment yet' },
+      { label: 'Top Category', value: topCategory ? topCategory.label : 'None', detail: topCategory ? topCategory.amountLabel : 'No category yet' },
+    ],
+    keyNumbers: [
+      { label: 'Trips', value: String(tripModels.length || 0), detail: 'Saved split groups' },
+      { label: 'Payments', value: String(paymentCount || 0), detail: 'Saved trip payments' },
+      { label: 'Pending Amount', value: currencyMoney(pendingAmount, currency), detail: 'Still open' },
+    ],
+    observations,
+    analysisSections,
+    recommendations,
+    accuracy: { recognizedTransactions: paymentCount, needsReviewCount: 0, confidenceScore: 100, userOverrides: 0, coverage: 100 },
+    finalSummary: 'This split report is built from saved shared expense records. Review pending who-pays-who rows before treating any trip as closed.',
   })
 }
 
