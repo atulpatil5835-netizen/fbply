@@ -239,7 +239,7 @@ import {
   normalizeMoneyOSTheme,
 } from './design-system'
 import { focusInvalidField, slugify, titleCase } from './lib/uiHelpers'
-import { applySeoMetadata, getSeoMetaForPath, isPublicSeoRoute, normalizeSeoPath } from './lib/seoRoutes.js'
+import { applySeoMetadata, getSeoMetaForPath, isPublicSeoRoute, legalSeoPages, normalizeSeoPath } from './lib/seoRoutes.js'
 import { trackActivation, trackEvent, trackFeatureUsage } from './lib/analytics'
 
 const ActivityScreen = lazy(() => import('./screens/ActivityScreen.jsx'))
@@ -503,9 +503,7 @@ const emiSuggestions = ['Bike EMI', 'Car EMI', 'Phone EMI', 'Education loan', 'P
 
 const legalPages = {
   '/privacy': {
-    eyebrow: 'Privacy Policy',
-    title: 'Privacy Policy',
-    summary: 'FBPly is designed to make personal finance tracking clear and respectful. This policy explains what the app may process and how users stay in control.',
+    ...legalSeoPages['/privacy'],
     sections: [
       {
         title: 'Information You Provide',
@@ -545,9 +543,7 @@ const legalPages = {
     ],
   },
   '/terms': {
-    eyebrow: 'Terms & Conditions',
-    title: 'Terms & Conditions',
-    summary: 'These terms explain acceptable use, product limits, and the role of FBPly as a personal planning tool.',
+    ...legalSeoPages['/terms'],
     sections: [
       {
         title: 'Using FBPly',
@@ -587,9 +583,7 @@ const legalPages = {
     ],
   },
   '/disclaimer': {
-    eyebrow: 'Disclaimer',
-    title: 'Disclaimer',
-    summary: 'FBPly provides personal finance clarity from user-provided and reviewed data. It is a planning aid, not professional advice.',
+    ...legalSeoPages['/disclaimer'],
     sections: [
       {
         title: 'Personal Planning Estimates',
@@ -622,9 +616,7 @@ const legalPages = {
     ],
   },
   '/about': {
-    eyebrow: 'About',
-    title: 'About FBPly',
-    summary: 'FBPly is a founder-led personal finance clarity app for monthly spending, bills, shared expenses, and purchase planning.',
+    ...legalSeoPages['/about'],
     sections: [
       {
         title: 'What FBPly Does',
@@ -670,9 +662,7 @@ const legalPages = {
     ],
   },
   '/contact': {
-    eyebrow: 'Contact',
-    title: 'Contact Us',
-    summary: 'Use the official email below for support, privacy questions, product suggestions, or general inquiries.',
+    ...legalSeoPages['/contact'],
     sections: [
       {
         title: 'Support',

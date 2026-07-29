@@ -7,6 +7,35 @@ export const defaultSeoDescription =
   'FBPly is a budget planner, expense tracker, trip expense splitter, financial report generator, and bank statement analyzer for clearer monthly money decisions.'
 export const defaultSeoTitle = 'FBPly | Budget Planner, Expense Splitter & Reports'
 
+export const legalSeoPages = {
+  '/privacy': {
+    eyebrow: 'Privacy Policy',
+    title: 'Privacy Policy',
+    summary:
+      'FBPly is designed to make personal finance tracking clear and respectful. This policy explains what the app may process and how users stay in control.',
+  },
+  '/terms': {
+    eyebrow: 'Terms & Conditions',
+    title: 'Terms & Conditions',
+    summary: 'These terms explain acceptable use, product limits, and the role of FBPly as a personal planning tool.',
+  },
+  '/disclaimer': {
+    eyebrow: 'Disclaimer',
+    title: 'Disclaimer',
+    summary: 'FBPly provides personal finance clarity from user-provided and reviewed data. It is a planning aid, not professional advice.',
+  },
+  '/about': {
+    eyebrow: 'About',
+    title: 'About FBPly',
+    summary: 'FBPly is a founder-led personal finance clarity app for monthly spending, bills, shared expenses, and purchase planning.',
+  },
+  '/contact': {
+    eyebrow: 'Contact',
+    title: 'Contact Us',
+    summary: 'Use the official email below for support, privacy questions, product suggestions, or general inquiries.',
+  },
+}
+
 export const seoRouteMeta = {
   '/': {
     title: defaultSeoTitle,
@@ -348,11 +377,13 @@ export function getSeoMetaForPath(path = '/', legalPage) {
     }
   }
 
-  if (legalPage) {
+  const safeLegalPage = legalPage || legalSeoPages[normalizedPath]
+
+  if (safeLegalPage) {
     return {
-      title: `FBPly | ${legalPage.title}`,
-      description: legalPage.summary,
-      breadcrumbLabel: legalPage.title,
+      title: `FBPly | ${safeLegalPage.title}`,
+      description: safeLegalPage.summary,
+      breadcrumbLabel: safeLegalPage.title,
       type: 'legal',
       path: normalizedPath,
       canonical: getCanonicalUrl(normalizedPath),

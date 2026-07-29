@@ -3,6 +3,21 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "installCommand": "npm install",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.fbply.com"
+        }
+      ],
+      "destination": "https://fbply.com/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/((?!assets/|fbply-logo.png|favicon.svg|robots.txt|sitemap.xml|site.webmanifest|llms.txt|ads.txt).*)",
