@@ -6987,9 +6987,10 @@ img {
   background: color-mix(in srgb, var(--theme-paper) 82%, transparent);
 }
 
-.monthly-hisab-question.answered {
+.monthly-hisab-question.missed {
   border-style: solid;
-  background: color-mix(in srgb, var(--theme-success) 5%, var(--theme-paper));
+  border-color: color-mix(in srgb, var(--theme-warning) 36%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-warning) 7%, var(--theme-paper));
 }
 
 .monthly-hisab-question-copy {
@@ -7055,6 +7056,40 @@ img {
 .monthly-hisab-answer.no.active {
   border-color: color-mix(in srgb, var(--theme-danger) 50%, transparent);
   background: color-mix(in srgb, var(--theme-danger) 11%, var(--theme-paper));
+}
+
+.monthly-hisab-catchup-action {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 18%, var(--theme-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-primary) 5%, var(--theme-paper));
+}
+
+.monthly-hisab-catchup-action span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--type-caption-size);
+  line-height: 1.3;
+  font-weight: 800;
+}
+
+.monthly-hisab-catchup-action button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 35%, var(--theme-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-paper) 92%, transparent);
+  color: var(--theme-primary);
+  font-size: var(--type-caption-size);
+  font-weight: 900;
 }
 
 .monthly-hisab-more,
@@ -17274,7 +17309,8 @@ img {
   .home-calendar-viewbar,
   .monthly-hisab-start-panel,
   .monthly-hisab-strip,
-  .monthly-hisab-question {
+  .monthly-hisab-question,
+  .monthly-hisab-catchup-action {
     grid-template-columns: 1fr;
   }
 
@@ -17318,6 +17354,10 @@ img {
 
   .monthly-hisab-answer {
     min-width: 0;
+  }
+
+  .monthly-hisab-catchup-action button {
+    width: 100%;
   }
 
   .monthly-hisab-question-text,

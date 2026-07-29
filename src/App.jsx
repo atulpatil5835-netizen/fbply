@@ -1013,6 +1013,82 @@ function buildMonthlyHisabSummary(item = {}, monthKey = currentMonthKey(), today
   }
 }
 
+function buildMonthlyHisabPromptState(items = [], todayKey = todayDateKey()) {
+  const cleanTodayKey = normalizeDateKey(todayKey)
+  const todayRows = []
+  const missedRows = []
+  let totalPending = 0
+  let missedCount = 0
+
+  ;(Array.isArray(items) ? items : []).forEach((item) => {
+    const cycle = buildMonthlyHisabCycleRange(item, cleanTodayKey)
+    const createdDateKey = normalizeDateKey(item.createdAt, cycle.start)
+
+    if (cleanTodayKey < cycle.start || cleanTodayKey > cycle.end || createdDateKey > cleanTodayKey) {
+      return
+    }
+
+    const startDateKey = createdDateKey > cycle.start ? createdDateKey : cycle.start
+    const pendingDates = []
+    let cursorDateKey = startDateKey
+    let guard = 0
+
+    while (cursorDateKey <= cleanTodayKey && cursorDateKey <= cycle.end && guard < 45) {
+      if (!getMonthlyHisabMark(item, cursorDateKey)) {
+        pendingDates.push(cursorDateKey)
+      }
+
+      cursorDateKey = shiftDailyDateKey(cursorDateKey, 1)
+      guard += 1
+    }
+
+    if (pendingDates.length === 0) {
+      return
+    }
+
+    const summary = buildMonthlyHisabSummary(item, dateMonthKey(cleanTodayKey), cleanTodayKey)
+    const itemMissedDates = pendingDates.filter((dateKey) => dateKey < cleanTodayKey)
+    const todayDateIsPending = pendingDates.includes(cleanTodayKey)
+
+    totalPending += pendingDates.length
+    missedCount += itemMissedDates.length
+
+    if (todayDateIsPending) {
+      todayRows.push({
+        item,
+        summary,
+        dateKey: cleanTodayKey,
+        isToday: true,
+        itemPendingTotal: pendingDates.length,
+        itemMissedCount: itemMissedDates.length,
+      })
+    }
+
+    itemMissedDates.forEach((dateKey, index) => {
+      missedRows.push({
+        item,
+        summary,
+        dateKey,
+        isToday: false,
+        itemPendingTotal: pendingDates.length,
+        itemMissedCount: itemMissedDates.length,
+        missedIndex: index + 1,
+      })
+    })
+  })
+
+  const allRows = [...todayRows, ...missedRows]
+  const rows = allRows.slice(0, MONTHLY_HISAB_DAILY_PROMPT_LIMIT)
+
+  return {
+    rows,
+    totalPending,
+    missedCount,
+    hiddenCount: Math.max(totalPending - rows.length, 0),
+    firstMissedRow: missedRows[0] || null,
+  }
+}
+
 function monthlyHisabRecordedAtLabel(mark = {}, dateKey = todayDateKey()) {
   const cleanDateKey = normalizeDateKey(mark.dateKey || dateKey)
   const recordedAt = new Date(mark.recordedAt || `${cleanDateKey}T12:00:00`)
@@ -7797,6 +7873,7 @@ function V12HomeScreen({
   const previousTodayCountRef = useRef(null)
   const closePageTimerRef = useRef(null)
   const dailyFlowTimerRef = useRef(null)
+  const hisabMessageTimerRef = useRef(null)
   const calendarHoldTimerRef = useRef(null)
   const calendarHoldTriggeredRef = useRef(false)
   const homeExpenseTransactions = useMemo(
@@ -7864,12 +7941,8 @@ function V12HomeScreen({
   const activeHisabSummary = monthlyHisabSummaries.length > 0
     ? monthlyHisabSummaries[safeHisabSlideIndex]
     : null
-  const todayHisabRows = useMemo(
-    () => monthlyHisabItems.slice(0, MONTHLY_HISAB_DAILY_PROMPT_LIMIT).map((item) => ({
-      item,
-      summary: buildMonthlyHisabSummary(item, currentMonthKey()),
-      mark: getMonthlyHisabMark(item, todayDateKey()),
-    })),
+  const dailyHisabPromptState = useMemo(
+    () => buildMonthlyHisabPromptState(monthlyHisabItems, todayDateKey()),
     [monthlyHisabItems],
   )
   const isRoutineTrackerVisible = isRoutineTrackerStarted || monthlyHisabItems.length > 0
@@ -7975,6 +8048,10 @@ function V12HomeScreen({
       window.clearTimeout(dailyFlowTimerRef.current)
     }
 
+    if (hisabMessageTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(hisabMessageTimerRef.current)
+    }
+
     if (calendarHoldTimerRef.current && typeof window !== 'undefined') {
       window.clearTimeout(calendarHoldTimerRef.current)
     }
@@ -8013,6 +8090,21 @@ function V12HomeScreen({
   const clearDailyFlow = () => {
     setDailyFlowInput('')
     setDailyFlowMessage('')
+  }
+
+  const clearHisabMessageSoon = (delay = 3600) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (hisabMessageTimerRef.current) {
+      window.clearTimeout(hisabMessageTimerRef.current)
+    }
+
+    hisabMessageTimerRef.current = window.setTimeout(() => {
+      setHisabMessage('')
+      hisabMessageTimerRef.current = null
+    }, delay)
   }
 
   const saveDailyFlow = async (event) => {
@@ -8104,6 +8196,19 @@ function V12HomeScreen({
     safeStorageSet(ROUTINE_TRACKER_STARTED_STORAGE_KEY, 'true')
   }
 
+  const openHisabCatchupCalendar = (item, dateKey = todayDateKey()) => {
+    if (!item) {
+      return
+    }
+
+    setCalendarViewId(item.id)
+    setCalendarMonthKey(dateMonthKey(dateKey))
+    setIsCalendarOpen(true)
+    setCalendarHisabInfo(null)
+    setHisabMessage(`Review ${item.name} from ${formatHomeNotebookDate(dateKey)} in the calendar.`)
+    clearHisabMessageSoon(4200)
+  }
+
   const handleMonthlyHisabSubmit = (event) => {
     event.preventDefault()
     const saved = addMonthlyHisabItem?.(hisabDraft)
@@ -8124,11 +8229,19 @@ function V12HomeScreen({
     setCalendarViewId(saved.id)
     setHisabSlideIndex(0)
     setIsHisabAddOpen(false)
+    clearHisabMessageSoon(4200)
   }
 
-  const markMonthlyHisabToday = (item, status) => {
-    recordMonthlyHisabTick?.(item.id, todayDateKey(), status)
-    setHisabMessage(`${item.name} marked ${status === 'yes' ? 'yes' : 'no'} for today.`)
+  const markMonthlyHisabDate = (item, dateKey, status) => {
+    const cleanDateKey = normalizeDateKey(dateKey)
+    const dateLabel = cleanDateKey === todayDateKey() ? 'today' : formatHomeNotebookDate(cleanDateKey)
+    const remainingQuestions = Math.max(dailyHisabPromptState.totalPending - 1, 0)
+
+    recordMonthlyHisabTick?.(item.id, cleanDateKey, status)
+    setHisabMessage(status === 'yes'
+      ? `Done, ${item.name} added for ${dateLabel}.${remainingQuestions > 0 ? ` ${remainingQuestions} left.` : ' All routine questions done.'}`
+      : `Done, ${item.name} saved as no for ${dateLabel}.${remainingQuestions > 0 ? ` ${remainingQuestions} left.` : ' All routine questions done.'}`)
+    clearHisabMessageSoon(4200)
   }
 
   const removeHisabItem = (item) => {
@@ -8516,38 +8629,60 @@ function V12HomeScreen({
               ))}
             </div>
           )}
-          {monthlyHisabItems.length > 0 && (
+          {dailyHisabPromptState.rows.length > 0 && (
             <div className="monthly-hisab-daily-list" aria-label="Daily routine tracker questions">
-              {todayHisabRows.map(({ item, summary, mark }) => (
-                <article className={`monthly-hisab-question ${mark ? 'answered' : ''}`.trim()} key={item.id}>
+              {dailyHisabPromptState.rows.map(({ item, summary, dateKey, isToday, itemMissedCount, missedIndex }) => {
+                const promptDateLabel = isToday ? 'today' : `on ${formatHomeNotebookDate(dateKey)}`
+                const missedCopy = itemMissedCount > 1
+                  ? `Missed day ${missedIndex} of ${itemMissedCount}`
+                  : 'Missed day'
+
+                return (
+                <article className={`monthly-hisab-question ${isToday ? 'today' : 'missed'}`.trim()} key={`${item.id}-${dateKey}`}>
                   <span className="monthly-hisab-question-copy">
-                    <strong className="monthly-hisab-question-text">Did you take {item.name} today?</strong>
-                    <small>{mark ? `${mark.status === 'yes' ? 'Yes' : 'No'} saved - ${summary.yesCount} days this cycle` : `Yes adds ${summary.amountLabel} to this cycle`}</small>
+                    <strong className="monthly-hisab-question-text">Did you take {item.name} {promptDateLabel}?</strong>
+                    <small>{isToday ? `Yes adds ${summary.amountLabel} to this cycle` : `${missedCopy} - answer or review calendar`}</small>
                   </span>
                   <span className="monthly-hisab-answer-buttons">
                     <button
-                      className={`monthly-hisab-answer yes ${mark?.status === 'yes' ? 'active' : ''}`.trim()}
+                      className="monthly-hisab-answer yes"
                       type="button"
-                      aria-label={`Yes, ${item.name} today`}
-                      onClick={() => markMonthlyHisabToday(item, 'yes')}
+                      aria-label={`Yes, ${item.name} ${promptDateLabel}`}
+                      onClick={() => markMonthlyHisabDate(item, dateKey, 'yes')}
                     >
                       <CheckCircle2 size={17} />
                       <span>Yes</span>
                     </button>
                     <button
-                      className={`monthly-hisab-answer no ${mark?.status === 'no' ? 'active' : ''}`.trim()}
+                      className="monthly-hisab-answer no"
                       type="button"
-                      aria-label={`No, ${item.name} today`}
-                      onClick={() => markMonthlyHisabToday(item, 'no')}
+                      aria-label={`No, ${item.name} ${promptDateLabel}`}
+                      onClick={() => markMonthlyHisabDate(item, dateKey, 'no')}
                     >
                       <X size={17} />
                       <span>No</span>
                     </button>
                   </span>
                 </article>
-              ))}
-              {monthlyHisabItems.length > MONTHLY_HISAB_DAILY_PROMPT_LIMIT && (
-                <p className="monthly-hisab-more">+ {monthlyHisabItems.length - MONTHLY_HISAB_DAILY_PROMPT_LIMIT} more saved item{monthlyHisabItems.length - MONTHLY_HISAB_DAILY_PROMPT_LIMIT === 1 ? '' : 's'}.</p>
+                )
+              })}
+              {dailyHisabPromptState.missedCount > 0 && (
+                <div className="monthly-hisab-catchup-action">
+                  <span>
+                    {dailyHisabPromptState.hiddenCount > 0
+                      ? `+ ${dailyHisabPromptState.hiddenCount} more unanswered date${dailyHisabPromptState.hiddenCount === 1 ? '' : 's'}.`
+                      : `${dailyHisabPromptState.missedCount} missed date${dailyHisabPromptState.missedCount === 1 ? '' : 's'} need a quick answer.`}
+                  </span>
+                  {dailyHisabPromptState.firstMissedRow && (
+                    <button
+                      type="button"
+                      onClick={() => openHisabCatchupCalendar(dailyHisabPromptState.firstMissedRow.item, dailyHisabPromptState.firstMissedRow.dateKey)}
+                    >
+                      <CalendarDays size={14} />
+                      <span>Open Calendar</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
