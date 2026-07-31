@@ -111,6 +111,37 @@
   --experience-secondary-action-font-size: 18px;
 }
 
+:root[data-money-theme="classic"],
+[data-money-theme="classic"],
+:root[data-money-theme="brownJournal"],
+[data-money-theme="brownJournal"],
+:root[data-money-theme="navy"],
+[data-money-theme="navy"],
+:root[data-money-theme="vintageDiary"],
+[data-money-theme="vintageDiary"] {
+  --experience-sheet-bg: var(--notebook-paper-bg);
+  --experience-card-pattern:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 calc(var(--notebook-rule-size) - 1px),
+      color-mix(in srgb, var(--theme-line) 44%, transparent) calc(var(--notebook-rule-size) - 1px) var(--notebook-rule-size)
+    );
+  --experience-card-pattern-opacity: 0.54;
+  --experience-state-pattern:
+    linear-gradient(
+      90deg,
+      transparent 0 var(--notebook-margin-size),
+      color-mix(in srgb, var(--theme-danger) 14%, transparent) var(--notebook-margin-size) calc(var(--notebook-margin-size) + 1px),
+      transparent calc(var(--notebook-margin-size) + 1px)
+    ),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 calc(var(--notebook-rule-size) - 1px),
+      color-mix(in srgb, var(--theme-line) 42%, transparent) calc(var(--notebook-rule-size) - 1px) var(--notebook-rule-size)
+    );
+  --experience-state-pattern-opacity: 0.72;
+}
+
 :root,
 :root[data-money-theme="minimalWhite"],
 [data-money-theme="minimalWhite"],
@@ -697,6 +728,11 @@
   --premium-app-shadow: 0 14px 36px color-mix(in srgb, var(--theme-shadow) 10%, transparent);
   --premium-app-shadow-soft: 0 8px 20px color-mix(in srgb, var(--theme-shadow) 7%, transparent);
   --premium-app-focus: 0 0 0 4px color-mix(in srgb, var(--theme-cyan) 16%, transparent);
+  --experience-sheet-bg: var(--experience-card-bg, var(--theme-card));
+  --experience-card-pattern: none;
+  --experience-card-pattern-opacity: 0;
+  --experience-state-pattern: none;
+  --experience-state-pattern-opacity: 0;
   --theme-preview-classic: linear-gradient(135deg, #214646, #587D69 58%, #A84F45);
   --theme-preview-navy: var(--theme-preview-classic);
   --theme-preview-brownJournal: var(--theme-preview-classic);
@@ -4477,6 +4513,20 @@ img {
   transform: translateY(-1px);
 }
 
+.profile-top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.profile-menu-trigger--top {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--experience-button-radius, 12px);
+  box-shadow: var(--premium-app-shadow-soft);
+}
+
 .profile-menu-sheet {
   width: min(100%, 430px);
 }
@@ -5874,12 +5924,16 @@ img {
 }
 
 .daily-book-expense-amount {
+  min-width: max-content;
   justify-items: end;
   text-align: right;
 }
 
 .daily-book-expense-amount strong {
   color: var(--danger);
+  font-variant-numeric: tabular-nums;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .v12-home {
@@ -7252,11 +7306,12 @@ img {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: var(--notebook-space-sm);
-  padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--theme-line) 66%, var(--theme-border));
-  border-radius: var(--notebook-radius-card);
-  background: color-mix(in srgb, var(--theme-paper) 66%, transparent);
+  gap: var(--notebook-space-md);
+  padding: var(--notebook-card-padding);
+  border: 1px solid var(--experience-entry-border, color-mix(in srgb, var(--theme-primary) 14%, var(--theme-border)));
+  border-radius: var(--experience-card-radius, var(--notebook-radius-card));
+  background: var(--experience-card-bg, color-mix(in srgb, var(--theme-paper) 76%, transparent));
+  box-shadow: var(--premium-app-shadow-soft);
 }
 
 .v24-calculator-tools-heading {
@@ -7288,25 +7343,47 @@ img {
 
 .v24-tool-button {
   min-width: 0;
-  min-height: 54px;
-  display: inline-flex;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
   align-items: center;
-  justify-content: flex-start;
-  gap: 9px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--nb-border, var(--theme-border)));
-  border-radius: var(--notebook-radius-card);
-  padding: 9px 11px;
-  color: var(--theme-primary);
-  background: color-mix(in srgb, var(--theme-paper) 78%, transparent);
+  gap: var(--notebook-space-sm);
+  border: 1px solid var(--premium-app-border, var(--theme-border));
+  border-radius: var(--experience-entry-control-radius, var(--notebook-radius-control));
+  padding: 10px;
+  color: var(--theme-text);
+  background: var(--premium-app-soft, color-mix(in srgb, var(--theme-card) 86%, transparent));
   text-align: left;
   box-shadow: none;
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
-.v24-tool-button svg {
+.v24-tool-button-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 22%, var(--theme-border));
+  border-radius: var(--experience-entry-control-radius, var(--notebook-radius-control));
+  color: var(--theme-icon, var(--theme-primary));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--theme-accent) 12%, transparent),
+      color-mix(in srgb, var(--theme-card) 88%, transparent)
+    ),
+    var(--theme-card);
+}
+
+.v24-tool-button-icon svg {
   flex: 0 0 auto;
 }
 
-.v24-tool-button span {
+.v24-tool-button-copy {
   min-width: 0;
   display: grid;
   gap: 1px;
@@ -7315,9 +7392,7 @@ img {
 .v24-tool-button strong,
 .v24-tool-button small {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .v24-tool-button strong {
@@ -7329,7 +7404,26 @@ img {
 .v24-tool-button small {
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.25;
   font-weight: 700;
+}
+
+@media (hover: hover) {
+  .v24-tool-button:hover {
+    border-color: color-mix(in srgb, var(--theme-accent) 36%, var(--theme-border));
+    background: color-mix(in srgb, var(--theme-accent) 9%, var(--theme-card));
+    transform: translateY(-1px);
+  }
+}
+
+.v24-tool-button:active {
+  transform: scale(var(--motion-press-scale));
+}
+
+.v24-tool-button:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--theme-accent) 42%, var(--theme-border));
+  box-shadow: var(--mos-focus-ring, 0 0 0 3px color-mix(in srgb, var(--theme-accent) 18%, transparent));
 }
 
 .daily-flow-entry {
@@ -8043,22 +8137,27 @@ img {
   background: color-mix(in srgb, var(--theme-paper) 62%, transparent);
 }
 
-.home-history-row {
-  grid-template-columns: minmax(0, 1fr) minmax(48px, 72px);
-  padding-right: 12px;
+.home-notebook-paper .home-history-row {
+  grid-template-columns: minmax(0, max-content) max-content;
+  justify-content: start;
+  column-gap: var(--notebook-space-xl);
+  padding-right: 16px;
 }
 
-.home-history-row .ruled-line-copy {
+.home-notebook-paper .home-history-row .ruled-line-copy {
   min-width: 0;
+  max-width: min(52ch, 100%);
+  overflow-wrap: anywhere;
 }
 
-.home-history-row .amount {
-  min-width: 0;
-  max-width: 72px;
+.home-notebook-paper .home-history-row .amount {
+  min-width: max-content;
+  max-width: none;
   justify-self: end;
-  overflow: hidden;
+  overflow: visible;
+  font-variant-numeric: tabular-nums;
   text-align: right;
-  text-overflow: ellipsis;
+  text-overflow: clip;
 }
 
 .home-history-row .ruled-line-copy strong,
@@ -8757,6 +8856,15 @@ img {
   gap: var(--notebook-space-lg);
 }
 
+.profile-monthly-report-section {
+  display: grid;
+  min-width: 0;
+}
+
+.profile-monthly-report-section .report-details-panel {
+  margin: 0;
+}
+
 .v13-account-group,
 .v13-account-group-details {
   display: grid;
@@ -9270,6 +9378,7 @@ img {
 }
 
 .money-book-entry-amount {
+  min-width: max-content;
   justify-items: end;
   text-align: right;
 }
@@ -9593,6 +9702,7 @@ img {
 
 .history-item-amount {
   display: grid;
+  min-width: max-content;
   justify-items: end;
   gap: var(--notebook-space-xs);
   text-align: right;
@@ -10197,6 +10307,18 @@ img {
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--soft-bg);
+}
+
+.settings-menu-link-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 9px;
+  min-width: 0;
+}
+
+.settings-menu-link-grid .mos-action-card {
+  min-width: 0;
+  min-height: 112px;
 }
 
 .settings-form-grid {
@@ -15425,13 +15547,15 @@ img {
 }
 
 .v72-activity-amount {
-  max-width: 104px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: max-content;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
   color: var(--theme-text);
   font-style: normal;
   font-size: 12px;
   font-weight: 850;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -15708,11 +15832,6 @@ img {
 
 .v74-people-progress {
   margin: 0 0 2px;
-}
-
-[data-money-theme="ledgerPro"] .mos-card::before,
-[data-money-theme="receipt"] .mos-card::before {
-  opacity: 0.12;
 }
 
 [data-money-theme="ledgerPro"] .v16-cover-title,
@@ -17378,13 +17497,14 @@ img {
     font-size: 14px;
   }
 
-  .home-history-row {
-    grid-template-columns: minmax(0, 1fr) minmax(44px, 64px);
+  .home-notebook-paper .home-history-row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    column-gap: var(--notebook-space-md);
     padding-right: 8px;
   }
 
-  .home-history-row .amount {
-    max-width: 64px;
+  .home-notebook-paper .home-history-row .amount {
+    max-width: none;
     font-size: 13px;
   }
 
@@ -18009,6 +18129,7 @@ img {
 .app-root .mos-sheet,
 .app-root .mos-card,
 .app-root .mos-state,
+.app-root .v24-calculator-tools,
 .app-root .theme-choice-button,
 .app-root .report-history-empty-card,
 .app-root .report-export-guidance,
@@ -18024,7 +18145,9 @@ img {
 .app-root .splash-brand-card,
 .app-root .theme-choice-swatch,
 .app-root .home-calendar-icon-button,
+.app-root .v24-tool-button-icon,
 .app-root .quick-tools-tab.active,
+.app-root .quick-tools-tab.active .quick-tools-tab__icon,
 .app-root .bottom-nav button.active,
 .app-root .profile-menu-trigger,
 .app-root .top-settings-button,
@@ -18060,6 +18183,7 @@ img {
   .v23-home-primary-cta.cta-handwritten,
   .v24-mode-switch button,
   .v24-normal-add-button,
+  .v24-tool-button,
   .quick-tools-tab,
   .quick-tools-key,
   .setup-chip,
@@ -18071,6 +18195,7 @@ img {
 .app-root .ghost-button,
 .app-root .text-action-button,
 .app-root .ledger-search-clear,
+.app-root .v24-tool-button,
 .app-root .quick-tools-tab,
 .app-root .quick-tools-key,
 .app-root .setup-chip,
@@ -18084,6 +18209,7 @@ img {
 
 .app-root .ghost-button:hover,
 .app-root .text-action-button:hover,
+.app-root .v24-tool-button:hover,
 .app-root .quick-tools-tab:hover,
 .app-root .quick-tools-key:hover,
 .app-root .setup-chip:hover,

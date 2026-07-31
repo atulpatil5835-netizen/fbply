@@ -1,11 +1,12 @@
 .quick-tools-sheet {
-  width: min(100%, 540px);
+  width: min(100%, 560px);
   max-height: min(86svh, 760px);
+  border-radius: var(--experience-sheet-radius, var(--mos-radius-card));
 }
 
 .quick-tools-sheet__body {
   display: grid;
-  gap: var(--mos-space-md);
+  gap: var(--mos-space-lg);
 }
 
 .quick-tools-shell {
@@ -16,23 +17,23 @@
 
 .quick-tools-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--mos-space-sm);
   min-width: 0;
 }
 
 .quick-tools-tab {
   min-width: 0;
-  min-height: 48px;
+  min-height: 64px;
   display: grid;
   align-content: center;
   justify-items: center;
-  gap: var(--mos-space-xs);
-  padding: var(--mos-space-sm) 6px;
-  border: 1px solid var(--mos-border-subtle);
-  border-radius: var(--mos-radius-lg);
+  gap: 6px;
+  padding: 8px 6px;
+  border: 1px solid var(--premium-app-border, var(--mos-border-subtle));
+  border-radius: var(--experience-entry-control-radius, var(--mos-radius-md));
   color: var(--theme-muted);
-  background: color-mix(in srgb, var(--theme-card) 90%, transparent);
+  background: var(--premium-app-soft, color-mix(in srgb, var(--theme-card) 88%, transparent));
   font: inherit;
   font-size: 11px;
   line-height: 1.1;
@@ -47,27 +48,50 @@
     box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
-.quick-tools-tab svg {
+.quick-tools-tab__icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 22%, var(--theme-border));
+  border-radius: var(--experience-entry-control-radius, var(--mos-radius-md));
+  color: var(--theme-icon, var(--theme-primary));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--theme-accent) 12%, transparent),
+      color-mix(in srgb, var(--theme-card) 88%, transparent)
+    ),
+    var(--theme-card);
+}
+
+.quick-tools-tab__icon svg {
   flex: 0 0 auto;
 }
 
-.quick-tools-tab span {
+.quick-tools-tab__label {
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .quick-tools-tab.active {
   border-color: color-mix(in srgb, var(--theme-primary) 44%, var(--theme-border));
   color: var(--theme-text);
-  background: color-mix(in srgb, var(--theme-primary) 12%, var(--theme-card));
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--theme-shadow) 10%, transparent);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--theme-accent) 14%, transparent),
+      color-mix(in srgb, var(--theme-card) 88%, transparent)
+    ),
+    var(--theme-card);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-accent) 14%, transparent);
 }
 
 .quick-tools-card {
   min-width: 0;
+  border-radius: var(--experience-card-radius, var(--mos-radius-card));
 }
 
 .quick-tools-card .mos-card__header {
@@ -98,9 +122,9 @@
   display: grid;
   gap: var(--mos-space-xs);
   padding: 10px 12px;
-  border: 1px solid var(--mos-border-subtle);
-  border-radius: var(--mos-radius-lg);
-  background: color-mix(in srgb, var(--theme-bg) 58%, var(--theme-card));
+  border: 1px solid var(--premium-app-border, var(--mos-border-subtle));
+  border-radius: var(--experience-entry-control-radius, var(--mos-radius-md));
+  background: var(--premium-app-soft, color-mix(in srgb, var(--theme-bg) 58%, var(--theme-card)));
 }
 
 .quick-tools-result span,
@@ -121,6 +145,7 @@
   font-size: 19px;
   line-height: 1.15;
   font-weight: 900;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
 
@@ -136,13 +161,14 @@
   min-height: 42px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--mos-border-subtle);
-  border-radius: var(--mos-radius-lg);
+  border: 1px solid var(--premium-app-border, var(--mos-border-subtle));
+  border-radius: var(--experience-entry-control-radius, var(--mos-radius-md));
   color: var(--theme-text);
-  background: color-mix(in srgb, var(--theme-card) 92%, transparent);
+  background: var(--premium-app-soft, color-mix(in srgb, var(--theme-card) 90%, transparent));
   font: inherit;
   font-size: 17px;
   font-weight: 900;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition:
     transform var(--motion-duration-fast) var(--motion-ease-standard),
@@ -159,13 +185,28 @@
   background: color-mix(in srgb, var(--theme-bg) 72%, var(--theme-card));
 }
 
+.quick-tools-key--operator {
+  color: var(--theme-primary);
+  background: color-mix(in srgb, var(--theme-accent) 9%, var(--theme-card));
+}
+
+.quick-tools-key:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--theme-accent) 42%, var(--theme-border));
+  box-shadow: var(--mos-focus-ring);
+}
+
 @media (max-width: 520px) {
   .quick-tools-sheet {
     max-height: 88svh;
   }
 
   .quick-tools-tabs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quick-tools-tab {
+    min-height: 56px;
   }
 
   .quick-tools-fields,

@@ -23,41 +23,45 @@ const QUICK_TOOLS = [
   {
     key: 'calculator',
     label: 'Calculator',
-    detail: 'Basic arithmetic',
+    detail: 'Add or total quickly',
     icon: Calculator,
-    tone: 'tint',
+    tone: 'neutral',
   },
   {
     key: 'gst',
     label: 'GST',
-    detail: 'Add or exclude GST',
+    detail: 'Tax included or extra',
     icon: Receipt,
-    tone: 'success',
+    tone: 'neutral',
   },
   {
     key: 'percentage',
-    label: 'Percentage',
+    label: 'Percent',
     detail: 'Discounts and shares',
     icon: Percent,
-    tone: 'tint',
+    tone: 'neutral',
+  },
+  {
+    key: 'split',
+    label: 'Split',
+    detail: 'Divide a bill',
+    icon: Divide,
+    tone: 'neutral',
   },
   {
     key: 'emi',
     label: 'EMI',
     detail: 'Monthly estimate',
     icon: CreditCard,
-    tone: 'tint',
-  },
-  {
-    key: 'split',
-    label: 'Split Calculator',
-    detail: 'Amount per person',
-    icon: Divide,
-    tone: 'success',
+    tone: 'neutral',
   },
 ]
 
 const CALCULATOR_KEYS = [
+  'C',
+  '⌫',
+  '(',
+  ')',
   '7',
   '8',
   '9',
@@ -71,13 +75,40 @@ const CALCULATOR_KEYS = [
   '3',
   '-',
   '0',
+  '00',
   '.',
-  '(',
-  ')',
   '+',
-  'C',
-  '⌫',
 ]
+
+function calculatorKeyClassName(key) {
+  const keyType = key === 'C' || key === '⌫'
+    ? 'utility'
+    : ['+', '-', '×', '÷', '(', ')'].includes(key)
+      ? 'operator'
+      : ''
+
+  return ['quick-tools-key', keyType ? `quick-tools-key--${keyType}` : ''].filter(Boolean).join(' ')
+}
+
+function calculatorKeyAriaLabel(key) {
+  if (key === 'C') {
+    return 'Clear calculation'
+  }
+
+  if (key === '⌫') {
+    return 'Delete last character'
+  }
+
+  if (key === '×') {
+    return 'Multiply'
+  }
+
+  if (key === '÷') {
+    return 'Divide'
+  }
+
+  return key
+}
 
 function normalizeToolKey(value) {
   return QUICK_TOOLS.some((tool) => tool.key === value) ? value : 'calculator'
@@ -166,10 +197,11 @@ function useCalculatorTool() {
         <div className="quick-tools-keypad" aria-label="Calculator keys">
           {CALCULATOR_KEYS.map((key) => (
             <button
-              className={key === 'C' || key === '⌫' ? 'quick-tools-key quick-tools-key--utility' : 'quick-tools-key'}
+              className={calculatorKeyClassName(key)}
               type="button"
               key={key}
               onClick={() => addToken(key)}
+              aria-label={calculatorKeyAriaLabel(key)}
             >
               {key}
             </button>
@@ -376,8 +408,10 @@ export default function QuickToolsSheet({ open = false, initialTool = 'calculato
                 key={tool.key}
                 onClick={() => setActiveTool(tool.key)}
               >
-                <ToolIcon size={16} aria-hidden="true" />
-                <span>{tool.label}</span>
+                <span className="quick-tools-tab__icon" aria-hidden="true">
+                  <ToolIcon size={16} />
+                </span>
+                <span className="quick-tools-tab__label">{tool.label}</span>
               </button>
             )
           })}

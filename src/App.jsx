@@ -247,7 +247,6 @@ const DailyBookScreen = lazy(() => import('./screens/DailyBookScreen.jsx'))
 const GoalsScreen = lazy(() => import('./screens/GoalsScreen.jsx'))
 const LegalScreen = lazy(() => import('./screens/LegalScreen.jsx'))
 const NotificationCenter = lazy(() => import('./components/NotificationCenter.jsx'))
-const ProfileHub = lazy(() => import('./components/ProfileHub.jsx'))
 const PublicSeoScreen = lazy(() => import('./screens/PublicSeoScreen.jsx'))
 const QuickToolsSheet = lazy(() => import('./components/QuickToolsSheet.jsx'))
 const ReportsScreen = lazy(() => import('./components/ReportsScreen.jsx'))
@@ -8690,9 +8689,17 @@ function V12HomeScreen({
               const ToolIcon = tool.icon
 
               return (
-                <button className="v24-tool-button" type="button" key={tool.key} onClick={() => openQuickTools?.(tool.key)}>
-                  <ToolIcon size={15} />
-                  <span>
+                <button
+                  className="v24-tool-button"
+                  type="button"
+                  key={tool.key}
+                  onClick={() => openQuickTools?.(tool.key)}
+                  aria-label={`Open ${tool.label}`}
+                >
+                  <span className="v24-tool-button-icon" aria-hidden="true">
+                    <ToolIcon size={15} />
+                  </span>
+                  <span className="v24-tool-button-copy">
                     <strong>{tool.label}</strong>
                     <small>{tool.detail}</small>
                   </span>
@@ -9610,10 +9617,7 @@ function ProfileCompanionHome({
   selectedMonthKey = currentMonthKey(),
   openSettings,
   onEnableBackup,
-  supportEmail,
-  supportPaymentUrl,
-  founderName,
-  founderLinkedInUrl,
+  monthlyReportNode = null,
 }) {
   const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
   const monthExpenses = useMemo(
@@ -9643,7 +9647,19 @@ function ProfileCompanionHome({
         eyebrow="Profile"
         title="Your Money Picture"
         detail="Simple visuals from the notebook, without turning the app into a dashboard."
-        actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
+        actions={(
+          <div className="profile-top-actions">
+            <StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>
+            <button
+              className="profile-menu-trigger profile-menu-trigger--top"
+              type="button"
+              aria-label="Open profile menu"
+              onClick={openSettings}
+            >
+              <MoreVertical size={18} />
+            </button>
+          </div>
+        )}
       />
 
       <section className="v24-profile-visual-grid" aria-label="Money visuals">
@@ -9669,21 +9685,7 @@ function ProfileCompanionHome({
         </div>
       </section>
 
-      <section className="v13-account-group" aria-labelledby="v13-account-appearance">
-        <SectionHeader
-          title="Themes"
-          detail="Choose a clean appearance style. The whole app follows this choice."
-        />
-        <ActionCard
-          id="v13-account-appearance"
-          title="Theme & appearance"
-          detail="Change colors, typography, and surface styling from one place."
-          actionLabel="Open"
-          icon={User}
-          tone="tint"
-          onClick={openSettings}
-        />
-      </section>
+      {monthlyReportNode}
 
       <section className="v13-account-group" aria-labelledby="v13-account-backup">
         <SectionHeader
@@ -9703,55 +9705,6 @@ function ProfileCompanionHome({
             </button>
           )}
         />
-      </section>
-
-      <details className="v13-account-group-details">
-        <summary>
-          <span>
-            <strong>Support</strong>
-            <small>Feedback and help when something feels unclear.</small>
-          </span>
-          <StatusBadge>Open</StatusBadge>
-        </summary>
-        <Suspense fallback={<FLoader label="Opening Support" />}>
-          <ProfileHub
-            supportEmail={supportEmail}
-            supportPaymentUrl={supportPaymentUrl}
-            founderName={founderName}
-            founderLinkedInUrl={founderLinkedInUrl}
-            className="v13-account-support-panel"
-          />
-        </Suspense>
-      </details>
-
-      <section className="v13-account-group" aria-labelledby="v13-account-about">
-        <SectionHeader
-          title="About & Privacy"
-          detail="FBPLY product and founder details."
-        />
-        <div className="v13-account-about-grid">
-          <ActionCard
-            id="v13-account-about"
-            title="About FBPLY"
-            detail={founderName ? `Founder-led by ${founderName}.` : 'Product details, privacy, and ownership.'}
-            actionLabel="Read"
-            icon={Sparkles}
-            tone="neutral"
-            href="/about"
-          />
-          {founderLinkedInUrl && (
-            <ActionCard
-              title="Founder LinkedIn"
-              detail="Open the founder profile."
-              actionLabel="Open"
-              icon={ExternalLink}
-              tone="tint"
-              href={founderLinkedInUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-            />
-          )}
-        </div>
       </section>
     </MoneyOSProvider>
   )
@@ -10204,6 +10157,20 @@ function MainApp(props) {
       {pdfError && <p className="form-message">{pdfError}</p>}
     </Suspense>
   )
+  const profileMonthlyReportNode = (
+    <Suspense fallback={<ReportsFallback />}>
+      <ReportsScreen
+        advancedReport={advancedReport}
+        expenseBreakdown={reportExpenseBreakdown}
+        financialState={reportFinancialState}
+        reportTransactions={reportTransactions}
+        transactionSummary={reportTransactionSummary}
+        monthlyComparison={monthlyComparison}
+        selectedMonthKey={selectedMonthKey}
+        profileDetailsOnly
+      />
+    </Suspense>
+  )
 
   return (
     <div className={motionSurfaceClassName(useLegacyNavigation ? 'app-shell' : 'app-shell v12-app-shell')}>
@@ -10445,10 +10412,7 @@ function MainApp(props) {
                 transactionSummary={transactionSummary}
                 selectedMonthKey={selectedMonthKey}
                 onEnableBackup={onEnableBackup}
-                supportEmail={supportEmail}
-                supportPaymentUrl={supportPaymentUrl}
-                founderName={founderName}
-                founderLinkedInUrl={founderLinkedInUrl}
+                monthlyReportNode={profileMonthlyReportNode}
                 openSettings={() => {
                   setIsSettingsOpen(true)
                   trackEvent('profile_viewed')
@@ -10457,25 +10421,6 @@ function MainApp(props) {
                   })
                 }}
               />
-            )}
-            {!useLegacyNavigation && (
-              <details
-                className="v12-account-secondary-details"
-                id="v12-account-reports"
-                open={isInsightsReportsOpen}
-                onToggle={(event) => setIsInsightsReportsOpen(event.currentTarget.open)}
-              >
-                <summary>
-                  <span>
-                    <strong>Report downloads</strong>
-                    <small>Older notebook reports and statement downloads</small>
-                  </span>
-                  <StatusBadge>{isInsightsReportsOpen ? 'Open' : 'Hidden'}</StatusBadge>
-                </summary>
-                <div className="v12-account-secondary-stack">
-                  {isInsightsReportsOpen && reportsScreenNode}
-                </div>
-              </details>
             )}
             {!useLegacyNavigation ? (
               <details
@@ -10667,7 +10612,7 @@ function MainApp(props) {
         </Suspense>
       )}
       {isSettingsOpen && (
-        <Suspense fallback={<FLoader fullPage label="Opening Profile Hub" />}>
+        <Suspense fallback={<FLoader fullPage label="Opening Profile menu" />}>
           <SettingsScreen
             authUser={authUser}
             moneyTheme={moneyTheme}

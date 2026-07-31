@@ -217,13 +217,9 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      180deg,
-      transparent 0 calc(var(--notebook-rule-size) - 1px),
-      color-mix(in srgb, var(--theme-line) 44%, transparent) calc(var(--notebook-rule-size) - 1px) var(--notebook-rule-size)
-    );
-  opacity: 0.54;
+  border-radius: inherit;
+  background: var(--experience-card-pattern, none);
+  opacity: var(--experience-card-pattern-opacity, 0);
 }
 
 .mos-card > * {
@@ -780,19 +776,8 @@ button.mos-action-card {
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  background:
-    linear-gradient(
-      90deg,
-      transparent 0 var(--notebook-margin-size),
-      color-mix(in srgb, var(--theme-danger) 14%, transparent) var(--notebook-margin-size) calc(var(--notebook-margin-size) + 1px),
-      transparent calc(var(--notebook-margin-size) + 1px)
-    ),
-    repeating-linear-gradient(
-      180deg,
-      transparent 0 calc(var(--notebook-rule-size) - 1px),
-      color-mix(in srgb, var(--theme-line) 42%, transparent) calc(var(--notebook-rule-size) - 1px) var(--notebook-rule-size)
-    );
-  opacity: 0.72;
+  background: var(--experience-state-pattern, var(--experience-card-pattern, none));
+  opacity: var(--experience-state-pattern-opacity, var(--experience-card-pattern-opacity, 0));
 }
 
 .mos-state > * {
@@ -843,7 +828,7 @@ button.mos-action-card {
   overflow: hidden;
   border: 1px solid var(--mos-border-subtle);
   border-radius: var(--mos-radius-sheet) var(--mos-radius-sheet) 0 0;
-  background: var(--notebook-paper-bg);
+  background: var(--experience-sheet-bg, var(--experience-card-bg, var(--mos-surface-raised)));
   box-shadow: var(--mos-shadow-medium);
   animation: mosSheetIn var(--motion-duration-fab-open) var(--motion-ease-decelerate) both;
   transform-origin: bottom center;

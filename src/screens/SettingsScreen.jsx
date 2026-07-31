@@ -1,10 +1,10 @@
 import { lazy, Suspense, useState } from 'react'
-import { CheckCircle2, LogOut, ShieldCheck, X } from 'lucide-react'
+import { CheckCircle2, Coffee, ExternalLink, LogOut, Mail, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { AppModal, BrandMark, CurrencyInput } from '../components/AppPrimitives.jsx'
 import FinanceDonut from '../components/FinanceDonut.jsx'
 import { CommitmentsEditor, CurrencyPreference } from '../components/ProfileSettingsControls.jsx'
 import RecurringScheduleManager from '../components/RecurringScheduleManager.jsx'
-import { FLoader, moneyOSThemeOptions, normalizeMoneyOSTheme } from '../design-system'
+import { ActionCard, FLoader, moneyOSThemeOptions, normalizeMoneyOSTheme } from '../design-system'
 import { getProfileBalanceMessage } from '../lib/financeVisuals'
 import { normalizeMoney } from '../lib/money'
 import { trackEvent } from '../lib/analytics'
@@ -93,6 +93,85 @@ function ThemePreference({ moneyTheme, setMoneyTheme }) {
   )
 }
 
+function settingsExternalProps(external) {
+  return external
+    ? {
+        target: '_blank',
+        rel: 'noreferrer noopener',
+      }
+    : {}
+}
+
+function supportMailHref(supportEmail = 'contact@fbply.com') {
+  const subject = encodeURIComponent('FBPly support')
+  return `mailto:${supportEmail}?subject=${subject}`
+}
+
+function SettingsMenuLinks({
+  supportEmail = 'contact@fbply.com',
+  supportPaymentUrl = '',
+  founderName = '',
+  founderLinkedInUrl = '',
+}) {
+  return (
+    <section className="settings-compact-group settings-menu-links" aria-labelledby="settings-menu-links-title">
+      <div className="section-heading-row">
+        <div>
+          <h2 id="settings-menu-links-title">More</h2>
+        </div>
+      </div>
+      <div className="settings-menu-link-grid">
+        <ActionCard
+          title="Support"
+          detail="Feedback and help when something feels unclear."
+          actionLabel="Email"
+          icon={Mail}
+          tone="tint"
+          href={supportMailHref(supportEmail)}
+        />
+        <ActionCard
+          title="About FBPLY"
+          detail={founderName ? `Founder-led by ${founderName}.` : 'Product, founder, and ownership details.'}
+          actionLabel="Read"
+          icon={Sparkles}
+          tone="neutral"
+          href="/about"
+        />
+        <ActionCard
+          title="Privacy Policy"
+          detail="Data, privacy, and safety details."
+          actionLabel="Read"
+          icon={ShieldCheck}
+          tone="neutral"
+          href="/privacy"
+        />
+        {supportPaymentUrl && (
+          <ActionCard
+            title="Support FBPly"
+            detail="Support independent FBPly development."
+            actionLabel="Open"
+            icon={Coffee}
+            tone="warning"
+            href={supportPaymentUrl}
+            {...settingsExternalProps(true)}
+          />
+        )}
+        {founderLinkedInUrl && (
+          <ActionCard
+            title="Founder LinkedIn"
+            detail="Open the founder profile."
+            actionLabel="Open"
+            icon={ExternalLink}
+            tone="tint"
+            href={founderLinkedInUrl}
+            {...settingsExternalProps(true)}
+          />
+        )}
+      </div>
+    </section>
+  )
+}
+
 export default function SettingsScreen({
   authUser,
   moneyTheme,
@@ -115,6 +194,9 @@ export default function SettingsScreen({
   removeRecurringSchedule,
   toggleRecurringSchedule,
   supportEmail,
+  supportPaymentUrl,
+  founderName,
+  founderLinkedInUrl,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const balanceMessage = getProfileBalanceMessage(financialState)
@@ -130,7 +212,7 @@ export default function SettingsScreen({
     >
       <div className="editor-sheet-header">
         <div>
-          <h2 id="settings-title">Profile</h2>
+          <h2 id="settings-title">Profile menu</h2>
         </div>
         <button className="icon-button" type="button" aria-label="Close settings" onClick={onClose}>
           <X size={17} />
@@ -161,6 +243,13 @@ export default function SettingsScreen({
         </section>
 
         <ThemePreference moneyTheme={moneyTheme} setMoneyTheme={setMoneyTheme} />
+
+        <SettingsMenuLinks
+          supportEmail={supportEmail}
+          supportPaymentUrl={supportPaymentUrl}
+          founderName={founderName}
+          founderLinkedInUrl={founderLinkedInUrl}
+        />
 
         <details
           className="settings-secondary-details"

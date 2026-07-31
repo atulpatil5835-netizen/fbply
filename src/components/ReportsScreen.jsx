@@ -233,7 +233,7 @@ function buildEntryTrendData(reportTransactions = [], fallbackTimeline = []) {
     .filter((item) => item.amount > 0)
 }
 
-function ReportSection({ title, items }) {
+function ReportSection({ title, items = [] }) {
   const visibleItems = items.slice(0, 2)
 
   if (visibleItems.length === 0) {
@@ -255,6 +255,165 @@ function ReportSection({ title, items }) {
         ))}
       </div>
     </article>
+  )
+}
+
+function DetailedMonthlyReportPanel({
+  open,
+  onToggle,
+  className = '',
+  report,
+  monthlyComparison = [],
+  directionData = [],
+  moneyBookSummary = {},
+  visibleBreakdown = [],
+  selectedCategory = 'all',
+  setActiveCategory,
+  mixBreakdown = [],
+  focusedCategory = null,
+  breakdownTotal = 0,
+  trendData = [],
+  financialState = {},
+}) {
+  const detailClassName = ['report-details-panel', className].filter(Boolean).join(' ')
+
+  return (
+    <details
+      className={detailClassName}
+      open={open}
+    >
+      <summary onClick={onToggle}>
+        <span>Detailed monthly report</span>
+        <ChevronRight size={16} aria-hidden="true" />
+      </summary>
+      {open && (
+        <div className="report-details-body">
+          <article className="report-snapshot-card">
+            <h2>This month in short</h2>
+            <div className="report-snapshot-grid">
+              {report.snapshot.slice(0, 4).map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <p>{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          {monthlyComparison.length > 0 && (
+            <article className="report-section-card monthly-comparison-card">
+              <h2>What changed</h2>
+              <div className="monthly-comparison-grid">
+                {monthlyComparison.map((item) => (
+                  <div className={item.tone} key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{rupees(item.current)}</strong>
+                    <p>{item.labelText}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+          )}
+
+          <ReportSection title="Spending notes" items={report.spendingPatterns} />
+          <ReportSection title="Money pressure" items={report.pressureAnalysis} />
+          <ReportSection title="Buying safely" items={report.purchaseInsights} />
+          <ReportSection title="Other notes" items={report.behaviorInsights} />
+
+          <article className="report-section-card report-direction-card">
+            <h2>Money direction</h2>
+            <div className="report-direction-list">
+              {directionData.length > 0 ? directionData.map((item) => (
+                <div key={item.name}>
+                  <span>{item.name}</span>
+                  <strong>{compactRupees(item.amount)}</strong>
+                </div>
+              )) : (
+                <p>Add income or transactions to see a clearer direction.</p>
+              )}
+            </div>
+          </article>
+
+          {report.sharedSummary?.activeGroups > 0 && (
+            <article className="report-section-card shared-report-card">
+              <h2>Shared money</h2>
+              <div className="report-snapshot-grid">
+                <div>
+                  <span>You paid</span>
+                  <strong>{rupees(report.sharedSummary.totalPaidByYou)}</strong>
+                  <p>Paid upfront in groups.</p>
+                </div>
+                <div>
+                  <span>To get back</span>
+                  <strong>{rupees(report.sharedSummary.pendingRecoverable)}</strong>
+                  <p>Expected back from friends.</p>
+                </div>
+                <div>
+                  <span>Received</span>
+                  <strong>{rupees(report.sharedSummary.receivedRecoveries)}</strong>
+                  <p>Marked as received.</p>
+                </div>
+                <div>
+                  <span>Monthly impact</span>
+                  <strong>{rupees(report.sharedSummary.netSharedImpact)}</strong>
+                  <p>Used in monthly totals.</p>
+                </div>
+              </div>
+            </article>
+          )}
+
+          {(moneyBookSummary.pendingCount > 0 || moneyBookSummary.totalGiven > 0 || moneyBookSummary.totalBorrowed > 0) && (
+            <article className="report-section-card money-book-report-card">
+              <h2>Borrow / lend</h2>
+              <div className="report-snapshot-grid">
+                <div>
+                  <span>You gave</span>
+                  <strong>{rupees(moneyBookSummary.totalGiven || 0)}</strong>
+                  <p>Money lent this month.</p>
+                </div>
+                <div>
+                  <span>To receive</span>
+                  <strong>{rupees(moneyBookSummary.needToReceive || 0)}</strong>
+                  <p>Still pending.</p>
+                </div>
+                <div>
+                  <span>Borrowed</span>
+                  <strong>{rupees(moneyBookSummary.totalBorrowed || 0)}</strong>
+                  <p>Money taken this month.</p>
+                </div>
+                <div>
+                  <span>Pending</span>
+                  <strong>{rupees(moneyBookSummary.pendingSettlements || 0)}</strong>
+                  <p>{moneyBookSummary.pendingCount || 0} open settlement{moneyBookSummary.pendingCount === 1 ? '' : 's'}.</p>
+                </div>
+              </div>
+            </article>
+          )}
+
+          <Suspense fallback={<ChartDetailsFallback />}>
+            <ReportCharts
+              visibleBreakdown={visibleBreakdown}
+              selectedCategory={selectedCategory}
+              setActiveCategory={setActiveCategory}
+              mixBreakdown={mixBreakdown}
+              focusedCategory={focusedCategory}
+              breakdownTotal={breakdownTotal}
+              trendData={trendData}
+            />
+          </Suspense>
+
+          <article className="report-section-card">
+            <h2>Money status</h2>
+            <div className="report-comfort-strip">
+              <span>{financialState.pressure}</span>
+              <strong>{financialState.comfort}</strong>
+              <p>{financialState.usagePercent}% of income is used.</p>
+            </div>
+          </article>
+        </div>
+      )}
+    </details>
   )
 }
 
@@ -426,11 +585,12 @@ export default function ReportsScreen({
   setSelectedMonthKey,
   monthOptions = [],
   statementImportRequestId = 0,
+  profileDetailsOnly = false,
 }) {
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [dismissedStatementImportRequestId, setDismissedStatementImportRequestId] = useState(0)
   const [activeCategory, setActiveCategory] = useState('all')
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(profileDetailsOnly)
   const report = useMemo(
     () => advancedReport || {
       advisory: 'Add a few entries to build a useful monthly report.',
@@ -648,11 +808,38 @@ export default function ReportsScreen({
       const nextOpen = !current
       if (nextOpen) {
         trackFeatureUsage('report_details_opened', {
-          surface: 'reports',
+          surface: profileDetailsOnly ? 'profile' : 'reports',
         })
       }
       return nextOpen
     })
+  }
+  const detailedMonthlyReportPanel = (
+    <DetailedMonthlyReportPanel
+      open={isDetailsOpen}
+      onToggle={toggleReportDetails}
+      className={profileDetailsOnly || !isLegacyReportsExperience() ? 'mos-report-details-panel' : ''}
+      report={report}
+      monthlyComparison={monthlyComparison}
+      directionData={directionData}
+      moneyBookSummary={moneyBookSummary}
+      visibleBreakdown={visibleBreakdown}
+      selectedCategory={selectedCategory}
+      setActiveCategory={setActiveCategory}
+      mixBreakdown={mixBreakdown}
+      focusedCategory={focusedCategory}
+      breakdownTotal={breakdownTotal}
+      trendData={trendData}
+      financialState={financialState}
+    />
+  )
+
+  if (profileDetailsOnly) {
+    return (
+      <section className="profile-monthly-report-section" aria-label="Detailed monthly report">
+        {detailedMonthlyReportPanel}
+      </section>
+    )
   }
 
   if (!isLegacyReportsExperience()) {
@@ -983,142 +1170,7 @@ export default function ReportsScreen({
           </MoneyCard>
         )}
 
-        <details
-          className="report-details-panel mos-report-details-panel"
-          open={isDetailsOpen}
-        >
-          <summary onClick={toggleReportDetails}>
-            <span>Detailed monthly report</span>
-            <ChevronRight size={16} />
-          </summary>
-          {isDetailsOpen && (
-          <div className="report-details-body">
-        <article className="report-snapshot-card">
-          <h2>This month in short</h2>
-          <div className="report-snapshot-grid">
-            {report.snapshot.slice(0, 4).map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                <p>{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        {monthlyComparison.length > 0 && (
-          <article className="report-section-card monthly-comparison-card">
-            <h2>What changed</h2>
-            <div className="monthly-comparison-grid">
-              {monthlyComparison.map((item) => (
-                <div className={item.tone} key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{rupees(item.current)}</strong>
-                  <p>{item.labelText}</p>
-                </div>
-              ))}
-            </div>
-          </article>
-        )}
-
-        <ReportSection title="Spending notes" items={report.spendingPatterns} />
-        <ReportSection title="Money pressure" items={report.pressureAnalysis} />
-        <ReportSection title="Buying safely" items={report.purchaseInsights} />
-        <ReportSection title="Other notes" items={report.behaviorInsights} />
-
-        <article className="report-section-card report-direction-card">
-          <h2>Money direction</h2>
-          <div className="report-direction-list">
-            {directionData.length > 0 ? directionData.map((item) => (
-              <div key={item.name}>
-                <span>{item.name}</span>
-                <strong>{compactRupees(item.amount)}</strong>
-              </div>
-            )) : (
-              <p>Add income or transactions to see a clearer direction.</p>
-            )}
-          </div>
-        </article>
-
-        {report.sharedSummary?.activeGroups > 0 && (
-          <article className="report-section-card shared-report-card">
-            <h2>Shared money</h2>
-            <div className="report-snapshot-grid">
-              <div>
-                <span>You paid</span>
-                <strong>{rupees(report.sharedSummary.totalPaidByYou)}</strong>
-                <p>Paid upfront in groups.</p>
-              </div>
-              <div>
-                <span>To get back</span>
-                <strong>{rupees(report.sharedSummary.pendingRecoverable)}</strong>
-                <p>Expected back from friends.</p>
-              </div>
-              <div>
-                <span>Received</span>
-                <strong>{rupees(report.sharedSummary.receivedRecoveries)}</strong>
-                <p>Marked as received.</p>
-              </div>
-              <div>
-                <span>Monthly impact</span>
-                <strong>{rupees(report.sharedSummary.netSharedImpact)}</strong>
-                <p>Used in monthly totals.</p>
-              </div>
-            </div>
-          </article>
-        )}
-
-        {(moneyBookSummary.pendingCount > 0 || moneyBookSummary.totalGiven > 0 || moneyBookSummary.totalBorrowed > 0) && (
-          <article className="report-section-card money-book-report-card">
-            <h2>Borrow / lend</h2>
-            <div className="report-snapshot-grid">
-              <div>
-                <span>You gave</span>
-                <strong>{rupees(moneyBookSummary.totalGiven || 0)}</strong>
-                <p>Money lent this month.</p>
-              </div>
-              <div>
-                <span>To receive</span>
-                <strong>{rupees(moneyBookSummary.needToReceive || 0)}</strong>
-                <p>Still pending.</p>
-              </div>
-              <div>
-                <span>Borrowed</span>
-                <strong>{rupees(moneyBookSummary.totalBorrowed || 0)}</strong>
-                <p>Money taken this month.</p>
-              </div>
-              <div>
-                <span>Pending</span>
-                <strong>{rupees(moneyBookSummary.pendingSettlements || 0)}</strong>
-                <p>{moneyBookSummary.pendingCount || 0} open settlement{moneyBookSummary.pendingCount === 1 ? '' : 's'}.</p>
-              </div>
-            </div>
-          </article>
-        )}
-
-        <Suspense fallback={<ChartDetailsFallback />}>
-          <ReportCharts
-            visibleBreakdown={visibleBreakdown}
-            selectedCategory={selectedCategory}
-            setActiveCategory={setActiveCategory}
-            mixBreakdown={mixBreakdown}
-            focusedCategory={focusedCategory}
-            breakdownTotal={breakdownTotal}
-            trendData={trendData}
-          />
-        </Suspense>
-
-        <article className="report-section-card">
-          <h2>Money status</h2>
-          <div className="report-comfort-strip">
-            <span>{financialState.pressure}</span>
-            <strong>{financialState.comfort}</strong>
-            <p>{financialState.usagePercent}% of income is used.</p>
-          </div>
-        </article>
-          </div>
-          )}
-        </details>
+        {detailedMonthlyReportPanel}
       </MoneyOSProvider>
     )
   }
@@ -1425,142 +1477,7 @@ export default function ReportsScreen({
         </div>
       </article>
 
-      <details
-        className="report-details-panel"
-        open={isDetailsOpen}
-      >
-        <summary onClick={toggleReportDetails}>
-          <span>Detailed monthly report</span>
-          <ChevronRight size={16} />
-        </summary>
-        {isDetailsOpen && (
-        <div className="report-details-body">
-      <article className="report-snapshot-card">
-        <h2>This month in short</h2>
-        <div className="report-snapshot-grid">
-          {report.snapshot.slice(0, 4).map((item) => (
-            <div key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <p>{item.detail}</p>
-            </div>
-          ))}
-        </div>
-      </article>
-
-      {monthlyComparison.length > 0 && (
-        <article className="report-section-card monthly-comparison-card">
-          <h2>What changed</h2>
-          <div className="monthly-comparison-grid">
-            {monthlyComparison.map((item) => (
-              <div className={item.tone} key={item.label}>
-                <span>{item.label}</span>
-                <strong>{rupees(item.current)}</strong>
-                <p>{item.labelText}</p>
-              </div>
-            ))}
-          </div>
-        </article>
-      )}
-
-      <ReportSection title="Spending notes" items={report.spendingPatterns} />
-      <ReportSection title="Money pressure" items={report.pressureAnalysis} />
-      <ReportSection title="Buying safely" items={report.purchaseInsights} />
-      <ReportSection title="Other notes" items={report.behaviorInsights} />
-
-      <article className="report-section-card report-direction-card">
-        <h2>Money direction</h2>
-        <div className="report-direction-list">
-          {directionData.length > 0 ? directionData.map((item) => (
-            <div key={item.name}>
-              <span>{item.name}</span>
-              <strong>{compactRupees(item.amount)}</strong>
-            </div>
-          )) : (
-            <p>Add income or transactions to see a clearer direction.</p>
-          )}
-        </div>
-      </article>
-
-      {report.sharedSummary?.activeGroups > 0 && (
-        <article className="report-section-card shared-report-card">
-          <h2>Shared money</h2>
-          <div className="report-snapshot-grid">
-            <div>
-              <span>You paid</span>
-              <strong>{rupees(report.sharedSummary.totalPaidByYou)}</strong>
-              <p>Paid upfront in groups.</p>
-            </div>
-            <div>
-              <span>To get back</span>
-              <strong>{rupees(report.sharedSummary.pendingRecoverable)}</strong>
-              <p>Expected back from friends.</p>
-            </div>
-            <div>
-              <span>Received</span>
-              <strong>{rupees(report.sharedSummary.receivedRecoveries)}</strong>
-              <p>Marked as received.</p>
-            </div>
-            <div>
-              <span>Monthly impact</span>
-              <strong>{rupees(report.sharedSummary.netSharedImpact)}</strong>
-              <p>Used in monthly totals.</p>
-            </div>
-          </div>
-        </article>
-      )}
-
-      {(moneyBookSummary.pendingCount > 0 || moneyBookSummary.totalGiven > 0 || moneyBookSummary.totalBorrowed > 0) && (
-        <article className="report-section-card money-book-report-card">
-          <h2>Borrow / lend</h2>
-          <div className="report-snapshot-grid">
-            <div>
-              <span>You gave</span>
-              <strong>{rupees(moneyBookSummary.totalGiven || 0)}</strong>
-              <p>Money lent this month.</p>
-            </div>
-            <div>
-              <span>To receive</span>
-              <strong>{rupees(moneyBookSummary.needToReceive || 0)}</strong>
-              <p>Still pending.</p>
-            </div>
-            <div>
-              <span>Borrowed</span>
-              <strong>{rupees(moneyBookSummary.totalBorrowed || 0)}</strong>
-              <p>Money taken this month.</p>
-            </div>
-            <div>
-              <span>Pending</span>
-              <strong>{rupees(moneyBookSummary.pendingSettlements || 0)}</strong>
-              <p>{moneyBookSummary.pendingCount || 0} open settlement{moneyBookSummary.pendingCount === 1 ? '' : 's'}.</p>
-            </div>
-          </div>
-        </article>
-      )}
-
-      <Suspense fallback={<ChartDetailsFallback />}>
-        <ReportCharts
-          visibleBreakdown={visibleBreakdown}
-          selectedCategory={selectedCategory}
-          setActiveCategory={setActiveCategory}
-          mixBreakdown={mixBreakdown}
-          focusedCategory={focusedCategory}
-          breakdownTotal={breakdownTotal}
-          trendData={trendData}
-        />
-      </Suspense>
-
-      <article className="report-section-card">
-        <h2>Money status</h2>
-        <div className="report-comfort-strip">
-          <span>{financialState.pressure}</span>
-          <strong>{financialState.comfort}</strong>
-          <p>{financialState.usagePercent}% of income is used.</p>
-        </div>
-      </article>
-        </div>
-        )}
-      </details>
+      {detailedMonthlyReportPanel}
 
       <div className="action-row">
         <button
