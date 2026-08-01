@@ -12,10 +12,11 @@
   --nb-paper: #FFFDF7;
   --nb-paper-soft: #F8F1E6;
   --nb-border: #E5DAC9;
-  --nb-ink: #283333;
-  --nb-muted: #736B61;
-  --nb-green: #2F5D5D;
-  --nb-green-strong: #214646;
+  --nb-ink: #214A83;
+  --nb-muted: #5F6F86;
+  --nb-green: #214A83;
+  --nb-green-strong: #173764;
+  --nb-pen-red: #B6483D;
   --theme-bg: var(--nb-bg);
   --theme-paper: var(--nb-paper);
   --theme-paper-soft: var(--nb-paper-soft);
@@ -25,24 +26,27 @@
   --theme-surface-tint: #E7EFE7;
   --theme-primary: var(--nb-green);
   --theme-primary-strong: var(--nb-green-strong);
-  --theme-accent: #587D69;
-  --theme-cyan: #2F6F73;
+  --theme-accent: var(--nb-pen-red);
+  --theme-cyan: #2F6EA5;
   --theme-icon: var(--nb-green);
   --theme-text: var(--nb-ink);
   --theme-muted: var(--nb-muted);
   --theme-success: #28724F;
   --theme-warning: #9A6126;
-  --theme-danger: #A84F45;
+  --theme-danger: var(--nb-pen-red);
   --theme-on-primary: #FFFFFF;
   --theme-shadow: #1C2433;
   --theme-border: color-mix(in srgb, var(--theme-text) 12%, transparent);
   --theme-line: color-mix(in srgb, var(--theme-accent) 16%, transparent);
   --theme-empty: color-mix(in srgb, var(--theme-paper-soft) 74%, var(--theme-paper));
   --theme-motion-intensity: 1;
-  --theme-preview: linear-gradient(135deg, #214646, #587D69 58%, #A84F45);
-  --font-notebook-readable: "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
-  --font-notebook-sticky: "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
-  --font-notebook-accent: "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
+  --theme-preview: linear-gradient(135deg, #173764, #2F6EA5 52%, #B6483D);
+  --font-handwriting-natural: "Patrick Hand", "Kalam", "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
+  --font-handwriting-display: "Caveat", "Patrick Hand", "Kalam", "Segoe Print", "Bradley Hand ITC", cursive;
+  --font-primary-ui: var(--font-handwriting-natural);
+  --font-notebook-readable: var(--font-handwriting-natural);
+  --font-notebook-sticky: var(--font-handwriting-display);
+  --font-notebook-accent: var(--font-handwriting-display);
   --experience-font-heading: var(--font-notebook-accent);
   --experience-font-date: var(--font-notebook-accent);
   --experience-font-section: var(--font-notebook-accent);
@@ -281,6 +285,26 @@
   --experience-secondary-action-font-size: 13px;
 }
 
+:root[data-money-theme="ledgerPro"],
+[data-money-theme="ledgerPro"],
+:root[data-money-theme="executive"],
+[data-money-theme="executive"] {
+  --font-ledger: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-primary-ui: var(--font-ledger);
+  --font-notebook-readable: var(--font-ledger);
+  --font-notebook-sticky: var(--font-ledger);
+  --font-notebook-accent: var(--font-ledger);
+  --experience-font-heading: var(--font-ledger);
+  --experience-font-date: var(--font-ledger);
+  --experience-font-section: var(--font-ledger);
+  --experience-font-note: var(--font-ledger);
+  --experience-font-body: var(--font-ledger);
+  --experience-font-amount: var(--font-ledger);
+  --experience-entry-title-font: var(--font-ledger);
+  --experience-entry-note-font: var(--font-ledger);
+  --experience-sheet-action-font: var(--font-ledger);
+}
+
 :root[data-money-theme="receipt"],
 [data-money-theme="receipt"],
 :root[data-money-theme="minimal"],
@@ -309,6 +333,9 @@
   --theme-empty: color-mix(in srgb, var(--theme-paper-soft) 78%, var(--theme-paper));
   --theme-motion-intensity: 0.55;
   --theme-preview: linear-gradient(135deg, #09090B, #71717A 58%, #D4D4D8);
+  --font-receipt: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-primary-ui: var(--font-receipt);
+  --font-monospace: var(--font-receipt);
   --font-notebook-readable: var(--font-monospace);
   --font-notebook-sticky: var(--font-monospace);
   --font-notebook-accent: var(--font-monospace);
@@ -407,6 +434,153 @@
   --experience-secondary-action-font-size: 12px;
 }
 
+:root[data-money-theme="code"],
+[data-money-theme="code"] {
+  --theme-bg: #07110C;
+  --theme-paper: #0B1510;
+  --theme-paper-soft: #101F18;
+  --theme-card: #0E1B14;
+  --theme-card-soft: #13261B;
+  --theme-surface: #0A120E;
+  --theme-surface-tint: #182D20;
+  --theme-primary: #41FF9A;
+  --theme-primary-strong: #B8FFD6;
+  --theme-accent: #F6D365;
+  --theme-cyan: #7DF9FF;
+  --theme-icon: #41FF9A;
+  --theme-text: #E7FBEA;
+  --theme-muted: #9CB5A4;
+  --theme-success: #41FF9A;
+  --theme-warning: #F6D365;
+  --theme-danger: #FF6B8A;
+  --theme-on-primary: #06110B;
+  --theme-shadow: #020503;
+  --theme-border: color-mix(in srgb, var(--theme-primary) 22%, white 3%);
+  --theme-line: color-mix(in srgb, var(--theme-primary) 18%, transparent);
+  --theme-empty: #0F1F17;
+  --theme-motion-intensity: 0.78;
+  --theme-preview: linear-gradient(135deg, #07110C, #41FF9A 45%, #F6D365 72%, #7DF9FF);
+  --font-code: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-primary-ui: var(--font-code);
+  --font-monospace: var(--font-code);
+  --font-notebook-readable: var(--font-code);
+  --font-notebook-sticky: var(--font-code);
+  --font-notebook-accent: var(--font-code);
+  --experience-font-heading: var(--font-code);
+  --experience-font-date: var(--font-code);
+  --experience-font-section: var(--font-code);
+  --experience-font-note: var(--font-code);
+  --experience-font-body: var(--font-code);
+  --experience-font-amount: var(--font-code);
+  --experience-paper-texture:
+    repeating-linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--theme-paper) 94%, transparent) 0 25px,
+      color-mix(in srgb, var(--theme-primary) 8%, transparent) 25px 26px
+    ),
+    linear-gradient(135deg, #07110C, #0B1510 46%, #111E16);
+  --experience-app-page-bg:
+    linear-gradient(90deg, color-mix(in srgb, var(--theme-primary) 14%, transparent) 0 1px, transparent 1px 100%),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 27px,
+      color-mix(in srgb, var(--theme-primary) 9%, transparent) 27px 28px
+    ),
+    linear-gradient(180deg, #0B1510, #07110C 72%, #050A07);
+  --experience-home-paper-bg:
+    linear-gradient(135deg, #0E1B14, #0A120E 70%, #13261B);
+  --experience-section-cover-bg:
+    linear-gradient(135deg, #101F18, #0B1510 70%, #182D20);
+  --experience-legal-page-bg: var(--experience-app-page-bg);
+  --experience-lined-input-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-card) 92%, transparent), color-mix(in srgb, var(--theme-card-soft) 52%, transparent));
+  --experience-lined-input-focus-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-card-soft) 88%, transparent), color-mix(in srgb, var(--theme-surface-tint) 42%, transparent));
+  --experience-display-title-transform: none;
+  --experience-sticky-title-padding: 0;
+  --experience-sticky-title-border: 0;
+  --experience-sticky-title-border-bottom: 0;
+  --experience-sticky-title-radius: 0;
+  --experience-sticky-title-bg: transparent;
+  --experience-sticky-title-shadow: none;
+  --experience-sticky-title-transform: none;
+  --experience-title-chip-padding: 0;
+  --experience-title-chip-border: 0;
+  --experience-title-chip-border-bottom: 0;
+  --experience-title-chip-radius: 0;
+  --experience-title-chip-bg: transparent;
+  --experience-title-chip-shadow: none;
+  --experience-title-chip-transform: none;
+  --experience-card-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-card) 96%, transparent), color-mix(in srgb, var(--theme-card-soft) 62%, var(--theme-card)));
+  --experience-row-bg: color-mix(in srgb, var(--theme-surface) 64%, transparent);
+  --experience-row-separator: color-mix(in srgb, var(--theme-primary) 22%, transparent);
+  --experience-button-radius: 6px;
+  --experience-card-radius: 6px;
+  --experience-fab-radius: 8px;
+  --experience-motion-multiplier: 0.78;
+  --experience-density-gap: var(--notebook-space-xs);
+  --experience-empty-illustration: "empty console";
+  --experience-page-line-height: 26px;
+  --experience-section-spacing: 18px;
+  --experience-divider-thickness: 1px;
+  --experience-page-margin-offset: 0px;
+  --experience-page-margin-offset-mobile: 0px;
+  --experience-page-footer-line-opacity: 0.48;
+  --experience-card-density-padding: 12px;
+  --experience-shadow-depth:
+    0 0 0 1px color-mix(in srgb, var(--theme-primary) 8%, transparent),
+    0 18px 42px color-mix(in srgb, var(--theme-shadow) 45%, transparent);
+  --experience-line-insert-duration: 170ms;
+  --experience-theme-transition-duration: 160ms;
+  --experience-page-footer-bg: color-mix(in srgb, var(--theme-surface-tint) 52%, transparent);
+  --experience-divider-pattern:
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--theme-primary) 36%, transparent) 0 6px,
+      transparent 6px 12px,
+      color-mix(in srgb, var(--theme-accent) 28%, transparent) 12px 13px,
+      transparent 13px 18px
+    );
+  --experience-entry-panel-bg: var(--experience-card-bg);
+  --experience-entry-card-bg: var(--experience-card-bg);
+  --experience-entry-soft-bg: color-mix(in srgb, var(--theme-card-soft) 72%, var(--theme-card));
+  --experience-entry-row-bg: color-mix(in srgb, var(--theme-surface) 66%, transparent);
+  --experience-entry-list-bg:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 25px,
+      color-mix(in srgb, var(--theme-primary) 12%, transparent) 25px 26px
+    );
+  --experience-entry-border: color-mix(in srgb, var(--theme-primary) 26%, var(--theme-border));
+  --experience-entry-row-border: color-mix(in srgb, var(--theme-primary) 24%, transparent);
+  --experience-entry-row-border-style: solid;
+  --experience-entry-radius: var(--experience-card-radius);
+  --experience-entry-control-radius: var(--experience-button-radius);
+  --experience-entry-shadow: var(--experience-shadow-depth);
+  --experience-entry-accent-opacity: 0.86;
+  --experience-entry-accent-width: 3px;
+  --experience-entry-title-font: var(--font-code);
+  --experience-entry-note-font: var(--font-code);
+  --experience-entry-chip-bg: color-mix(in srgb, var(--theme-surface-tint) 58%, var(--theme-card));
+  --experience-entry-chip-border: color-mix(in srgb, var(--theme-primary) 24%, transparent);
+  --experience-entry-avatar-bg: linear-gradient(135deg, var(--theme-primary), var(--theme-accent));
+  --experience-sheet-field-border-width: 1px;
+  --experience-sheet-field-border-style: solid;
+  --experience-sheet-field-radius: var(--experience-card-radius);
+  --experience-sheet-field-bg: var(--experience-lined-input-bg);
+  --experience-sheet-field-padding: 0 12px;
+  --experience-sheet-control-border-width: 1px;
+  --experience-sheet-control-radius: var(--experience-card-radius);
+  --experience-sheet-control-bg: var(--experience-lined-input-bg);
+  --experience-sheet-amount-width: 100%;
+  --experience-sheet-radius: 8px;
+  --experience-sheet-action-font: var(--font-code);
+  --experience-sheet-action-size: 13px;
+  --experience-action-font-size: 13px;
+  --experience-secondary-action-font-size: 12px;
+}
+
 :root,
 :root[data-money-theme="minimalWhite"],
 [data-money-theme="minimalWhite"] {
@@ -428,6 +602,8 @@
   --theme-warning: #B45309;
   --theme-danger: #B91C1C;
   --theme-preview: linear-gradient(135deg, #FFFFFF, #E2E8F0 56%, #111827);
+  --font-clean: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-primary-ui: var(--font-clean);
   --font-notebook-readable: var(--font-primary-ui);
   --font-notebook-sticky: var(--font-primary-ui);
   --font-notebook-accent: var(--font-primary-ui);
@@ -480,6 +656,17 @@
   --theme-warning: #A46112;
   --theme-danger: #B94A48;
   --theme-preview: linear-gradient(135deg, #102A43, #3B82B8 58%, #E7F0F8);
+  --font-textbook: "Merriweather", Georgia, "Times New Roman", Times, serif;
+  --font-primary-ui: var(--font-textbook);
+  --font-notebook-readable: var(--font-textbook);
+  --font-notebook-sticky: var(--font-textbook);
+  --font-notebook-accent: var(--font-textbook);
+  --experience-font-heading: var(--font-textbook);
+  --experience-font-date: var(--font-textbook);
+  --experience-font-section: var(--font-textbook);
+  --experience-font-note: var(--font-textbook);
+  --experience-font-body: var(--font-textbook);
+  --experience-font-amount: var(--font-textbook);
   --experience-paper-texture:
     radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--theme-accent) 14%, transparent), transparent 34%),
     linear-gradient(180deg, #F8FBFF, #EEF5FB);
@@ -494,6 +681,11 @@
     linear-gradient(180deg, #FFFFFF, #F1F7FC);
   --experience-card-radius: 8px;
   --experience-button-radius: 8px;
+  --experience-entry-title-font: var(--font-textbook);
+  --experience-entry-note-font: var(--font-textbook);
+  --experience-sheet-action-font: var(--font-textbook);
+  --experience-action-font-size: 14px;
+  --experience-secondary-action-font-size: 13px;
 }
 
 :root[data-money-theme="emerald"],
@@ -516,6 +708,17 @@
   --theme-warning: #A36619;
   --theme-danger: #A94A42;
   --theme-preview: linear-gradient(135deg, #173F33, #3D8B68 58%, #D8F1E5);
+  --font-emerald: "Nunito Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-primary-ui: var(--font-emerald);
+  --font-notebook-readable: var(--font-emerald);
+  --font-notebook-sticky: var(--font-emerald);
+  --font-notebook-accent: var(--font-emerald);
+  --experience-font-heading: var(--font-emerald);
+  --experience-font-date: var(--font-emerald);
+  --experience-font-section: var(--font-emerald);
+  --experience-font-note: var(--font-emerald);
+  --experience-font-body: var(--font-emerald);
+  --experience-font-amount: var(--font-emerald);
   --experience-paper-texture:
     radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--theme-accent) 12%, transparent), transparent 30%),
     linear-gradient(180deg, #FBFFFD, #EFF8F4);
@@ -530,6 +733,9 @@
     linear-gradient(180deg, #FFFFFF, #F2FBF7);
   --experience-card-radius: 12px;
   --experience-button-radius: 999px;
+  --experience-entry-title-font: var(--font-emerald);
+  --experience-entry-note-font: var(--font-emerald);
+  --experience-sheet-action-font: var(--font-emerald);
 }
 
 :root[data-money-theme="midnight"],
@@ -557,6 +763,17 @@
   --theme-line: color-mix(in srgb, white 12%, transparent);
   --theme-empty: #172334;
   --theme-preview: linear-gradient(135deg, #050914, #111927 52%, #86B7FF);
+  --font-midnight: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-primary-ui: var(--font-midnight);
+  --font-notebook-readable: var(--font-midnight);
+  --font-notebook-sticky: var(--font-midnight);
+  --font-notebook-accent: var(--font-midnight);
+  --experience-font-heading: var(--font-midnight);
+  --experience-font-date: var(--font-midnight);
+  --experience-font-section: var(--font-midnight);
+  --experience-font-note: var(--font-midnight);
+  --experience-font-body: var(--font-midnight);
+  --experience-font-amount: var(--font-midnight);
   --experience-paper-texture:
     radial-gradient(circle at 88% 0%, color-mix(in srgb, var(--theme-primary) 18%, transparent), transparent 34%),
     linear-gradient(180deg, #111927, #0F1723);
@@ -574,6 +791,9 @@
   --experience-card-radius: 10px;
   --experience-button-radius: 10px;
   --experience-shadow-depth: 0 18px 42px color-mix(in srgb, #020617 42%, transparent);
+  --experience-entry-title-font: var(--font-midnight);
+  --experience-entry-note-font: var(--font-midnight);
+  --experience-sheet-action-font: var(--font-midnight);
 }
 
 :root[data-money-theme="sunset"],
@@ -596,15 +816,17 @@
   --theme-warning: #A66522;
   --theme-danger: #A94C43;
   --theme-preview: linear-gradient(135deg, #4A2B21, #B56A4B 58%, #FFF0DF);
-  --font-notebook-readable: Georgia, "Times New Roman", Times, serif;
-  --font-notebook-sticky: Georgia, "Times New Roman", Times, serif;
-  --font-notebook-accent: Georgia, "Times New Roman", Times, serif;
-  --experience-font-heading: Georgia, "Times New Roman", Times, serif;
-  --experience-font-date: Georgia, "Times New Roman", Times, serif;
-  --experience-font-section: Georgia, "Times New Roman", Times, serif;
-  --experience-font-note: Georgia, "Times New Roman", Times, serif;
-  --experience-font-body: Georgia, "Times New Roman", Times, serif;
-  --experience-font-amount: Georgia, "Times New Roman", Times, serif;
+  --font-warm-serif: "Lora", Georgia, "Times New Roman", Times, serif;
+  --font-primary-ui: var(--font-warm-serif);
+  --font-notebook-readable: var(--font-warm-serif);
+  --font-notebook-sticky: var(--font-warm-serif);
+  --font-notebook-accent: var(--font-warm-serif);
+  --experience-font-heading: var(--font-warm-serif);
+  --experience-font-date: var(--font-warm-serif);
+  --experience-font-section: var(--font-warm-serif);
+  --experience-font-note: var(--font-warm-serif);
+  --experience-font-body: var(--font-warm-serif);
+  --experience-font-amount: var(--font-warm-serif);
   --experience-paper-texture:
     radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--theme-accent) 10%, transparent), transparent 30%),
     linear-gradient(180deg, #FFF9F1, #F7F0E7);
@@ -640,9 +862,9 @@
   --experience-page-margin-offset: 0px;
   --experience-page-margin-offset-mobile: 0px;
   --experience-page-footer-line-opacity: 0.32;
-  --experience-entry-title-font: Georgia, "Times New Roman", Times, serif;
-  --experience-entry-note-font: Georgia, "Times New Roman", Times, serif;
-  --experience-sheet-action-font: Georgia, "Times New Roman", Times, serif;
+  --experience-entry-title-font: var(--font-warm-serif);
+  --experience-entry-note-font: var(--font-warm-serif);
+  --experience-sheet-action-font: var(--font-warm-serif);
   --experience-sheet-field-border-width: 1px;
   --experience-sheet-field-border-style: solid;
   --experience-sheet-field-radius: 10px;
@@ -733,7 +955,7 @@
   --experience-card-pattern-opacity: 0;
   --experience-state-pattern: none;
   --experience-state-pattern-opacity: 0;
-  --theme-preview-classic: linear-gradient(135deg, #214646, #587D69 58%, #A84F45);
+  --theme-preview-classic: linear-gradient(135deg, #173764, #2F6EA5 52%, #B6483D);
   --theme-preview-navy: var(--theme-preview-classic);
   --theme-preview-brownJournal: var(--theme-preview-classic);
   --theme-preview-vintageDiary: var(--theme-preview-classic);
@@ -745,6 +967,7 @@
   --theme-preview-sunset: linear-gradient(135deg, #4A2B21, #B56A4B 58%, #FFF0DF);
   --theme-preview-minimal: linear-gradient(135deg, #09090B, #71717A 58%, #D4D4D8);
   --theme-preview-receipt: var(--theme-preview-minimal);
+  --theme-preview-code: linear-gradient(135deg, #07110C, #41FF9A 45%, #F6D365 72%, #7DF9FF);
   --theme-preview-minimalWhite: linear-gradient(135deg, #FFFFFF, #E2E8F0 56%, #111827);
   --mos-primary-navy: var(--theme-primary);
   --mos-primary-navy-strong: var(--theme-primary-strong);
@@ -909,11 +1132,21 @@
   --z-sheet: 70;
   --z-modal: 80;
   --z-toast: 90;
-  --font-primary-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-clean: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-ledger: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-textbook: "Merriweather", Georgia, "Times New Roman", Times, serif;
+  --font-emerald: "Nunito Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-midnight: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-warm-serif: "Lora", Georgia, "Times New Roman", Times, serif;
+  --font-handwriting-natural: "Patrick Hand", "Kalam", "Caveat", "Segoe Print", "Bradley Hand ITC", cursive;
+  --font-handwriting-display: "Caveat", "Patrick Hand", "Kalam", "Segoe Print", "Bradley Hand ITC", cursive;
+  --font-primary-ui: var(--font-clean);
   --font-notebook-readable: var(--font-primary-ui);
   --font-notebook-sticky: var(--font-primary-ui);
   --font-notebook-accent: var(--font-primary-ui);
-  --font-monospace: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-receipt: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-code: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-monospace: var(--font-code);
   --font-size-display-xl: 40px;
   --font-size-display-l: 34px;
   --font-size-heading-xl: 28px;
@@ -1316,10 +1549,10 @@ img {
   backdrop-filter: blur(16px);
 }
 
-.top-settings-button {
+.top-profile-menu-button {
   position: fixed;
   top: calc(10px + env(safe-area-inset-top) + var(--android-safe-top));
-  right: 68px;
+  right: var(--notebook-fab-offset-inline);
   z-index: 51;
   width: 44px;
   height: 44px;
@@ -1336,7 +1569,7 @@ img {
 .top-notification-button {
   position: fixed;
   top: calc(10px + env(safe-area-inset-top) + var(--android-safe-top));
-  right: 120px;
+  right: calc(var(--notebook-fab-offset-inline) + 108px);
   z-index: 51;
   width: 44px;
   height: 44px;
@@ -1351,7 +1584,7 @@ img {
 }
 
 .v12-app-shell .top-notification-button {
-  right: 68px;
+  right: calc(var(--notebook-fab-offset-inline) + 108px);
 }
 
 .top-notification-button span {
@@ -1374,7 +1607,7 @@ img {
 .top-quick-add-button {
   position: fixed;
   top: calc(var(--notebook-fab-offset-block) + env(safe-area-inset-top) + var(--android-safe-top));
-  right: var(--notebook-fab-offset-inline);
+  right: calc(var(--notebook-fab-offset-inline) + 54px);
   z-index: 51;
   width: var(--notebook-fab-size);
   height: var(--notebook-fab-size);
@@ -1647,7 +1880,7 @@ img {
     clamp(44px, 7vw, 82px);
   background:
     linear-gradient(90deg, rgba(248, 250, 252, 0.98) 0%, rgba(248, 250, 252, 0.92) 58%, rgba(248, 250, 252, 0.58) 100%),
-    url("/fbply-logo.png") right clamp(18px, 6vw, 76px) center / min(34vw, 290px) auto no-repeat;
+    url("/fbply-f-mark.png") right clamp(18px, 6vw, 76px) center / min(34vw, 290px) auto no-repeat;
 }
 
 .seo-top-nav {
@@ -2049,7 +2282,7 @@ img {
     min-height: auto;
     background:
       linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(248, 250, 252, 0.9) 100%),
-      url("/fbply-logo.png") right 18px top 88px / 116px auto no-repeat;
+      url("/fbply-f-mark.png") right 18px top 88px / 116px auto no-repeat;
   }
 
   .seo-top-nav {
@@ -4489,42 +4722,6 @@ img {
   display: grid;
   gap: 9px;
   padding: 12px;
-}
-
-.profile-menu-trigger {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 15px;
-  color: var(--muted);
-  background: var(--button-bg);
-  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.1);
-  transition:
-    transform var(--motion-duration-fast) var(--motion-ease-standard),
-    border-color var(--motion-duration-fast) var(--motion-ease-standard),
-    color var(--motion-duration-fast) var(--motion-ease-standard);
-}
-
-.profile-menu-trigger:hover {
-  color: var(--text);
-  border-color: rgba(56, 189, 248, 0.34);
-  transform: translateY(-1px);
-}
-
-.profile-top-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.profile-menu-trigger--top {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--experience-button-radius, 12px);
-  box-shadow: var(--premium-app-shadow-soft);
 }
 
 .profile-menu-sheet {
@@ -8265,7 +8462,7 @@ img {
   gap: 4px;
 }
 
-.v24-section-cover span {
+.v24-section-cover > div:first-child > span {
   color: var(--muted);
   font-size: var(--type-caption-size);
   font-weight: 900;
@@ -10471,6 +10668,10 @@ img {
   background: var(--theme-preview-receipt);
 }
 
+.theme-choice-button[data-theme-option="code"] .theme-choice-swatch {
+  background: var(--theme-preview-code);
+}
+
 .theme-choice-button[data-theme-option="navy"] .theme-choice-swatch {
   background: var(--theme-preview-navy);
 }
@@ -10758,6 +10959,18 @@ img {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.home-about-info-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 28%, transparent);
+  border-radius: 9px;
+  color: var(--theme-accent);
+  background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
 }
 
 .home-about-toggle-main > span:last-child {
@@ -13043,6 +13256,23 @@ img {
   border-radius: 8px;
 }
 
+.screen-skeleton-fallback {
+  gap: 16px;
+}
+
+.screen-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.screen-skeleton-grid .skeleton-card {
+  min-height: 154px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
 .skeleton-line,
 .skeleton-icon,
 .skeleton-option,
@@ -13309,6 +13539,60 @@ img {
 .reward-actions .primary-button,
 .reward-actions .ghost-button {
   flex: 1;
+}
+
+.report-download-fallback {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(96px + env(safe-area-inset-bottom) + var(--android-safe-bottom));
+  z-index: 75;
+  width: min(100% - 24px, 560px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--text);
+  background: var(--surface-bg);
+  box-shadow: 0 22px 60px rgba(2, 6, 23, 0.26);
+}
+
+.report-download-fallback div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.report-download-fallback strong,
+.report-download-fallback span {
+  overflow-wrap: anywhere;
+}
+
+.report-download-fallback span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.report-download-fallback .primary-button,
+.report-download-fallback .ghost-button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .report-download-fallback {
+    grid-template-columns: 1fr;
+  }
+
+  .report-download-fallback .primary-button,
+  .report-download-fallback .ghost-button {
+    width: 100%;
+  }
 }
 
 .walkthrough-overlay {
@@ -14044,14 +14328,14 @@ img {
 
 @media (max-width: 480px) {
   .top-notification-button {
-    right: 104px;
+    right: calc(var(--notebook-fab-offset-inline-mobile) + 52px);
     width: 44px;
     height: 44px;
     border-radius: 15px;
   }
 
-  .top-settings-button {
-    right: 58px;
+  .top-profile-menu-button {
+    right: var(--notebook-fab-offset-inline-mobile);
     width: 44px;
     height: 44px;
     border-radius: 15px;
@@ -14456,8 +14740,7 @@ img {
 .app-shell .money-os-home,
 .app-shell .money-os-daily-book,
 .app-shell .money-os-reports,
-.app-shell .money-os-people-hub,
-.app-shell .mos-profile-hub {
+.app-shell .money-os-people-hub {
   gap: 10px;
 }
 
@@ -14493,22 +14776,8 @@ img {
 .app-shell .mos-home-action-card-grid .mos-card,
 .app-shell .mos-report-insight-grid .mos-card,
 .app-shell .mos-report-library-grid .mos-card,
-.app-shell .mos-report-export-grid .mos-card,
-.app-shell .mos-profile-hub-grid .mos-card {
+.app-shell .mos-report-export-grid .mos-card {
   min-height: 0;
-}
-
-.app-shell .mos-profile-hub .mos-section-header__copy p,
-.app-shell .mos-profile-hub .mos-card__detail {
-  display: none;
-}
-
-.app-shell .mos-profile-hub-section {
-  gap: 8px;
-}
-
-.app-shell .mos-profile-hub-grid {
-  gap: 8px;
 }
 
 .app-shell .product-health-dashboard {
@@ -17766,7 +18035,6 @@ img {
     .money-os-daily-book,
     .money-os-reports,
     .money-os-people-hub,
-    .mos-profile-hub,
     .v7-daily-entry,
     .v7-insights-overview,
     .v7-tools-hub,
@@ -18149,8 +18417,7 @@ img {
 .app-root .quick-tools-tab.active,
 .app-root .quick-tools-tab.active .quick-tools-tab__icon,
 .app-root .bottom-nav button.active,
-.app-root .profile-menu-trigger,
-.app-root .top-settings-button,
+.app-root .top-profile-menu-button,
 .app-root .top-notification-button {
   color: var(--theme-icon);
   border-color: color-mix(in srgb, var(--theme-accent) 28%, var(--theme-border));
@@ -18172,6 +18439,10 @@ img {
   border-radius: var(--experience-button-radius, var(--radius-md));
   background: var(--primary-action-bg);
   box-shadow: var(--primary-action-shadow);
+}
+
+.app-root :where(.primary-button, .action-button) :where(span, strong, small, svg) {
+  color: inherit;
 }
 
 .app-root :where(
@@ -18375,6 +18646,379 @@ img {
   transition-property: background-color, border-color, color, box-shadow, transform, opacity;
   transition-duration: var(--experience-theme-transition-duration, var(--motion-duration-fast));
   transition-timing-function: var(--motion-ease-standard);
+}
+
+:root[data-money-theme="classic"] .app-root :where(
+  .screen-content:not(.v12-home),
+  .money-os-daily-book,
+  .money-os-reports,
+  .money-os-people-hub,
+  .settings-sheet,
+  .quick-add-sheet,
+  .notification-popover-sheet,
+  .editor-sheet,
+  .money-book-modal,
+  .mos-sheet,
+  .mos-card,
+  .theme-choice-button
+),
+.app-root[data-money-theme="classic"] :where(
+  .screen-content:not(.v12-home),
+  .money-os-daily-book,
+  .money-os-reports,
+  .money-os-people-hub,
+  .settings-sheet,
+  .quick-add-sheet,
+  .notification-popover-sheet,
+  .editor-sheet,
+  .money-book-modal,
+  .mos-sheet,
+  .mos-card,
+  .theme-choice-button
+) {
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0 var(--experience-page-margin-offset, 36px),
+      color-mix(in srgb, var(--theme-danger) 16%, transparent) var(--experience-page-margin-offset, 36px) calc(var(--experience-page-margin-offset, 36px) + 1px),
+      transparent calc(var(--experience-page-margin-offset, 36px) + 1px)
+    ),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 calc(var(--experience-page-line-height, 32px) - 1px),
+      color-mix(in srgb, var(--theme-line) 46%, transparent) calc(var(--experience-page-line-height, 32px) - 1px) var(--experience-page-line-height, 32px)
+    ),
+    var(--experience-card-bg, var(--notebook-paper-bg));
+}
+
+:root[data-money-theme="classic"] .app-root :where(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .plain-input,
+  .input-with-icon,
+  .currency-input,
+  .month-select
+),
+.app-root[data-money-theme="classic"] :where(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .plain-input,
+  .input-with-icon,
+  .currency-input,
+  .month-select
+) {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--theme-paper) 72%, transparent);
+}
+
+:root[data-money-theme="classic"] .app-root :where(.primary-button, .action-button),
+.app-root[data-money-theme="classic"] :where(.primary-button, .action-button) {
+  color: #FFFFFF;
+  font-size: var(--experience-action-font-size, 21px);
+  font-weight: 700;
+  background: linear-gradient(135deg, #173764, #2F6EA5 54%, #B6483D);
+}
+
+:root[data-money-theme="classic"] .app-root :where(
+  h1,
+  h2,
+  h3,
+  .mos-card__title,
+  .sticky-note-title,
+  .history-item-main strong,
+  .money-book-entry-main strong,
+  .daily-book-expense-row p,
+  .theme-choice-copy strong
+),
+.app-root[data-money-theme="classic"] :where(
+  h1,
+  h2,
+  h3,
+  .mos-card__title,
+  .sticky-note-title,
+  .history-item-main strong,
+  .money-book-entry-main strong,
+  .daily-book-expense-row p,
+  .theme-choice-copy strong
+) {
+  color: #214A83;
+}
+
+:root[data-money-theme="classic"] .app-root :where(
+  .eyebrow,
+  .input-label,
+  .mos-eyebrow,
+  .screen-kicker,
+  .theme-choice-copy small,
+  .history-item-main span,
+  .money-book-entry-main p
+),
+.app-root[data-money-theme="classic"] :where(
+  .eyebrow,
+  .input-label,
+  .mos-eyebrow,
+  .screen-kicker,
+  .theme-choice-copy small,
+  .history-item-main span,
+  .money-book-entry-main p
+) {
+  color: #B6483D;
+}
+
+:root[data-money-theme="receipt"] .app-root :where(
+  .settings-sheet,
+  .quick-add-sheet,
+  .notification-popover-sheet,
+  .editor-sheet,
+  .money-book-modal,
+  .mos-sheet,
+  .mos-card,
+  .theme-choice-button,
+  .history-item,
+  .money-book-entry
+),
+.app-root[data-money-theme="receipt"] :where(
+  .settings-sheet,
+  .quick-add-sheet,
+  .notification-popover-sheet,
+  .editor-sheet,
+  .money-book-modal,
+  .mos-sheet,
+  .mos-card,
+  .theme-choice-button,
+  .history-item,
+  .money-book-entry
+) {
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--theme-paper) 96%, transparent) 0 23px,
+      color-mix(in srgb, var(--theme-text) 7%, transparent) 23px 24px
+    ),
+    var(--experience-card-bg, var(--theme-card));
+  box-shadow: none;
+}
+
+:root[data-money-theme="receipt"] .app-root :where(.primary-button, .action-button),
+.app-root[data-money-theme="receipt"] :where(.primary-button, .action-button) {
+  text-transform: uppercase;
+}
+
+:root[data-money-theme="blueRegister"] .app-root :where(
+  h1,
+  h2,
+  h3,
+  .mos-card__title,
+  .report-section-card h2,
+  .history-item-main strong,
+  .money-book-entry-main strong,
+  .daily-book-expense-row p,
+  .theme-choice-copy strong
+),
+.app-root[data-money-theme="blueRegister"] :where(
+  h1,
+  h2,
+  h3,
+  .mos-card__title,
+  .report-section-card h2,
+  .history-item-main strong,
+  .money-book-entry-main strong,
+  .daily-book-expense-row p,
+  .theme-choice-copy strong
+) {
+  color: #102A43;
+  font-weight: 900;
+}
+
+:root[data-money-theme="blueRegister"] .app-root :where(
+  p,
+  li,
+  .history-item-main p,
+  .money-book-entry-main p,
+  .theme-choice-copy small,
+  .report-section-card p
+),
+.app-root[data-money-theme="blueRegister"] :where(
+  p,
+  li,
+  .history-item-main p,
+  .money-book-entry-main p,
+  .theme-choice-copy small,
+  .report-section-card p
+) {
+  line-height: 1.55;
+}
+
+:root[data-money-theme="blueRegister"] .app-root :where(.eyebrow, .mos-eyebrow, .screen-kicker, .input-label),
+.app-root[data-money-theme="blueRegister"] :where(.eyebrow, .mos-eyebrow, .screen-kicker, .input-label) {
+  color: #256E9D;
+  font-weight: 900;
+}
+
+:root[data-money-theme="code"] .app-root,
+.app-root[data-money-theme="code"] {
+  color-scheme: dark;
+  font-variant-ligatures: contextual;
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-money-theme="code"] .app-root :where(
+  .screen-content:not(.v12-home),
+  .money-os-home,
+  .money-os-daily-book,
+  .money-os-reports,
+  .money-os-people-hub,
+  .settings-sheet,
+  .quick-add-sheet,
+  .notification-popover-sheet,
+  .editor-sheet,
+  .money-book-modal,
+  .mos-sheet,
+  .mos-card,
+  .mos-state,
+  .theme-choice-button,
+  .history-item,
+  .money-book-entry,
+  .finance-donut-card
+),
+.app-root[data-money-theme="code"] :where(
+  .screen-content:not(.v12-home),
+  .money-os-home,
+  .money-os-daily-book,
+  .money-os-reports,
+  .money-os-people-hub,
+  .settings-sheet,
+  .quick-add-sheet,
+  .notification-popover-sheet,
+  .editor-sheet,
+  .money-book-modal,
+  .mos-sheet,
+  .mos-card,
+  .mos-state,
+  .theme-choice-button,
+  .history-item,
+  .money-book-entry,
+  .finance-donut-card
+) {
+  border-color: color-mix(in srgb, var(--theme-primary) 24%, var(--theme-border));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--theme-primary) 11%, transparent) 0 1px, transparent 1px 100%),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 25px,
+      color-mix(in srgb, var(--theme-primary) 10%, transparent) 25px 26px
+    ),
+    var(--experience-card-bg, var(--theme-card));
+  box-shadow: var(--experience-shadow-depth, var(--premium-app-shadow-soft));
+}
+
+:root[data-money-theme="code"] .app-root :where(.primary-button, .action-button),
+.app-root[data-money-theme="code"] :where(.primary-button, .action-button) {
+  color: var(--theme-on-primary);
+  background: linear-gradient(135deg, var(--theme-primary), var(--theme-accent));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--theme-primary) 24%, transparent),
+    0 14px 32px color-mix(in srgb, var(--theme-primary) 16%, transparent);
+}
+
+:root[data-money-theme="code"] .app-root :where(.eyebrow, .mos-eyebrow, .screen-kicker)::before,
+.app-root[data-money-theme="code"] :where(.eyebrow, .mos-eyebrow, .screen-kicker)::before {
+  content: "// ";
+  color: var(--theme-primary);
+}
+
+:root[data-money-theme="code"] .app-root :where(
+  h1,
+  h2,
+  h3,
+  .mos-card__title,
+  .report-section-card h2,
+  .history-item-main strong,
+  .money-book-entry-main strong,
+  .daily-book-expense-row p,
+  .theme-choice-copy strong
+),
+.app-root[data-money-theme="code"] :where(
+  h1,
+  h2,
+  h3,
+  .mos-card__title,
+  .report-section-card h2,
+  .history-item-main strong,
+  .money-book-entry-main strong,
+  .daily-book-expense-row p,
+  .theme-choice-copy strong
+) {
+  color: var(--theme-primary-strong);
+}
+
+:root[data-money-theme="code"] .app-root :where(
+  .history-item-main p,
+  .money-book-entry-main p,
+  .daily-book-expense-row time,
+  .theme-choice-copy small,
+  .report-section-card p
+),
+.app-root[data-money-theme="code"] :where(
+  .history-item-main p,
+  .money-book-entry-main p,
+  .daily-book-expense-row time,
+  .theme-choice-copy small,
+  .report-section-card p
+) {
+  color: var(--theme-muted);
+}
+
+:root[data-money-theme="code"] .app-root :where(
+  .amount,
+  .money-amount,
+  .history-item-amount strong,
+  .money-book-entry-amount strong,
+  .daily-book-expense-amount strong,
+  .finance-donut-actions strong,
+  .home-notebook-total-pill
+),
+.app-root[data-money-theme="code"] :where(
+  .amount,
+  .money-amount,
+  .history-item-amount strong,
+  .money-book-entry-amount strong,
+  .daily-book-expense-amount strong,
+  .finance-donut-actions strong,
+  .home-notebook-total-pill
+) {
+  color: var(--theme-accent);
+}
+
+:root[data-money-theme="code"] .app-root :where(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .plain-input,
+  .input-with-icon,
+  .currency-input,
+  .month-select
+),
+.app-root[data-money-theme="code"] :where(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .plain-input,
+  .input-with-icon,
+  .currency-input,
+  .month-select
+) {
+  border-color: color-mix(in srgb, var(--theme-primary) 24%, var(--theme-border));
+  background: var(--experience-lined-input-bg, var(--theme-card));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--theme-primary) 68%, transparent);
+}
+
+:root[data-money-theme="code"] .app-root :where(.ghost-button, .text-action-button, .theme-choice-button.active),
+.app-root[data-money-theme="code"] :where(.ghost-button, .text-action-button, .theme-choice-button.active) {
+  border-color: color-mix(in srgb, var(--theme-primary) 28%, var(--theme-border));
 }
 
 :root.fbply-legacy-motion :where(

@@ -309,7 +309,7 @@ const landingPages = {
       {
         question: 'Should detected statement rows be reviewed?',
         answer:
-          'Yes. Users should review detected dates, categories, and money direction before relying on statement summaries.',
+          'Yes. Users should review detected dates, categories, and money-in or money-out labels before relying on statement summaries.',
       },
     ],
   },
@@ -741,7 +741,7 @@ const templatePages = {
     eyebrow: 'Report Template',
     title: 'Monthly Financial Report Template',
     intro:
-      'A monthly financial report should summarize the month, show what changed, explain category movement, and list practical next steps.',
+      'A monthly financial report should summarize the month, explain category totals, and list practical next steps.',
     sections: [
       ['Monthly snapshot', 'Income context, committed bills, flexible expenses, savings progress, and safe-spend status.'],
       ['Spending breakdown', 'Category totals, fixed versus flexible spending, and notable changes from recent activity.'],
@@ -847,7 +847,7 @@ const samplePages = {
     stats: [
       ['Analysis period', '3 months'],
       ['Review status', 'Rows need user confirmation'],
-      ['Next action', 'Check categories and money direction'],
+      ['Next action', 'Check categories and money-in/out labels'],
     ],
     notes: [
       'Readable rows are summarized before conclusions.',
@@ -1032,7 +1032,7 @@ const authorityTemplatePages = {
     sections: [
       ['Statement scope', 'Bank file type, period reviewed, readable rows, skipped rows, and review status.'],
       ['Movement summary', 'Money in, money out, transfers, recurring payments, and category signals.'],
-      ['Review warnings', 'Ambiguous rows, category uncertainty, duplicate-looking entries, and unclear money direction.'],
+      ['Review warnings', 'Ambiguous rows, category uncertainty, duplicate-looking entries, and unclear money-in/out labels.'],
       ['Recommendations', 'Rows to review, categories to confirm, and what to include in a final report.'],
     ],
     bestPractices: [
@@ -1122,7 +1122,7 @@ const guidePages = {
     eyebrow: 'Guide',
     title: 'How to Analyze Bank Statements',
     intro:
-      'Statement analysis should summarize readable rows while keeping uncertain categories and money direction open for review.',
+      'Statement analysis should summarize readable rows while keeping uncertain categories and money-in/out labels open for review.',
     what: 'Bank statement analysis turns statement rows into totals, category signals, and review notes.',
     why: 'Statements contain useful patterns, but bank narration can be unclear. Review keeps the report trustworthy.',
     who: 'People preparing a monthly review, checking spending categories, or creating a statement analysis report.',

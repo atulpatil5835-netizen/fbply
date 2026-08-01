@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { CheckCircle2, Coffee, ExternalLink, LogOut, Mail, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { CheckCircle2, Coffee, ExternalLink, Info, LogOut, Mail, ShieldCheck, X } from 'lucide-react'
 import { AppModal, BrandMark, CurrencyInput } from '../components/AppPrimitives.jsx'
 import FinanceDonut from '../components/FinanceDonut.jsx'
 import { CommitmentsEditor, CurrencyPreference } from '../components/ProfileSettingsControls.jsx'
@@ -133,7 +133,7 @@ function SettingsMenuLinks({
           title="About FBPLY"
           detail={founderName ? `Founder-led by ${founderName}.` : 'Product, founder, and ownership details.'}
           actionLabel="Read"
-          icon={Sparkles}
+          icon={Info}
           tone="neutral"
           href="/about"
         />

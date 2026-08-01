@@ -1694,45 +1694,6 @@ button.mos-action-card {
   font-weight: 800;
 }
 
-.mos-profile-hub {
-  display: grid;
-  gap: var(--mos-space-xl);
-}
-
-.mos-profile-hub-section {
-  display: grid;
-  gap: var(--mos-space-md);
-}
-
-.mos-profile-hub-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--mos-space-md);
-}
-
-.mos-profile-hub-grid .mos-profile-feedback-card {
-  grid-column: 1 / -1;
-}
-
-.mos-profile-feedback-form {
-  display: grid;
-  gap: var(--mos-space-md);
-}
-
-.mos-profile-feedback-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--mos-space-sm);
-}
-
-.mos-profile-feedback-status {
-  color: var(--mos-neutral-700);
-  font-size: var(--mos-font-caption-size);
-  line-height: var(--mos-font-caption-line);
-  font-weight: 750;
-}
-
 .money-os-reports {
   display: grid;
   gap: var(--mos-space-md);
@@ -2299,7 +2260,6 @@ button.mos-action-card {
   .mos-home-hero-metrics,
   .mos-home-stat-grid,
   .mos-home-action-card-grid,
-  .mos-profile-hub-grid,
   .mos-report-snapshot-grid,
   .mos-report-insight-grid,
   .mos-report-v4-grid,

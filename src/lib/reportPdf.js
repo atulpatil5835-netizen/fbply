@@ -99,7 +99,7 @@ async function loadLogoDataUrl() {
   }
 
   try {
-    const response = await fetch('/fbply-logo.png')
+    const response = await fetch('/fbply-f-mark.png')
 
     if (!response.ok) {
       return ''
@@ -291,7 +291,9 @@ const REPORT_SITE_URL = 'www.fbply.com'
 
 const REPORT_THEME_ALIASES = {
   brownJournal: 'classic',
+  coder: 'code',
   navy: 'classic',
+  terminal: 'code',
   vintageDiary: 'classic',
   executive: 'ledgerPro',
   minimal: 'minimalWhite',
@@ -300,19 +302,19 @@ const REPORT_THEME_ALIASES = {
 const REPORT_EXPORT_THEMES = {
   classic: {
     pdfFont: 'times',
-    canvasFont: '"Caveat", "Segoe Print", "Bradley Hand ITC", cursive',
+    canvasFont: '"Patrick Hand", "Kalam", "Caveat", "Segoe Print", "Bradley Hand ITC", cursive',
     page: [255, 253, 247],
     card: [255, 251, 242],
     soft: [248, 241, 230],
     border: [229, 218, 201],
-    text: [40, 51, 51],
-    muted: [115, 107, 97],
-    accent: [47, 93, 93],
-    accentSoft: [231, 239, 231],
+    text: [33, 74, 131],
+    muted: [95, 111, 134],
+    accent: [182, 72, 61],
+    accentSoft: [236, 242, 250],
   },
   ledgerPro: {
     pdfFont: 'helvetica',
-    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    canvasFont: '"IBM Plex Sans", Inter, ui-sans-serif, system-ui, sans-serif',
     page: [255, 255, 255],
     card: [248, 249, 247],
     soft: [240, 241, 238],
@@ -324,7 +326,7 @@ const REPORT_EXPORT_THEMES = {
   },
   receipt: {
     pdfFont: 'courier',
-    canvasFont: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
+    canvasFont: '"IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
     page: [255, 255, 255],
     card: [250, 250, 249],
     soft: [241, 241, 239],
@@ -334,9 +336,21 @@ const REPORT_EXPORT_THEMES = {
     accent: [82, 82, 91],
     accentSoft: [238, 238, 234],
   },
+  code: {
+    pdfFont: 'courier',
+    canvasFont: '"JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+    page: [8, 14, 10],
+    card: [14, 23, 17],
+    soft: [18, 31, 23],
+    border: [46, 75, 57],
+    text: [231, 251, 234],
+    muted: [156, 179, 162],
+    accent: [65, 255, 154],
+    accentSoft: [26, 58, 40],
+  },
   minimalWhite: {
     pdfFont: 'helvetica',
-    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    canvasFont: '"IBM Plex Sans", Inter, ui-sans-serif, system-ui, sans-serif',
     page: [255, 255, 255],
     card: [248, 250, 252],
     soft: [243, 246, 250],
@@ -348,7 +362,7 @@ const REPORT_EXPORT_THEMES = {
   },
   blueRegister: {
     pdfFont: 'helvetica',
-    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    canvasFont: '"Merriweather", Georgia, "Times New Roman", serif',
     page: [248, 251, 255],
     card: [255, 255, 255],
     soft: [231, 240, 248],
@@ -360,7 +374,7 @@ const REPORT_EXPORT_THEMES = {
   },
   emerald: {
     pdfFont: 'helvetica',
-    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    canvasFont: '"Nunito Sans", Inter, ui-sans-serif, system-ui, sans-serif',
     page: [251, 255, 253],
     card: [255, 255, 255],
     soft: [227, 243, 236],
@@ -372,7 +386,7 @@ const REPORT_EXPORT_THEMES = {
   },
   midnight: {
     pdfFont: 'helvetica',
-    canvasFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    canvasFont: '"IBM Plex Sans", Inter, ui-sans-serif, system-ui, sans-serif',
     page: [17, 25, 39],
     card: [18, 28, 42],
     soft: [23, 35, 52],
@@ -384,7 +398,7 @@ const REPORT_EXPORT_THEMES = {
   },
   sunset: {
     pdfFont: 'times',
-    canvasFont: 'Georgia, "Times New Roman", serif',
+    canvasFont: '"Lora", Georgia, "Times New Roman", serif',
     page: [255, 249, 241],
     card: [255, 253, 248],
     soft: [241, 226, 210],
@@ -856,7 +870,23 @@ function drawCanvasText(context, text, x, y, width, lineHeight, maxLines = 4) {
 
 function canvasBlob(canvas, type = 'image/jpeg', quality = 0.92) {
   return new Promise((resolve, reject) => {
+    let isSettled = false
+    const timeout = globalThis.setTimeout(() => {
+      if (isSettled) {
+        return
+      }
+
+      isSettled = true
+      reject(new Error('Report image export timed out.'))
+    }, 6000)
+
     canvas.toBlob((blob) => {
+      if (isSettled) {
+        return
+      }
+
+      isSettled = true
+      globalThis.clearTimeout(timeout)
       if (blob) {
         resolve(blob)
       } else {
@@ -1325,15 +1355,15 @@ function buildExpenseTrendTotals({ mode = 'weekly', rows = [], rangeKeys = [], c
 
 function expenseTrendTitle(mode) {
   if (mode === 'weekly') {
-    return 'Day-wise bar chart'
+    return 'Daily bar graph'
   }
 
   if (mode === 'monthly') {
-    return 'Week-wise bar chart'
+    return 'Weekly bar graph'
   }
 
   if (mode === 'yearly') {
-    return 'Month-wise bar chart'
+    return 'Monthly bar graph'
   }
 
   return ''
@@ -1531,7 +1561,7 @@ function drawExpenseDayBarsCanvas(context, model, theme, box) {
 
   context.fillStyle = rgbToCss(theme.accent)
   context.font = `800 24px ${theme.canvasFont}`
-  context.fillText((model.trendChartTitle || 'Day-wise bar chart').toUpperCase(), x + 34, y + 46)
+  context.fillText((model.trendChartTitle || 'Daily bar graph').toUpperCase(), x + 34, y + 46)
 
   context.strokeStyle = rgbToCss(theme.border)
   context.lineWidth = 2
@@ -1662,7 +1692,7 @@ function drawExpenseChartPdf(doc, y, title, dataUrl, fallbackItems, meta = {}, t
 
 function drawExpenseHistoryTablePdf(doc, y, model, meta = {}, theme = resolveReportTheme()) {
   y = addSimplePageIfNeeded(doc, y, 22, meta, theme)
-  y = drawSimpleSectionHeading(doc, 'History', y, theme)
+  y = drawSimpleSectionHeading(doc, 'Details', y, theme)
 
   if (model.rows.length === 0) {
     setThemeText(doc, theme, theme.muted)
@@ -1714,7 +1744,7 @@ function drawExpenseHistoryTablePdf(doc, y, model, meta = {}, theme = resolveRep
 
     if (y + rowHeight > reportBottomY()) {
       y = addSimpleReportPage(doc, meta, theme)
-      y = drawSimpleSectionHeading(doc, 'History', y, theme)
+      y = drawSimpleSectionHeading(doc, 'Details', y, theme)
       drawHeader()
     }
 
@@ -1842,7 +1872,7 @@ async function createExpenseHistoryReportJpegBlob({ meta, model, theme }) {
 
   context.fillStyle = rgbToCss(theme.accent)
   context.font = `800 22px ${theme.canvasFont}`
-  context.fillText('HISTORY', margin, y)
+  context.fillText('DETAILS', margin, y)
   y += 38
 
   context.fillStyle = rgbToCss(theme.muted)
@@ -1918,15 +1948,32 @@ async function createExpenseHistoryReportJpegBlob({ meta, model, theme }) {
 }
 
 async function createExpenseHistoryReportBlob(reportData = {}) {
-  const { jsPDF } = await import('jspdf')
   const meta = {
     ...(reportData.reportMeta || {}),
     title: '',
     typeLabel: 'Expense History',
-    jsPDF,
   }
   const model = buildExpenseHistoryReportModel(reportData)
   const theme = resolveReportTheme(meta.theme)
+
+  if (meta.exportMode === 'auto' && model.mode === 'daily') {
+    try {
+      const imageBlob = await createExpenseHistoryReportJpegBlob({ meta, model, theme })
+
+      return {
+        blob: imageBlob,
+        extension: 'jpg',
+        format: 'jpg',
+        mimeType: 'image/jpeg',
+        pageCount: 1,
+      }
+    } catch {
+      // Fall through to PDF when browser canvas export is unavailable.
+    }
+  }
+
+  const { jsPDF } = await import('jspdf')
+  meta.jsPDF = jsPDF
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const chartImages = createExpenseReportChartImages(model, theme)
 
@@ -1936,7 +1983,7 @@ async function createExpenseHistoryReportBlob(reportData = {}) {
   y = drawExpenseChartPdf(doc, y, 'Category pie chart', chartImages.pie, model.categories, meta, theme)
 
   if (model.includeTrendBars ?? model.includeDayBars) {
-    y = drawExpenseChartPdf(doc, y, model.trendChartTitle || 'Day-wise bar chart', chartImages.bars, model.trendTotals || model.dayTotals, meta, theme)
+    y = drawExpenseChartPdf(doc, y, model.trendChartTitle || 'Daily bar graph', chartImages.bars, model.trendTotals || model.dayTotals, meta, theme)
   }
 
   drawExpenseHistoryTablePdf(doc, y, model, meta, theme)
@@ -1973,6 +2020,274 @@ async function createExpenseHistoryReportBlob(reportData = {}) {
   }
 
   return pdfBlob
+}
+
+function moneyBookReportDateKey(value) {
+  return reportDateKey(value || new Date().toISOString())
+}
+
+function moneyBookDaysBetween(startKey, endKey) {
+  const start = parseReportDateKey(startKey)
+  const end = parseReportDateKey(endKey)
+
+  if (!start || !end || end < start) {
+    return 0
+  }
+
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
+}
+
+function normalizeMoneyBookReportEntry(entry = {}, index = 0) {
+  const kind = entry.kind === 'taken' || entry.type === 'taken' || entry.direction === 'taken' ? 'taken' : 'given'
+  const date = moneyBookReportDateKey(entry.date || entry.createdAt)
+  const status = entry.status === 'settled' || entry.status === 'completed' ? 'settled' : 'pending'
+  const dueDate = String(entry.dueDate || entry.due || '').slice(0, 10)
+  const settledAt = entry.settledAt || entry.completedAt || entry.receivedAt || ''
+
+  return {
+    id: entry.id || `money-book-report-${index}`,
+    kind,
+    person: cleanPdfText(entry.person || entry.name || entry.borrower || entry.lender || ''),
+    amount: safeAmount(entry.amount),
+    interest: safeAmount(entry.interest || entry.vyaj),
+    date,
+    note: cleanPdfText(entry.note || ''),
+    status,
+    dueDate: /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : '',
+    settledAt: status === 'settled' ? settledAt : '',
+  }
+}
+
+function buildMoneyBookReportModel({ reportMeta = {}, profile = {}, moneyBookEntries = [], moneyBookSummary = {} } = {}) {
+  const currency = reportMeta.currency || profile.currency || 'INR'
+  const generatedKey = moneyBookReportDateKey(reportMeta.generatedAt)
+  const sourceEntries = Array.isArray(moneyBookEntries) && moneyBookEntries.length > 0
+    ? moneyBookEntries
+    : moneyBookSummary.visibleEntries || []
+  const entries = sourceEntries
+    .map(normalizeMoneyBookReportEntry)
+    .filter((entry) => entry.person && entry.amount > 0)
+    .sort((first, second) => String(second.date).localeCompare(String(first.date)))
+  const rows = entries.map((entry) => {
+    const anchorDate = entry.status === 'settled'
+      ? moneyBookReportDateKey(entry.settledAt || generatedKey)
+      : entry.dueDate || generatedKey
+    const days = moneyBookDaysBetween(entry.date, anchorDate)
+    const total = safeAmount(entry.amount + entry.interest)
+    const direction = entry.kind === 'given' ? 'You will receive' : 'You need to pay'
+    const action = entry.kind === 'given' ? 'Lent to' : 'Borrowed from'
+
+    return {
+      ...entry,
+      days,
+      total,
+      anchorDate,
+      action,
+      direction,
+      amountLabel: currencyMoney(entry.amount, currency),
+      interestLabel: currencyMoney(entry.interest, currency),
+      totalLabel: currencyMoney(total, currency),
+      dateLabel: expenseReportDateLabel(entry.date),
+      anchorLabel: expenseReportDateLabel(anchorDate),
+      statusLabel: entry.status === 'settled' ? 'Settled' : 'Pending',
+    }
+  })
+  const totalGiven = sumMoney(rows.filter((row) => row.kind === 'given'), (row) => row.amount)
+  const totalBorrowed = sumMoney(rows.filter((row) => row.kind === 'taken'), (row) => row.amount)
+  const totalInterest = sumMoney(rows, (row) => row.interest)
+  const totalDue = sumMoney(rows.filter((row) => row.status !== 'settled'), (row) => row.total)
+  const totalSettled = sumMoney(rows.filter((row) => row.status === 'settled'), (row) => row.total)
+  const pendingRows = rows.filter((row) => row.status !== 'settled')
+  const pendingReceive = safeAmount(moneyBookSummary.needToReceive)
+    || sumMoney(pendingRows.filter((row) => row.kind === 'given'), (row) => row.total)
+  const pendingPay = safeAmount(moneyBookSummary.needToPay)
+    || sumMoney(pendingRows.filter((row) => row.kind === 'taken'), (row) => row.total)
+
+  return {
+    currency,
+    rows,
+    title: 'Borrow/Lend Report',
+    periodLabel: reportMeta.period || currentMonthLabel(),
+    totalGiven,
+    totalBorrowed,
+    totalInterest,
+    totalDue,
+    totalSettled,
+    metrics: [
+      { label: 'To Receive', value: currencyMoney(pendingReceive, currency), detail: 'Pending lent money' },
+      { label: 'To Pay', value: currencyMoney(pendingPay, currency), detail: 'Pending borrowed money' },
+      { label: 'Vyaj', value: currencyMoney(totalInterest, currency), detail: 'Interest saved in entries' },
+      { label: 'Open Total', value: currencyMoney(totalDue, currency), detail: `${pendingRows.length} pending line${pendingRows.length === 1 ? '' : 's'}` },
+    ],
+    summary: [
+      rows.length > 0
+        ? `${rows.length} borrow/lend ${plural(rows.length, 'line')} included for ${reportMeta.period || currentMonthLabel()}.`
+        : 'No borrow/lend line is visible for this period.',
+      `Principal lent is ${currencyMoney(totalGiven, currency)} and principal borrowed is ${currencyMoney(totalBorrowed, currency)}.`,
+      `Saved vyaj is ${currencyMoney(totalInterest, currency)}. Pending total is ${currencyMoney(totalDue, currency)}.`,
+      totalSettled > 0 ? `Settled amount shown in this period is ${currencyMoney(totalSettled, currency)}.` : '',
+    ].filter(Boolean).join(' '),
+  }
+}
+
+async function createMoneyBookReportJpegBlob(reportData = {}) {
+  if (typeof document === 'undefined') {
+    throw new Error('Borrow/lend JPG export needs a browser.')
+  }
+
+  const meta = reportData.reportMeta || {}
+  const theme = resolveReportTheme(meta.theme)
+  const model = buildMoneyBookReportModel(reportData)
+  const canvas = document.createElement('canvas')
+  const rowHeight = 112
+  const visibleRows = model.rows.slice(0, 18)
+  canvas.width = 1400
+  canvas.height = Math.max(1540, 780 + Math.max(visibleRows.length, 5) * rowHeight + 180)
+  const context = canvas.getContext('2d')
+  const margin = 86
+  const width = canvas.width - margin * 2
+
+  context.fillStyle = rgbToCss(theme.page)
+  context.fillRect(0, 0, canvas.width, canvas.height)
+
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 34px ${theme.canvasFont}`
+  context.fillText('FBPLY', margin, 70)
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `500 20px ${theme.canvasFont}`
+  context.fillText('Borrow/Lend JPG', margin, 104)
+
+  let y = 180
+  context.fillStyle = rgbToCss(theme.text)
+  context.font = `800 58px ${theme.canvasFont}`
+  y = drawCanvasText(context, model.title, margin, y, width, 64, 2) + 20
+
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `500 22px ${theme.canvasFont}`
+  context.fillText([model.periodLabel, reportDateLabel(meta.generatedAt), model.currency].filter(Boolean).join('  |  '), margin, y)
+  y += 52
+
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(margin, y)
+  context.lineTo(canvas.width - margin, y)
+  context.stroke()
+  y += 50
+
+  context.fillStyle = rgbToCss(theme.text)
+  context.font = `500 27px ${theme.canvasFont}`
+  y = drawCanvasText(context, model.summary, margin, y, width, 36, 4) + 44
+
+  const cardGap = 18
+  const cardWidth = (width - cardGap * 3) / 4
+  model.metrics.forEach((item, index) => {
+    const x = margin + index * (cardWidth + cardGap)
+    context.fillStyle = rgbToCss(theme.card)
+    context.strokeStyle = rgbToCss(theme.border)
+    context.lineWidth = 2
+    context.beginPath()
+    drawCanvasRoundRect(context, x, y, cardWidth, 134, 22)
+    context.fill()
+    context.stroke()
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `800 15px ${theme.canvasFont}`
+    context.fillText(cleanPdfText(item.label).toUpperCase(), x + 22, y + 38)
+    context.fillStyle = rgbToCss(theme.text)
+    context.font = `800 28px ${theme.canvasFont}`
+    drawCanvasText(context, item.value, x + 22, y + 78, cardWidth - 44, 32, 1)
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `500 16px ${theme.canvasFont}`
+    drawCanvasText(context, item.detail, x + 22, y + 112, cardWidth - 44, 20, 1)
+  })
+  y += 184
+
+  context.fillStyle = rgbToCss(theme.accent)
+  context.font = `800 22px ${theme.canvasFont}`
+  context.fillText('CALCULATION', margin, y)
+  y += 38
+
+  if (visibleRows.length === 0) {
+    context.fillStyle = rgbToCss(theme.card)
+    context.strokeStyle = rgbToCss(theme.border)
+    context.lineWidth = 2
+    context.beginPath()
+    drawCanvasRoundRect(context, margin, y, width, 170, 24)
+    context.fill()
+    context.stroke()
+    context.fillStyle = rgbToCss(theme.muted)
+    context.font = `600 26px ${theme.canvasFont}`
+    context.fillText('No borrow/lend entries for this period.', margin + 34, y + 86)
+    y += 210
+  } else {
+    visibleRows.forEach((row) => {
+      context.fillStyle = rgbToCss(theme.card)
+      context.strokeStyle = rgbToCss(theme.border)
+      context.lineWidth = 2
+      context.beginPath()
+      drawCanvasRoundRect(context, margin, y, width, rowHeight - 18, 22)
+      context.fill()
+      context.stroke()
+
+      context.fillStyle = rgbToCss(theme.text)
+      context.font = `800 22px ${theme.canvasFont}`
+      drawCanvasText(context, `${row.action} ${row.person}`, margin + 26, y + 36, 330, 26, 1)
+      context.fillStyle = rgbToCss(theme.muted)
+      context.font = `500 17px ${theme.canvasFont}`
+      drawCanvasText(context, `${row.dateLabel} to ${row.anchorLabel} (${row.days} day${row.days === 1 ? '' : 's'})`, margin + 26, y + 68, 330, 22, 1)
+
+      context.fillStyle = rgbToCss(theme.muted)
+      context.font = `800 15px ${theme.canvasFont}`
+      context.fillText('AMOUNT', margin + 430, y + 32)
+      context.fillText('VYAJ', margin + 650, y + 32)
+      context.fillText('TOTAL', margin + 850, y + 32)
+      context.fillText('STATUS', margin + 1090, y + 32)
+
+      context.fillStyle = rgbToCss(theme.text)
+      context.font = `800 21px ${theme.canvasFont}`
+      context.fillText(row.amountLabel, margin + 430, y + 66)
+      context.fillStyle = rgbToCss(row.interest > 0 ? theme.accent : theme.muted)
+      context.fillText(row.interestLabel, margin + 650, y + 66)
+      context.fillStyle = rgbToCss(theme.text)
+      context.fillText(row.totalLabel, margin + 850, y + 66)
+      context.fillStyle = rgbToCss(row.status === 'settled' ? theme.muted : theme.accent)
+      context.fillText(row.statusLabel, margin + 1090, y + 66)
+
+      if (row.note) {
+        context.fillStyle = rgbToCss(theme.muted)
+        context.font = `500 16px ${theme.canvasFont}`
+        drawCanvasText(context, row.note, margin + 430, y + 90, width - 454, 20, 1)
+      }
+
+      y += rowHeight
+    })
+  }
+
+  context.strokeStyle = rgbToCss(theme.border)
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(margin, canvas.height - 86)
+  context.lineTo(canvas.width - margin, canvas.height - 86)
+  context.stroke()
+  context.fillStyle = rgbToCss(theme.muted)
+  context.font = `500 20px ${theme.canvasFont}`
+  context.textAlign = 'right'
+  context.fillText(REPORT_SITE_URL, canvas.width - margin, canvas.height - 48)
+  context.textAlign = 'left'
+
+  return canvasBlob(canvas, 'image/jpeg', 0.93)
+}
+
+async function createMoneyBookReportBlob(reportData = {}) {
+  const blob = await createMoneyBookReportJpegBlob(reportData)
+
+  return {
+    blob,
+    extension: 'jpg',
+    format: 'jpg',
+    mimeType: 'image/jpeg',
+    pageCount: 1,
+  }
 }
 
 function cleanSentence(value) {
@@ -2150,6 +2465,18 @@ function buildTripReportModels(groups = [], profile = {}, currency = 'INR', them
           color: chartColors[index % chartColors.length],
         }
       })
+    const paymentRows = payments.map((payment) => {
+      const category = tripPaymentCategory(payment)
+      const purpose = cleanPdfText(payment.label || payment.note || category) || category
+      const dateLabel = expenseReportShortDateLabel(payment.dateKey)
+
+      return {
+        label: displayPersonName(payment.paidBy, profile),
+        value: currencyMoney(payment.amount, currency),
+        detail: [purpose, category !== purpose ? category : '', dateLabel].filter(Boolean).join(' | '),
+        amount: payment.amount,
+      }
+    })
 
     const pendingSettlements = settlements.filter((item) => !isReportSettlementComplete(item))
     const completedSettlements = settlements.filter(isReportSettlementComplete)
@@ -2181,6 +2508,7 @@ function buildTripReportModels(groups = [], profile = {}, currency = 'INR', them
       payerRows,
       categoryRows,
       history,
+      paymentRows,
       settlementRows: settlementRows.length > 0
         ? settlementRows
         : [{ label: 'No settlement yet', value: '-', detail: 'Add payments to calculate who pays who.' }],
@@ -2857,6 +3185,10 @@ async function createTypedReportBlob(type = 'monthly', payload = {}) {
     return createExpenseHistoryReportBlob(payload)
   }
 
+  if (type === 'money-book') {
+    return createMoneyBookReportBlob(payload)
+  }
+
   if (type === 'trip') {
     return createTripReportPdfBlob(payload)
   }
@@ -2901,12 +3233,7 @@ export async function createMonthlyBudgetReportPdfBlob(reportData = {}) {
   const topCategories = barItems(reportData.expenseBreakdown || [], currency, { valueKey: 'value', total: expenses })
   const weekwiseExpenseBars = expenseTrendBarItemsFromExpenses(reportData.expenses || [], currency, 'monthly')
   const topCategory = topCategories[0]
-  const storyItems = [
-    ...(report.pressureAnalysis || []),
-    ...(report.spendingPatterns || []),
-    ...(report.purchaseInsights || []),
-    ...(report.behaviorInsights || []),
-  ]
+  const storyItems = report.behaviorInsights || []
   const goalProgressRows = activeGoals.map((bucket) => {
     const savedAmount = safeAmount(bucket.saved)
     const target = safeAmount(bucket.target)
@@ -3230,34 +3557,31 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     return [
       {
         kind: 'image',
-        title: `${model.name} - Who Paid`,
-        subtitle: 'Bar chart by payer. Shows who paid first for this trip.',
-        imageDataUrl: charts.payers,
-        imageHeight: 70,
-      },
-      {
-        kind: 'image',
-        title: `${model.name} - Categories`,
-        subtitle: 'Pie chart based on saved payment purpose names.',
+        title: `${model.name} - Category Pie Chart`,
+        subtitle: 'One pie chart based on saved payment categories.',
         imageDataUrl: charts.categories,
         imageHeight: 70,
       },
       {
-        kind: 'image',
-        title: `${model.name} - Total History`,
-        subtitle: 'Date-wise total amount history for this trip.',
-        imageDataUrl: charts.history,
-        imageHeight: 70,
+        title: `${model.name} - Who Paid For Which`,
+        subtitle: 'Each saved payment in plain language.',
+        items: model.paymentRows,
+        limit: 9999,
+        columns: [
+          { key: 'label', label: 'Paid By', width: 46, maxLines: 2 },
+          { key: 'detail', label: 'For Which', width: 88, maxLines: 2 },
+          { key: 'value', label: 'Amount', width: 48, align: 'right' },
+        ],
       },
       {
-        title: `${model.name} - Who Pays Who`,
-        subtitle: 'Pending items first. Settled items appear only when nothing is pending.',
+        title: `${model.name} - Kisko Kitna Dena Hai`,
+        subtitle: 'Pending who-owes-whom amount. Settled rows show only when nothing is pending.',
         items: model.settlementRows,
         limit: 9999,
         columns: [
-          { key: 'label', label: 'Direction', width: 78, maxLines: 2 },
-          { key: 'value', label: 'Amount', width: 38, align: 'right' },
-          { key: 'detail', label: 'Status', width: 66 },
+          { key: 'label', label: 'Who Pays Whom', width: 92, maxLines: 2 },
+          { key: 'value', label: 'Amount', width: 42, align: 'right' },
+          { key: 'detail', label: 'Status', width: 48 },
         ],
       },
     ]
@@ -3279,7 +3603,7 @@ export async function createTripReportPdfBlob({ reportMeta = {}, profile = {}, g
     meta: {
       title: tripModels.length === 1 ? `${tripModels[0].name} Split Report` : 'Split Trip Reports',
       typeLabel: 'Split Report',
-      subtitle: 'Simple per-trip charts for payer totals, categories, history, and settlement direction.',
+      subtitle: 'Who paid for which item, one category pie chart, and who owes whom.',
       preparedFor: profile.name || profile.email || 'FBPly user',
       currency,
       period: reportMeta.period || tripModels[0]?.date || currentMonthLabel(),
@@ -3570,7 +3894,12 @@ export async function generateMonthlyReportPdf(reportData) {
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = 'FBPly-financial-report.pdf'
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
   anchor.click()
-  URL.revokeObjectURL(url)
+  window.setTimeout(() => {
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }, 30000)
   return true
 }

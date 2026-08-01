@@ -9,8 +9,8 @@
   "theme_color": "#0B1020",
   "icons": [
     {
-      "src": "/fbply-logo.png",
-      "sizes": "1254x1254",
+      "src": "/fbply-f-mark.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },

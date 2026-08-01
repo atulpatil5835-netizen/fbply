@@ -14,7 +14,7 @@ import {
   Download,
   ExternalLink,
   House,
-  LogOut,
+  Info,
   LockKeyhole,
   Mail,
   MessageCircle,
@@ -74,7 +74,6 @@ import {
 import { buildUnifiedFinanceEngine, buildTransactionSummary } from './lib/financeEngine'
 import {
   buildCashflowTimeline,
-  buildMonthlyComparison,
   buildSmartReminders,
 } from './lib/financeIntelligence'
 import { getFinanceColor } from './lib/financeColors'
@@ -430,6 +429,34 @@ function buildReportExportPrompt(type, request, sharedGroups = []) {
   }
 
   return null
+}
+
+function saveBlobToBrowserDownload(blob, filename, { retainUrl = false } = {}) {
+  if (typeof document === 'undefined' || !blob) {
+    return null
+  }
+
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.rel = 'noopener'
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+
+  if (!retainUrl) {
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url)
+    }, 30000)
+  }
+
+  return { filename, url }
+}
+
+function isNativeRuntimeAvailable() {
+  return typeof window !== 'undefined' && Boolean(window.Capacitor?.isNativePlatform?.())
 }
 
 const legacyNavItems = [
@@ -2118,6 +2145,8 @@ function App() {
   const [exportUnlockUntil, setExportUnlockUntil] = useState(() => Number(safeStorageGet('fbply-export-unlock-until', '0')))
   const [rewardedExport, setRewardedExport] = useState({ open: false, status: 'idle', progress: 0 })
   const [pendingReportRequest, setPendingReportRequest] = useState(null)
+  const [preparedReportExport, setPreparedReportExport] = useState(null)
+  const [reportDownloadFallback, setReportDownloadFallback] = useState(null)
   const [reportExportPrompt, setReportExportPrompt] = useState(null)
   const [reportTemplate, setReportTemplate] = useState('standard')
   const [reportHistory, setReportHistory] = useState(() => normalizeReportHistory(readStoredJson('fbply-report-history', [])))
@@ -2269,6 +2298,22 @@ function App() {
   useEffect(() => {
     profileRef.current = profile
   }, [profile])
+
+  useEffect(() => {
+    if (!reportDownloadFallback?.url) {
+      return undefined
+    }
+
+    const fallbackUrl = reportDownloadFallback.url
+    const timeout = window.setTimeout(() => {
+      setReportDownloadFallback((current) => (current?.url === fallbackUrl ? null : current))
+    }, 120000)
+
+    return () => {
+      window.clearTimeout(timeout)
+      URL.revokeObjectURL(fallbackUrl)
+    }
+  }, [reportDownloadFallback?.url])
 
   useEffect(() => {
     expensesRef.current = expenses
@@ -4246,37 +4291,6 @@ function App() {
       sharedGroups,
     ],
   )
-  const previousSelectedMonthKey = useMemo(() => shiftMonthKey(selectedMonthKey, -1), [selectedMonthKey])
-  const previousMonthActivity = useMemo(
-    () => buildUnifiedFinanceEngine({
-      expenses,
-      moneyBookEntries,
-      monthKey: previousSelectedMonthKey,
-      profile,
-      savingsBuckets,
-      sharedGroups,
-      planner: {
-        label: plannerInput,
-        selectedPlan,
-        targetAmount: plannerTargetAmount,
-        currentSavings: plannerCurrentSavings,
-        timeline: plannerTimeline,
-      },
-    }),
-    [
-      expenses,
-      moneyBookEntries,
-      plannerCurrentSavings,
-      plannerInput,
-      plannerTargetAmount,
-      plannerTimeline,
-      previousSelectedMonthKey,
-      profile,
-      savingsBuckets,
-      selectedPlan,
-      sharedGroups,
-    ],
-  )
   const monthOptions = useMemo(
     () => buildMonthOptions({ expenses, sharedGroups, moneyBookEntries }),
     [expenses, moneyBookEntries, sharedGroups],
@@ -4499,13 +4513,6 @@ function App() {
   const selectedCashflowTimeline = useMemo(
     () => buildCashflowTimeline(selectedMonthActivity.transactions),
     [selectedMonthActivity.transactions],
-  )
-  const selectedMonthlyComparison = useMemo(
-    () => buildMonthlyComparison({
-      current: selectedMonthActivity.transactionSummary,
-      previous: previousMonthActivity.transactionSummary,
-    }),
-    [previousMonthActivity.transactionSummary, selectedMonthActivity.transactionSummary],
   )
   const selectedExpenseBreakdown = useMemo(
     () => buildExpenseBreakdown(selectedFinancialEntries, profile),
@@ -5955,6 +5962,28 @@ function App() {
       }
     }
 
+    if (type === 'money-book') {
+      const visibleMoneyBookEntries = Array.isArray(overrides.moneyBookEntries)
+        ? overrides.moneyBookEntries
+        : Array.isArray(moneyBookSummary?.visibleEntries)
+          ? moneyBookSummary.visibleEntries
+          : moneyBookEntries
+
+      return {
+        type,
+        reportId,
+        payload: {
+          reportMeta: {
+            ...reportMeta,
+            reportType: 'money-book',
+          },
+          profile,
+          moneyBookEntries: visibleMoneyBookEntries,
+          moneyBookSummary,
+        },
+      }
+    }
+
     return {
       type: 'monthly',
       reportId,
@@ -5979,6 +6008,7 @@ function App() {
     recommendation,
     reportTemplate,
     moneyTheme,
+    moneyBookEntries,
     savingsBuckets,
     selectedAdvancedReport,
     selectedExpenseBreakdown,
@@ -5989,9 +6019,9 @@ function App() {
     sharedGroups,
   ])
 
-  const downloadReportRequest = useCallback(async (request, { saveHistory = true } = {}) => {
+  const prepareReportExportRequest = useCallback(async (request, { saveHistory = true } = {}) => {
     if (isExportingPdf) {
-      return
+      return null
     }
 
     setPdfError('')
@@ -6012,7 +6042,15 @@ function App() {
           },
         },
       }
-      const { isNativeMobileApp, shareBlob } = await import('./lib/nativeFileShare')
+      let isNative = false
+      let shareBlob = null
+
+      if (isNativeRuntimeAvailable()) {
+        const nativeFileShare = await import('./lib/nativeFileShare')
+        isNative = nativeFileShare.isNativeMobileApp()
+        shareBlob = nativeFileShare.shareBlob
+      }
+
       const { createReportExportBlob } = await import('./lib/reportPdf')
       const exportResult = await createReportExportBlob(activeRequest)
       const blob = exportResult.blob
@@ -6034,52 +6072,16 @@ function App() {
         })
       }
 
-      if (isNativeMobileApp()) {
-        await shareBlob(blob, filename, {
-          title: exportType === 'jpg' ? 'FBPLY Report Card' : 'FBPLY Report',
-          text: 'Your FBPLY report is ready.',
-          dialogTitle: 'Save or share report',
-        })
-        trackEvent('report_shared', {
-          surface: 'reports',
-          report_type: reportType,
-          export_type: exportType,
-        })
-      } else {
-        const url = URL.createObjectURL(blob)
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = filename
-        anchor.click()
-        URL.revokeObjectURL(url)
-      }
-
-      trackEvent('report_exported', {
-        surface: 'reports',
-        report_type: reportType,
-        export_type: exportType,
-        save_history: saveHistory,
-      })
-
-      if (saveHistory) {
-        setReportHistory((current) => normalizeReportHistory([
-          createReportHistoryEntry({
-            type: activeRequest.type,
-            template: activeRequest.payload?.reportMeta?.template || reportTemplate,
-            profile,
-            period: activeRequest.payload?.reportMeta?.period || selectedMonthKey,
-            currency: activeRequest.payload?.reportMeta?.currency || profile.currency,
-            reportId,
-            payload: {
-              ...activeRequest.payload,
-              reportMeta: {
-                ...(activeRequest.payload?.reportMeta || {}),
-                lastExportFormat: exportType,
-              },
-            },
-          }),
-          ...current,
-        ]))
+      return {
+        activeRequest,
+        blob,
+        exportType,
+        filename,
+        isNative,
+        reportId,
+        reportType,
+        saveHistory,
+        shareBlob,
       }
     } catch {
       trackEvent('report_export_failed', {
@@ -6087,11 +6089,84 @@ function App() {
         report_type: activeRequest?.type || 'monthly',
       })
       setPdfError('The report could not be prepared. Please try again in a moment.')
+      return null
     } finally {
       setIsExportingPdf(false)
       setExportingReportType('')
     }
-  }, [buildReportRequest, isExportingPdf, moneyTheme, profile, reportHistory.length, reportTemplate, selectedMonthKey])
+  }, [buildReportRequest, isExportingPdf, moneyTheme, reportHistory.length, reportTemplate])
+
+  const finishPreparedReportExport = useCallback(async (prepared) => {
+    if (!prepared?.blob) {
+      return false
+    }
+
+    try {
+      if (prepared.isNative) {
+        await prepared.shareBlob(prepared.blob, prepared.filename, {
+          title: prepared.exportType === 'jpg' ? 'FBPLY Report Card' : 'FBPLY Report',
+          text: 'Your FBPLY report is ready.',
+          dialogTitle: 'Save or share report',
+        })
+        trackEvent('report_shared', {
+          surface: 'reports',
+          report_type: prepared.reportType,
+          export_type: prepared.exportType,
+        })
+      } else {
+        const fallback = saveBlobToBrowserDownload(prepared.blob, prepared.filename, { retainUrl: true })
+        setReportDownloadFallback(fallback ? {
+          ...fallback,
+          format: prepared.exportType,
+        } : null)
+      }
+
+      trackEvent('report_exported', {
+        surface: 'reports',
+        report_type: prepared.reportType,
+        export_type: prepared.exportType,
+        save_history: prepared.saveHistory,
+      })
+
+      if (prepared.saveHistory) {
+        setReportHistory((current) => normalizeReportHistory([
+          createReportHistoryEntry({
+            type: prepared.activeRequest.type,
+            template: prepared.activeRequest.payload?.reportMeta?.template || reportTemplate,
+            profile,
+            period: prepared.activeRequest.payload?.reportMeta?.period || selectedMonthKey,
+            currency: prepared.activeRequest.payload?.reportMeta?.currency || profile.currency,
+            reportId: prepared.reportId,
+            payload: {
+              ...prepared.activeRequest.payload,
+              reportMeta: {
+                ...(prepared.activeRequest.payload?.reportMeta || {}),
+                lastExportFormat: prepared.exportType,
+              },
+            },
+          }),
+          ...current,
+        ]))
+      }
+
+      return true
+    } catch {
+      trackEvent('report_export_failed', {
+        surface: 'reports',
+        report_type: prepared.reportType || 'monthly',
+      })
+      setPdfError('The report was prepared, but the file could not be saved. Please try again.')
+      return false
+    }
+  }, [profile, reportTemplate, selectedMonthKey])
+
+  const downloadReportRequest = useCallback(async (request, { saveHistory = true } = {}) => {
+    const prepared = await prepareReportExportRequest(request, { saveHistory })
+
+    if (prepared) {
+      await finishPreparedReportExport(prepared)
+    }
+  }, [finishPreparedReportExport, prepareReportExportRequest])
 
   const requestReportExport = useCallback((type = 'monthly', overrides = {}) => {
     if (isExportingPdf) {
@@ -6099,6 +6174,8 @@ function App() {
     }
 
     setPdfError('')
+    setPreparedReportExport(null)
+    setReportDownloadFallback(null)
     const reportRequest = buildReportRequest(type, overrides)
     const prompt = buildReportExportPrompt(type, reportRequest, sharedGroups)
     trackEvent('report_export_requested', {
@@ -6161,9 +6238,24 @@ function App() {
 
     setRewardedExport({ open: false, status: 'idle', progress: 0 })
     setPendingReportRequest(null)
+    setPreparedReportExport(null)
   }, [pendingReportRequest, rewardedExport.status])
 
   const startRewardedExport = useCallback(() => {
+    if (rewardedExport.status === 'unlocked') {
+      const prepared = preparedReportExport
+
+      setRewardedExport({ open: false, status: 'idle', progress: 0 })
+      setPendingReportRequest(null)
+      setPreparedReportExport(null)
+
+      if (prepared) {
+        finishPreparedReportExport(prepared)
+      }
+
+      return
+    }
+
     if (rewardedExport.status === 'watching') {
       return
     }
@@ -6174,7 +6266,18 @@ function App() {
 
     const duration = 6500
     const startedAt = Date.now()
+    const requestToPrepare = pendingReportRequest
+    setPreparedReportExport(null)
     setRewardedExport({ open: true, status: 'watching', progress: 4 })
+    prepareReportExportRequest(requestToPrepare).then((prepared) => {
+      if (prepared) {
+        setPreparedReportExport(prepared)
+        return
+      }
+
+      setRewardedExport({ open: false, status: 'idle', progress: 0 })
+      setPendingReportRequest(null)
+    })
 
     rewardTimerRef.current = window.setInterval(() => {
       const progress = Math.min(Math.round(((Date.now() - startedAt) / duration) * 100), 100)
@@ -6188,17 +6291,9 @@ function App() {
           surface: 'reports',
           report_type: pendingReportRequest?.type || 'monthly',
         })
-        window.setTimeout(() => {
-          setRewardedExport({ open: false, status: 'idle', progress: 0 })
-          const request = pendingReportRequest
-          setPendingReportRequest(null)
-          if (request) {
-            downloadReportRequest(request)
-          }
-        }, 450)
       }
     }, 250)
-  }, [downloadReportRequest, pendingReportRequest, rewardedExport.status])
+  }, [finishPreparedReportExport, pendingReportRequest, prepareReportExportRequest, preparedReportExport, rewardedExport.status])
 
   const requestPdfExport = useCallback(() => {
     requestReportExport('monthly')
@@ -6237,37 +6332,44 @@ function App() {
     )
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' })
 
-    try {
-      const { isNativeMobileApp, shareBlob } = await import('./lib/nativeFileShare')
+    if (isNativeRuntimeAvailable()) {
+      try {
+        const { isNativeMobileApp, shareBlob } = await import('./lib/nativeFileShare')
 
-      if (isNativeMobileApp()) {
-        await shareBlob(blob, `FBPly-history-${selectedMonthKey}.csv`, {
-          title: 'FBPly history CSV',
-          text: 'Your FBPly financial history export is ready.',
-          dialogTitle: 'Save or share CSV',
-        })
-        trackEvent('csv_exported', {
+        if (isNativeMobileApp()) {
+          await shareBlob(blob, `FBPly-history-${selectedMonthKey}.csv`, {
+            title: 'FBPly history CSV',
+            text: 'Your FBPly financial history export is ready.',
+            dialogTitle: 'Save or share CSV',
+          })
+          trackEvent('csv_exported', {
+            surface: 'reports',
+            export_type: 'csv',
+            delivery: 'native_share',
+          })
+          return
+        }
+      } catch {
+        trackEvent('csv_export_failed', {
           surface: 'reports',
           export_type: 'csv',
-          delivery: 'native_share',
         })
+        setPdfError('The CSV could not be prepared. Please try again in a moment.')
         return
       }
-    } catch {
-      trackEvent('csv_export_failed', {
-        surface: 'reports',
-        export_type: 'csv',
-      })
-      setPdfError('The CSV could not be prepared. Please try again in a moment.')
-      return
     }
 
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = `FBPly-history-${selectedMonthKey}.csv`
+    anchor.style.display = 'none'
+    document.body.appendChild(anchor)
     anchor.click()
-    URL.revokeObjectURL(url)
+    window.setTimeout(() => {
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    }, 30000)
     trackEvent('csv_exported', {
       surface: 'reports',
       export_type: 'csv',
@@ -6308,10 +6410,18 @@ function App() {
     <div className="app-root" data-energy={lowEnergyMode ? 'low' : 'full'} data-currency={activeCurrency} data-money-theme={moneyTheme}>
       <OfflineBanner isOnline={isOnline} />
       <RewardedExportModal
+        canDownload={Boolean(preparedReportExport)}
+        isPreparing={rewardedExport.status === 'unlocked' && !preparedReportExport}
         rewardState={rewardedExport}
         onStart={startRewardedExport}
         onClose={closeRewardedExport}
       />
+      {reportDownloadFallback && (
+        <ReportDownloadFallbackBanner
+          download={reportDownloadFallback}
+          onClose={() => setReportDownloadFallback(null)}
+        />
+      )}
       <>
         {phase === 'splash' && (
           <SplashScreen
@@ -6403,7 +6513,6 @@ function App() {
               reportFinancialState={selectedFinancialState}
               reportTransactions={selectedMonthActivity.transactions}
               reportTransactionSummary={selectedMonthActivity.transactionSummary}
-              monthlyComparison={selectedMonthlyComparison}
               todayTransactions={financialActivity.transactions}
               expenses={expenses}
               historyGroups={historyGroups}
@@ -8268,21 +8377,23 @@ function V12HomeScreen({
       })
       const viewSlug = safeCalendarFileSlug(calendarViewLabel)
       const filename = `FBPly-calendar-${viewSlug}-${calendarMonth.monthKey}.jpg`
-      const { isNativeMobileApp, shareBlob } = await import('./lib/nativeFileShare')
 
-      if (isNativeMobileApp()) {
+      if (isNativeRuntimeAvailable()) {
+        const { isNativeMobileApp, shareBlob } = await import('./lib/nativeFileShare')
+
+        if (!isNativeMobileApp()) {
+          saveBlobToBrowserDownload(blob, filename)
+          setHisabMessage('Calendar image saved as JPG.')
+          return
+        }
+
         await shareBlob(blob, filename, {
           title: 'FBPly Calendar',
           text: `${calendarViewLabel} calendar is ready.`,
           dialogTitle: 'Save calendar image',
         })
       } else {
-        const url = URL.createObjectURL(blob)
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = filename
-        anchor.click()
-        URL.revokeObjectURL(url)
+        saveBlobToBrowserDownload(blob, filename)
       }
 
       setHisabMessage('Calendar image saved as JPG.')
@@ -9615,7 +9726,6 @@ function ProfileCompanionHome({
   expenses = [],
   transactionSummary = {},
   selectedMonthKey = currentMonthKey(),
-  openSettings,
   onEnableBackup,
   monthlyReportNode = null,
 }) {
@@ -9647,19 +9757,7 @@ function ProfileCompanionHome({
         eyebrow="Profile"
         title="Your Money Picture"
         detail="Simple visuals from the notebook, without turning the app into a dashboard."
-        actions={(
-          <div className="profile-top-actions">
-            <StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>
-            <button
-              className="profile-menu-trigger profile-menu-trigger--top"
-              type="button"
-              aria-label="Open profile menu"
-              onClick={openSettings}
-            >
-              <MoreVertical size={18} />
-            </button>
-          </div>
-        )}
+        actions={<StatusBadge tone={authUser?.id ? 'success' : 'warning'}>{backupStatus}</StatusBadge>}
       />
 
       <section className="v24-profile-visual-grid" aria-label="Money visuals">
@@ -9748,7 +9846,6 @@ function MainApp(props) {
     reportFinancialState,
     reportTransactions,
     reportTransactionSummary,
-    monthlyComparison,
     todayTransactions,
     expenses,
     historyGroups,
@@ -10134,7 +10231,6 @@ function MainApp(props) {
         financialState={reportFinancialState}
         reportTransactions={reportTransactions}
         transactionSummary={reportTransactionSummary}
-        monthlyComparison={monthlyComparison}
         downloadPdf={downloadPdf}
         requestReportExport={requestReportExport}
         reportTemplate={reportTemplate}
@@ -10165,12 +10261,18 @@ function MainApp(props) {
         financialState={reportFinancialState}
         reportTransactions={reportTransactions}
         transactionSummary={reportTransactionSummary}
-        monthlyComparison={monthlyComparison}
         selectedMonthKey={selectedMonthKey}
         profileDetailsOnly
       />
     </Suspense>
   )
+  const openProfileSettingsFromChrome = (surface = 'app_chrome') => {
+    setIsSettingsOpen(true)
+    trackEvent('profile_viewed')
+    trackFeatureUsage('settings_opened', {
+      surface,
+    })
+  }
 
   return (
     <div className={motionSurfaceClassName(useLegacyNavigation ? 'app-shell' : 'app-shell v12-app-shell')}>
@@ -10178,22 +10280,6 @@ function MainApp(props) {
         <BrandMark size="tiny" />
         <span>FBPly</span>
       </div>
-      {useLegacyNavigation && (
-        <button
-          className="top-settings-button"
-          type="button"
-          aria-label="Open profile and settings"
-          onClick={() => {
-            setIsSettingsOpen(true)
-            trackEvent('profile_viewed')
-            trackFeatureUsage('settings_opened', {
-              surface: 'app_chrome',
-            })
-          }}
-        >
-          <User size={18} />
-        </button>
-      )}
       <button
         className="top-notification-button"
         type="button"
@@ -10204,6 +10290,15 @@ function MainApp(props) {
         }}
       >
         <Bell size={18} />
+      </button>
+      <button
+        className="top-profile-menu-button"
+        type="button"
+        aria-label="Open profile menu"
+        title="Open profile menu"
+        onClick={() => openProfileSettingsFromChrome('app_chrome')}
+      >
+        <MoreVertical size={18} />
       </button>
       {hasOpenedNotifications && (
         <Suspense fallback={null}>
@@ -10413,13 +10508,6 @@ function MainApp(props) {
                 selectedMonthKey={selectedMonthKey}
                 onEnableBackup={onEnableBackup}
                 monthlyReportNode={profileMonthlyReportNode}
-                openSettings={() => {
-                  setIsSettingsOpen(true)
-                  trackEvent('profile_viewed')
-                  trackFeatureUsage('settings_opened', {
-                    surface: 'profile_tab',
-                  })
-                }}
               />
             )}
             {!useLegacyNavigation ? (
@@ -10704,11 +10792,7 @@ function QuickAddFab({ openAddSheet, activeTab }) {
 }
 
 function ReportsFallback() {
-  return (
-    <section className="screen-content reports-screen">
-      <FLoader fullPage label="Preparing reports" />
-    </section>
-  )
+  return <ScreenFallback eyebrow="Reports" title="Preparing reports" cards={3} />
 }
 
 function HomeScreenFallback() {
@@ -10734,23 +10818,27 @@ function HomeScreenFallback() {
 }
 
 function DailyBookScreenFallback() {
-  return (
-    <section className="screen-content">
-      <FLoader fullPage label="Preparing daily book" />
-    </section>
-  )
+  return <ScreenFallback eyebrow="Daily book" title="Preparing daily book" cards={3} />
 }
 
-function ScreenFallback({ eyebrow = 'Loading', title = 'Preparing view' }) {
+function ScreenFallback({ eyebrow = 'Loading', title = 'Preparing view', cards = 1 }) {
   return (
-    <section className="screen-content">
+    <section className="screen-content screen-skeleton-fallback" role="status" aria-live="polite">
       <div className="screen-heading">
         <div>
           <p className="eyebrow">{eyebrow}</p>
           <h1>{title}</h1>
         </div>
       </div>
-      <article className="chart-card skeleton-card" />
+      <div className="screen-skeleton-grid" aria-hidden="true">
+        {Array.from({ length: cards }).map((_, index) => (
+          <article className="chart-card skeleton-card" key={index}>
+            <span className="skeleton-line short" />
+            <span className="skeleton-line" />
+            <span className="skeleton-block" />
+          </article>
+        ))}
+      </div>
     </section>
   )
 }
@@ -10797,7 +10885,7 @@ class AppErrorBoundary extends Component {
   }
 }
 
-function RewardedExportModal({ rewardState, onStart, onClose }) {
+function RewardedExportModal({ canDownload = false, isPreparing = false, rewardState, onStart, onClose }) {
   if (!rewardState.open) {
     return null
   }
@@ -10813,7 +10901,9 @@ function RewardedExportModal({ rewardState, onStart, onClose }) {
         </div>
         <div>
           <p className="eyebrow">Report export</p>
-          <h2 id="rewarded-export-title">Watch a short ad to unlock this export.</h2>
+          <h2 id="rewarded-export-title">
+            {isUnlocked ? 'Report unlocked. Download it now.' : 'Watch a short ad to unlock this export.'}
+          </h2>
           <p>
             Export stays optional. Planning, expense entry, voice add, and navigation remain available without ads.
           </p>
@@ -10822,18 +10912,45 @@ function RewardedExportModal({ rewardState, onStart, onClose }) {
           <span style={{ width: `${Math.min(rewardState.progress, 100)}%` }} />
         </div>
         <div className="reward-status-row">
-          <span>{isUnlocked ? 'Unlocked. Preparing report...' : isWatching ? 'Thanks. Unlocking download...' : 'Report download unlock'}</span>
+          <span>{isPreparing ? 'Report is preparing...' : isUnlocked ? 'Unlocked. Tap Download report.' : isWatching ? 'Thanks. Unlocking download...' : 'Report download unlock'}</span>
           <strong>{Math.min(rewardState.progress, 100)}%</strong>
         </div>
         <div className="reward-actions">
-          <button className="primary-button" type="button" onClick={onStart} disabled={isWatching || isUnlocked}>
-            {isWatching ? 'Watching...' : isUnlocked ? 'Unlocked' : 'Watch short ad'}
+          <button className="primary-button" type="button" onClick={onStart} disabled={isWatching || (isUnlocked && !canDownload)}>
+            {isWatching ? 'Watching...' : isPreparing ? 'Preparing...' : isUnlocked ? 'Download report' : 'Watch short ad'}
           </button>
-          <button className="ghost-button" type="button" onClick={onClose} disabled={isUnlocked}>
+          <button className="ghost-button" type="button" onClick={onClose}>
             Close
           </button>
         </div>
       </section>
+    </div>
+  )
+}
+
+function ReportDownloadFallbackBanner({ download, onClose }) {
+  if (!download?.url) {
+    return null
+  }
+
+  return (
+    <div className="report-download-fallback" role="status">
+      <div>
+        <strong>Report ready</strong>
+        <span>If the download did not start, tap the file button.</span>
+      </div>
+      <a
+        className="primary-button"
+        href={download.url}
+        download={download.filename}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Download file
+      </a>
+      <button className="ghost-button" type="button" onClick={onClose}>
+        Close
+      </button>
     </div>
   )
 }
@@ -11892,7 +12009,9 @@ function HomeFooter() {
           onClick={() => setIsAboutOpen((current) => !current)}
         >
           <span className="home-about-toggle-main">
-            <BrandMark size="tiny" />
+            <span className="home-about-info-icon" aria-hidden="true">
+              <Info size={15} />
+            </span>
             <span>
               <span className="mini-label" id="home-about-title">About FBPly</span>
               <strong>Founder, support, and trust details</strong>
@@ -12240,10 +12359,6 @@ function VoiceExpenseBox({
 
 function ProfileScreen({
   profile,
-  setProfile,
-  authUser,
-  onEnableBackup,
-  onSignOut,
   financialState,
   fixedDistribution,
   flexibleDistribution,
@@ -12293,7 +12408,6 @@ function ProfileScreen({
   const greeting = getGreeting(profile.name)
   const balanceMessage = getProfileBalanceMessage(financialState)
   const [isCommitmentEditorOpen, setIsCommitmentEditorOpen] = useState(false)
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
 
   return (
     <section className="screen-content">
@@ -12302,14 +12416,6 @@ function ProfileScreen({
           <p className="eyebrow">Profile</p>
           <h1>Your financial context</h1>
         </div>
-        <button
-          className="profile-menu-trigger"
-          type="button"
-          aria-label="Open profile menu"
-          onClick={() => setIsProfileMenuOpen(true)}
-        >
-          <MoreVertical size={18} />
-        </button>
       </div>
 
       <article className="profile-hero-card">
@@ -12398,120 +12504,7 @@ function ProfileScreen({
           onClose={() => setIsCommitmentEditorOpen(false)}
         />
       )}
-      {isProfileMenuOpen && (
-        <ProfileMenuSheet
-          authUser={authUser}
-          profile={profile}
-          setProfile={setProfile}
-          onEnableBackup={onEnableBackup}
-          onClose={() => setIsProfileMenuOpen(false)}
-          onSignOut={onSignOut}
-        />
-      )}
     </section>
-  )
-}
-
-function ProfileMenuSheet({ authUser, profile, setProfile, onEnableBackup, onClose, onSignOut }) {
-  const backupStatus = authUser?.id ? 'Protected by Cloud Backup' : 'Local Only'
-
-  return (
-    <AppModal onClose={onClose} labelledBy="profile-menu-title" sheetClassName="editor-sheet profile-menu-sheet">
-      <div className="editor-sheet-header">
-        <div>
-          <p className="eyebrow">Account</p>
-          <h2 id="profile-menu-title">Profile menu</h2>
-        </div>
-        <button className="icon-button" type="button" aria-label="Close profile menu" onClick={onClose}>
-          <X size={17} />
-        </button>
-      </div>
-      <div className="profile-menu-account">
-        <BrandMark size="small" />
-        <div>
-          <span className="mini-label">{backupStatus}</span>
-          <strong>{authUser?.email || profile.email || 'This device'}</strong>
-        </div>
-      </div>
-      <div className="editor-sheet-body profile-menu-body">
-        <label className="input-label" htmlFor="profile-menu-name">
-          Name
-        </label>
-        <input
-          className="plain-input"
-          id="profile-menu-name"
-          type="text"
-          value={profile.name}
-          placeholder="Your name"
-          onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))}
-        />
-        <CurrencyInput
-          label="Income"
-          id="profile-menu-income"
-          value={profile.income}
-          onChange={(value) => setProfile((current) => ({ ...current, income: normalizeMoney(value) }))}
-        />
-        <CurrencyPreference profile={profile} setProfile={setProfile} id="profile-menu-currency" />
-        <label>
-          <span className="input-label">Salary day</span>
-          <input
-            className="plain-input"
-            type="number"
-            min="1"
-            max="31"
-            inputMode="numeric"
-            value={profile.salaryDay || 1}
-            onChange={(event) => setProfile((current) => ({
-              ...current,
-              salaryDay: Math.min(Math.max(Number(event.target.value || 1), 1), 31),
-            }))}
-          />
-        </label>
-        <div className="profile-menu-section">
-          <span className="input-label">Planning style</span>
-          <div className="preference-grid compact-preference-grid">
-            {['safe', 'balanced', 'flexible'].map((preference) => (
-              <button
-                className={`preference-card ${profile.savingsPreference === preference ? 'active' : ''}`}
-                key={preference}
-                type="button"
-                onClick={() => setProfile((current) => ({ ...current, savingsPreference: preference }))}
-              >
-                <CheckCircle2 size={16} />
-                <span>{titleCase(preference)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="editor-sheet-footer profile-menu-footer">
-        {authUser?.id ? (
-          <button
-            className="sign-out-button"
-            type="button"
-            onClick={() => {
-              onClose()
-              onSignOut()
-            }}
-          >
-            <LogOut size={17} />
-            Sign out
-          </button>
-        ) : (
-          <button
-            className="sign-out-button"
-            type="button"
-            onClick={() => {
-              onClose()
-              onEnableBackup?.()
-            }}
-          >
-            <ShieldCheck size={17} />
-            Enable Cloud Backup
-          </button>
-        )}
-      </div>
-    </AppModal>
   )
 }
 

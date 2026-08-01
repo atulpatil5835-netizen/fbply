@@ -19,7 +19,7 @@ export class ErrorBoundary extends Component {
       return (
         <main className="error-boundary">
           <div className="error-card">
-            <img src="/fbply-logo.png" alt="FBPly" />
+            <img src="/fbply-f-mark.png" alt="FBPly" />
             <h1>Something did not load smoothly.</h1>
             <p>Your information is still safe. Refresh the app and FBPly will try again calmly.</p>
             <button type="button" onClick={() => window.location.reload()}>

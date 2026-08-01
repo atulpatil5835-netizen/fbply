@@ -64,29 +64,6 @@ function safeChartAmount(value) {
   return normalizeMoney(value)
 }
 
-function cleanCompactNumber(value) {
-  return Number(value.toFixed(value >= 10 ? 0 : 1)).toString()
-}
-
-function compactRupees(value) {
-  const amount = safeChartAmount(value)
-  const symbol = rupees(1).replace(/[0-9,.\s-]/g, '') || 'Rs'
-
-  if (amount >= 10000000) {
-    return `${symbol}${cleanCompactNumber(amount / 10000000)}Cr`
-  }
-
-  if (amount >= 100000) {
-    return `${symbol}${cleanCompactNumber(amount / 100000)}L`
-  }
-
-  if (amount >= 1000) {
-    return `${symbol}${cleanCompactNumber(amount / 1000)}K`
-  }
-
-  return rupees(amount)
-}
-
 function isValidDateKey(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').slice(0, 10))
 }
@@ -114,20 +91,6 @@ function ChartDetailsFallback() {
   return (
     <FLoader label="Preparing report charts" />
   )
-}
-
-function buildDirectionData(financialState = {}, transactionSummary = {}) {
-  const income = safeChartAmount(financialState.income)
-  const summarizedOutgoing = safeChartAmount(transactionSummary?.outgoing)
-  const calculatedCommitted = safeChartAmount(financialState.committed)
-  const allocated = summarizedOutgoing || calculatedCommitted
-  const safeRoom = safeChartAmount(financialState.safeToSpend ?? financialState.breathingRoom)
-
-  return [
-    { name: 'Income', amount: income, color: getFinanceColor('Income') },
-    { name: 'Spent or fixed', amount: allocated, color: getFinanceColor('Expense') },
-    { name: 'Safe room', amount: safeRoom, color: getFinanceColor('Travel') },
-  ].filter((item) => item.amount > 0)
 }
 
 function isOutgoingMixTransaction(transaction = {}) {
@@ -263,8 +226,6 @@ function DetailedMonthlyReportPanel({
   onToggle,
   className = '',
   report,
-  monthlyComparison = [],
-  directionData = [],
   moneyBookSummary = {},
   visibleBreakdown = [],
   selectedCategory = 'all',
@@ -301,39 +262,7 @@ function DetailedMonthlyReportPanel({
             </div>
           </article>
 
-          {monthlyComparison.length > 0 && (
-            <article className="report-section-card monthly-comparison-card">
-              <h2>What changed</h2>
-              <div className="monthly-comparison-grid">
-                {monthlyComparison.map((item) => (
-                  <div className={item.tone} key={item.label}>
-                    <span>{item.label}</span>
-                    <strong>{rupees(item.current)}</strong>
-                    <p>{item.labelText}</p>
-                  </div>
-                ))}
-              </div>
-            </article>
-          )}
-
-          <ReportSection title="Spending notes" items={report.spendingPatterns} />
-          <ReportSection title="Money pressure" items={report.pressureAnalysis} />
-          <ReportSection title="Buying safely" items={report.purchaseInsights} />
           <ReportSection title="Other notes" items={report.behaviorInsights} />
-
-          <article className="report-section-card report-direction-card">
-            <h2>Money direction</h2>
-            <div className="report-direction-list">
-              {directionData.length > 0 ? directionData.map((item) => (
-                <div key={item.name}>
-                  <span>{item.name}</span>
-                  <strong>{compactRupees(item.amount)}</strong>
-                </div>
-              )) : (
-                <p>Add income or transactions to see a clearer direction.</p>
-              )}
-            </div>
-          </article>
 
           {report.sharedSummary?.activeGroups > 0 && (
             <article className="report-section-card shared-report-card">
@@ -457,6 +386,7 @@ function moneyHealthFromFinancialState(financialState = {}) {
 
 function reportTypeLabel(type = 'monthly') {
   return {
+    'money-book': 'Borrow/Lend Report',
     monthly: 'Monthly Report',
     statement: 'Statement Report',
     trip: 'Trip Report',
@@ -566,7 +496,6 @@ export default function ReportsScreen({
   financialState = {},
   reportTransactions = [],
   transactionSummary = {},
-  monthlyComparison = [],
   downloadPdf,
   requestReportExport,
   reportTemplate = 'standard',
@@ -595,9 +524,6 @@ export default function ReportsScreen({
     () => advancedReport || {
       advisory: 'Add a few entries to build a useful monthly report.',
       snapshot: [],
-      spendingPatterns: [],
-      pressureAnalysis: [],
-      purchaseInsights: [],
       behaviorInsights: [],
       timeline: [],
     },
@@ -613,10 +539,6 @@ export default function ReportsScreen({
     () => buildEntryTrendData(reportTransactions, legacyTimeline),
     [legacyTimeline, reportTransactions],
   )
-  const directionData = useMemo(
-    () => buildDirectionData(financialState, transactionSummary),
-    [financialState, transactionSummary],
-  )
   const hasActiveCategory = mixBreakdown.some((item) => item.name === activeCategory)
   const selectedCategory = hasActiveCategory ? activeCategory : 'all'
   const focusedCategory = mixBreakdown.find((item) => item.name === selectedCategory) || null
@@ -625,15 +547,10 @@ export default function ReportsScreen({
     ? mixBreakdown
     : mixBreakdown.filter((item) => item.name === selectedCategory)
   const storyItems = useMemo(
-    () => [
-      ...(report.pressureAnalysis || []),
-      ...(report.spendingPatterns || []),
-      ...(report.purchaseInsights || []),
-      ...(report.behaviorInsights || []),
-    ]
+    () => (report.behaviorInsights || [])
       .filter((item) => item?.title || item?.detail)
       .slice(0, 3),
-    [report.behaviorInsights, report.pressureAnalysis, report.purchaseInsights, report.spendingPatterns],
+    [report.behaviorInsights],
   )
   const recentReportHistory = useMemo(
     () => (Array.isArray(reportHistory) ? reportHistory.slice(0, 6) : []),
@@ -722,6 +639,7 @@ export default function ReportsScreen({
   }, {})
   const monthlyReportCount = reportHistoryCounts.monthly || 0
   const statementReportCount = reportHistoryCounts.statement || 0
+  const moneyBookReportCount = reportHistoryCounts['money-book'] || 0
   const tripReportCount = reportHistoryCounts.trip || 0
   const canExport = !isExportingPdf
   const hasReportInsights = storyItems.length > 0 || Boolean(advancedReport?.advisory)
@@ -794,6 +712,20 @@ export default function ReportsScreen({
     })
     requestReportExport?.('settlement', { template: reportTemplate })
   }
+  const handleMoneyBookExport = (placement = 'money_os_exports') => {
+    trackEvent('report_conversion_click', {
+      surface: 'reports',
+      report_type: 'money-book',
+      source: placement,
+    })
+    trackEvent('report_export_click', {
+      surface: 'reports',
+      report_type: 'money-book',
+      export_type: 'jpg',
+      placement,
+    })
+    requestReportExport?.('money-book', { template: reportTemplate })
+  }
   const handleCsvExport = (placement = 'money_os_exports') => {
     trackEvent('report_export_click', {
       surface: 'reports',
@@ -820,8 +752,6 @@ export default function ReportsScreen({
       onToggle={toggleReportDetails}
       className={profileDetailsOnly || !isLegacyReportsExperience() ? 'mos-report-details-panel' : ''}
       report={report}
-      monthlyComparison={monthlyComparison}
-      directionData={directionData}
       moneyBookSummary={moneyBookSummary}
       visibleBreakdown={visibleBreakdown}
       selectedCategory={selectedCategory}
@@ -996,6 +926,17 @@ export default function ReportsScreen({
               {statementReportCount > 0 && <StatusBadge>{statementReportCount}</StatusBadge>}
             </ActionCard>
             <ActionCard
+              title="Borrow/Lend JPG"
+              detail="Days, vyaj, principal, and pending amount."
+              actionLabel={isPreparingReport('money-book') ? 'Preparing' : 'Download'}
+              icon={CreditCard}
+              tone="warning"
+              disabled={!canExport}
+              onClick={() => handleMoneyBookExport('report_library')}
+            >
+              {moneyBookReportCount > 0 && <StatusBadge>{moneyBookReportCount}</StatusBadge>}
+            </ActionCard>
+            <ActionCard
               title="Trip Notebook"
               detail="Download the current shared trip report."
               actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Download'}
@@ -1089,12 +1030,21 @@ export default function ReportsScreen({
             />
             <ActionCard
               title="Download trip notebook"
-              detail="Shared groups, totals, and settlements."
+              detail="Who paid what, categories, and who owes whom."
               actionLabel={isPreparingReport('trip') ? 'Preparing' : 'Download'}
               icon={FileText}
               tone="success"
               disabled={!canExport}
               onClick={() => handleTripPdfExport('money_os_exports')}
+            />
+            <ActionCard
+              title="Download borrow/lend JPG"
+              detail="Brief days + vyaj + amount calculation."
+              actionLabel={isPreparingReport('money-book') ? 'Preparing' : 'Download'}
+              icon={CreditCard}
+              tone="warning"
+              disabled={!canExport}
+              onClick={() => handleMoneyBookExport('money_os_exports')}
             />
             <ActionCard
               title="Download settlement note"
