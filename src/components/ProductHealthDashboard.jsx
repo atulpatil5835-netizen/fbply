@@ -5,8 +5,8 @@ import {
   CircleAlert,
   EyeOff,
   HeartPulse,
+  LayoutDashboard,
   RefreshCw,
-  Sparkles,
   Target,
   TrendingUp,
 } from 'lucide-react'
@@ -142,7 +142,7 @@ export default function ProductHealthDashboard() {
           value={`${summary.rates.addHubSelectionRate}%`}
           detail={`${summary.eventCounts.add_hub_opened || 0} hub opens`}
           trend={`${summary.rates.creationPerHubOpenRate}% creation rate`}
-          icon={Sparkles}
+          icon={LayoutDashboard}
           tone="warning"
         />
         <StatCard

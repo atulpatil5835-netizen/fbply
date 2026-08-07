@@ -1,13 +1,11 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
-  Calculator,
   CheckCircle2,
   ChevronRight,
   CreditCard,
   Download,
   Pencil,
-  Percent,
   PiggyBank,
   Plane,
   Plus,
@@ -42,13 +40,6 @@ import { isLegacyProgressLayer, percentFromParts, trackProgressComponentsViewed 
 import { displayPersonName, reconcileSharedGroup } from '../lib/financialActivity'
 
 const HISTORY_GROUP_BATCH_SIZE = 12
-
-const NOTEBOOK_TOOL_BUTTONS = [
-  { key: 'calculator', label: 'Calculator', icon: Calculator },
-  { key: 'gst', label: 'GST', icon: Receipt },
-  { key: 'percentage', label: 'Percent', icon: Percent },
-  { key: 'split', label: 'Split', icon: Plane },
-]
 
 function isLegacyPeopleExperience() {
   return typeof window !== 'undefined' && Boolean(
@@ -162,35 +153,6 @@ function MonthSelector({ selectedMonthKey, setSelectedMonthKey, monthOptions = [
         ))}
       </select>
     </label>
-  )
-}
-
-function NotebookToolRail({ onOpenTool, label = 'Calculator tools' }) {
-  if (!onOpenTool) {
-    return null
-  }
-
-  return (
-    <section className="v24-calculator-tools v24-section-tools" aria-label={label}>
-      <div className="v24-calculator-tools-heading">
-        <span>{label}</span>
-        <small>Quick math stays close to the notebook page.</small>
-      </div>
-      <div className="v24-tool-grid">
-        {NOTEBOOK_TOOL_BUTTONS.map((tool) => {
-          const ToolIcon = tool.icon
-
-          return (
-            <button className="v24-tool-button" type="button" key={tool.key} onClick={() => onOpenTool(tool.key)}>
-              <ToolIcon size={15} />
-              <span>
-                <strong>{tool.label}</strong>
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </section>
   )
 }
 
@@ -388,7 +350,6 @@ export default function ActivityScreen({
   monthOptions,
   onEditExpense,
   openAddSheet,
-  openQuickTools,
   requestReportExport,
   moneyTheme = defaultMoneyOSTheme,
   view = 'people',
@@ -813,8 +774,6 @@ export default function ActivityScreen({
             </button>
           </div>
         </article>
-
-        <NotebookToolRail onOpenTool={openQuickTools} label={isBorrowView ? 'Borrow/Lend calculator tools' : 'Split calculator tools'} />
 
         {isBorrowView ? borrowToolsContent : splitToolsContent}
 

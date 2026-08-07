@@ -7,6 +7,7 @@ import {
   legalSeoPages,
   seoRouteMeta,
 } from '../src/lib/seoRoutes.js'
+import { getPublicRouteContent, qualityUpdatedDate } from '../src/lib/publicRouteContent.js'
 
 const distDir = path.resolve('dist')
 const indexHtmlPath = path.join(distDir, 'index.html')
@@ -49,6 +50,88 @@ function setMetaProperty(html, property, content) {
   )
 }
 
+function buildStaticList(items = []) {
+  return items.map((item) => `<li>${escapeHtml(item)}</li>`).join('\n')
+}
+
+function buildStaticCards(items = []) {
+  return items.map((item, index) => `
+          <article class="seo-mini-card">
+            <span>${index + 1}</span>
+            <p>${escapeHtml(item)}</p>
+          </article>`).join('')
+}
+
+function buildStaticLinks(links = []) {
+  return links.map((link) => `
+          <a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`).join('')
+}
+
+function buildStaticRouteContent(routePath, meta) {
+  const content = getPublicRouteContent(routePath, meta)
+
+  return `
+    <main class="seo-page-shell static-seo-shell" data-static-route="${escapeHtml(routePath)}">
+      <header class="seo-hero static-seo-hero">
+        <nav class="seo-top-nav" aria-label="Public FBPly navigation">
+          <a class="seo-logo-link" href="/">FBPly</a>
+          <div>
+            <a href="/budget-planner">Budget Planner</a>
+            <a href="/expense-tracker">Expense Tracker</a>
+            <a href="/daily-expense-book">Daily Book</a>
+            <a href="/monthly-financial-report">Reports</a>
+            <a href="/faq">FAQ</a>
+          </div>
+        </nav>
+        <div class="seo-hero-grid">
+          <div class="seo-hero-copy">
+            <p class="eyebrow">${escapeHtml(meta.breadcrumbLabel || 'FBPly')}</p>
+            <h1>${escapeHtml(meta.title)}</h1>
+            <p>${escapeHtml(meta.description)}</p>
+            <p class="seo-positioning-answer">
+              FBPly is a budget planner, expense tracker, daily expense book, shared expense calculator,
+              trip expense splitter, financial report generator, and bank statement analyzer.
+            </p>
+          </div>
+        </div>
+      </header>
+      <section class="seo-band seo-answer-band">
+        <div class="seo-section-heading">
+          <p class="eyebrow">${escapeHtml(content.eyebrow)}</p>
+          <h2>${escapeHtml(content.heading)}</h2>
+        </div>
+        <p class="seo-lede">${escapeHtml(content.summary)}</p>
+        <div class="seo-card-grid">
+${buildStaticCards(content.points)}
+        </div>
+      </section>
+      <section class="seo-band">
+        <div class="seo-section-heading">
+          <p class="eyebrow">Page quality checks</p>
+          <h2>Why this page is useful</h2>
+        </div>
+        <ul class="static-seo-list">
+${buildStaticList(content.checks)}
+        </ul>
+      </section>
+      <section class="seo-band seo-authority-band">
+        <div class="seo-section-heading">
+          <p class="eyebrow">Explore FBPly</p>
+          <h2>Public resources and trust pages</h2>
+        </div>
+        <div class="seo-flow-row">
+${buildStaticLinks(content.links)}
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/disclaimer">Disclaimer</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+        </div>
+        <p class="seo-lede">Content reviewed ${escapeHtml(qualityUpdatedDate)}. Public samples use illustrative data only and do not expose private user records.</p>
+      </section>
+    </main>`
+}
+
 function buildSeoHtml(baseHtml, routePath) {
   const meta = getSeoMetaForPath(routePath)
   const structuredData = JSON.stringify(buildStructuredDataForPath(routePath), null, 2)
@@ -74,6 +157,12 @@ function buildSeoHtml(baseHtml, routePath) {
     /<script\s+type="application\/ld\+json"\s+id="fbply-jsonld">[\s\S]*?<\/script>/i,
     `<script type="application/ld+json" id="fbply-jsonld">\n${structuredData}\n    </script>`,
     'JSON-LD script',
+  )
+  html = replaceRequired(
+    html,
+    /<div\s+id="root"><\/div>/i,
+    `<div id="root">${buildStaticRouteContent(routePath, meta)}\n    </div>`,
+    'root static content',
   )
 
   return html

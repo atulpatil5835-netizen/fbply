@@ -18,6 +18,7 @@ import {
   normalizeSeoPath,
   siteOrigin,
 } from '../lib/seoRoutes.js'
+import { getPublicRouteContent } from '../lib/publicRouteContent.js'
 import { trackEvent, trackFeatureUsage, trackPublicPageView } from '../lib/analytics'
 
 const workflowLinks = [
@@ -1268,6 +1269,32 @@ function AuthorityLinksBand() {
   )
 }
 
+function QualityContentSection({ path, meta }) {
+  const content = getPublicRouteContent(path, meta)
+
+  return (
+    <section className="seo-band seo-editorial-band" aria-labelledby="seo-quality-title">
+      <div className="seo-section-heading">
+        <p className="eyebrow">{content.eyebrow}</p>
+        <h2 id="seo-quality-title">{content.heading}</h2>
+      </div>
+      <p className="seo-lede">{content.summary}</p>
+      <div className="seo-card-grid">
+        {content.points.map((point) => (
+          <article className="seo-mini-card" key={point}>
+            <FileText size={17} aria-hidden="true" />
+            <p>{point}</p>
+          </article>
+        ))}
+      </div>
+      <div className="seo-trust-band seo-inline-trust" aria-label="Page quality checks">
+        <ShieldCheck size={18} aria-hidden="true" />
+        <p>{content.checks.join(' ')}</p>
+      </div>
+    </section>
+  )
+}
+
 function SampleReportShowcasePage({ page, path }) {
   return (
     <>
@@ -1907,6 +1934,7 @@ export default function PublicSeoScreen({ currentPath }) {
       {guidePages[path] && <GuidePage page={page} path={path} />}
       {samplePages[path] && <SamplePage page={page} path={path} />}
       {authoritySamplePages[path] && <SampleReportShowcasePage page={page} path={path} />}
+      <QualityContentSection path={path} meta={meta} />
       <AuthorityLinksBand />
       <footer className="seo-footer">
         <HeaderLogo />

@@ -1,5 +1,19 @@
 import { lazy, Suspense, useState } from 'react'
-import { CheckCircle2, Coffee, ExternalLink, Info, LogOut, Mail, ShieldCheck, X } from 'lucide-react'
+import {
+  CheckCircle2,
+  Coffee,
+  Coins,
+  ExternalLink,
+  FileText,
+  Info,
+  LifeBuoy,
+  LogOut,
+  Palette,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound,
+  X,
+} from 'lucide-react'
 import { AppModal, BrandMark, CurrencyInput } from '../components/AppPrimitives.jsx'
 import FinanceDonut from '../components/FinanceDonut.jsx'
 import { CommitmentsEditor, CurrencyPreference } from '../components/ProfileSettingsControls.jsx'
@@ -54,11 +68,12 @@ function ThemePreference({ moneyTheme, setMoneyTheme }) {
 
   return (
     <section className="settings-compact-group theme-preference-group" aria-labelledby="theme-preference-title">
-      <div className="section-heading-row">
-        <div>
-          <h2 id="theme-preference-title">Theme</h2>
-        </div>
-      </div>
+      <SettingsSectionTitle
+        id="theme-preference-title"
+        icon={Palette}
+        title="Theme"
+        detail="Choose the workspace look."
+      />
       <div className="theme-choice-grid" role="radiogroup" aria-label="Theme">
         {moneyOSThemeOptions.map((theme) => {
           const isSelected = selectedTheme === theme.id
@@ -93,6 +108,22 @@ function ThemePreference({ moneyTheme, setMoneyTheme }) {
   )
 }
 
+function SettingsSectionTitle({ id, icon: Icon, title, detail }) {
+  return (
+    <div className="settings-section-title">
+      {Icon && (
+        <span className="settings-section-icon" aria-hidden="true">
+          <Icon size={16} />
+        </span>
+      )}
+      <div>
+        <h2 id={id}>{title}</h2>
+        {detail && <p>{detail}</p>}
+      </div>
+    </div>
+  )
+}
+
 function settingsExternalProps(external) {
   return external
     ? {
@@ -115,17 +146,18 @@ function SettingsMenuLinks({
 }) {
   return (
     <section className="settings-compact-group settings-menu-links" aria-labelledby="settings-menu-links-title">
-      <div className="section-heading-row">
-        <div>
-          <h2 id="settings-menu-links-title">More</h2>
-        </div>
-      </div>
+      <SettingsSectionTitle
+        id="settings-menu-links-title"
+        icon={LifeBuoy}
+        title="Support & Trust"
+        detail="Help, product information, and public policy pages."
+      />
       <div className="settings-menu-link-grid">
         <ActionCard
           title="Support"
           detail="Feedback and help when something feels unclear."
           actionLabel="Email"
-          icon={Mail}
+          icon={LifeBuoy}
           tone="tint"
           href={supportMailHref(supportEmail)}
         />
@@ -144,6 +176,22 @@ function SettingsMenuLinks({
           icon={ShieldCheck}
           tone="neutral"
           href="/privacy"
+        />
+        <ActionCard
+          title="Terms"
+          detail="Use, limits, and responsibilities."
+          actionLabel="Read"
+          icon={FileText}
+          tone="neutral"
+          href="/terms"
+        />
+        <ActionCard
+          title="Disclaimer"
+          detail="Financial guidance limits and review notes."
+          actionLabel="Read"
+          icon={FileText}
+          tone="neutral"
+          href="/disclaimer"
         />
         {supportPaymentUrl && (
           <ActionCard
@@ -212,7 +260,8 @@ export default function SettingsScreen({
     >
       <div className="editor-sheet-header">
         <div>
-          <h2 id="settings-title">Profile menu</h2>
+          <p className="eyebrow">Menu</p>
+          <h2 id="settings-title">Options</h2>
         </div>
         <button className="icon-button" type="button" aria-label="Close settings" onClick={onClose}>
           <X size={17} />
@@ -220,7 +269,21 @@ export default function SettingsScreen({
       </div>
 
       <div className="editor-sheet-body settings-body">
-        <section className="settings-compact-group">
+        <section className="settings-compact-group settings-account-overview" aria-labelledby="settings-account-title">
+          <SettingsSectionTitle
+            id="settings-account-title"
+            icon={UserRound}
+            title="Account"
+            detail={backupStatus}
+          />
+          <div className="profile-menu-account settings-account">
+            <BrandMark size="small" />
+            <div>
+              <span className="mini-label">{authUser?.email || profile.email || 'This device'}</span>
+              <strong>{profile.name || 'FBPly User'}</strong>
+              <p>{balanceMessage}</p>
+            </div>
+          </div>
           <div className="settings-form-grid settings-form-grid--primary">
             <label>
               <span className="input-label">Name</span>
@@ -242,7 +305,54 @@ export default function SettingsScreen({
           </div>
         </section>
 
+        <section className="settings-compact-group settings-money-preferences" aria-labelledby="settings-money-title">
+          <SettingsSectionTitle
+            id="settings-money-title"
+            icon={Coins}
+            title="Money Preferences"
+            detail="Currency and salary cycle used across the app."
+          />
+          <div className="settings-form-grid">
+            <CurrencyPreference profile={profile} setProfile={setProfile} id="settings-currency" />
+            <label>
+              <span className="input-label">Salary day</span>
+              <input
+                className="plain-input"
+                type="number"
+                min="1"
+                max="31"
+                inputMode="numeric"
+                value={profile.salaryDay || 1}
+                onChange={(event) => setProfile((current) => ({
+                  ...current,
+                  salaryDay: Math.min(Math.max(Number(event.target.value || 1), 1), 31),
+                }))}
+              />
+            </label>
+          </div>
+        </section>
+
         <ThemePreference moneyTheme={moneyTheme} setMoneyTheme={setMoneyTheme} />
+
+        {!authUser?.id && (
+          <section className="settings-backup-callout">
+            <ShieldCheck size={18} />
+            <div>
+              <strong>Cloud Backup</strong>
+              <p>Protect your FBPly data across devices.</p>
+            </div>
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => {
+                onClose()
+                onEnableBackup?.()
+              }}
+            >
+              Enable
+            </button>
+          </section>
+        )}
 
         <SettingsMenuLinks
           supportEmail={supportEmail}
@@ -257,60 +367,14 @@ export default function SettingsScreen({
           onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
         >
           <summary>
-            <span>Advanced Settings</span>
+            <span>
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              <strong>Advanced Settings</strong>
+              <small>Bills, planning style, recurring payments, and diagnostics</small>
+            </span>
           </summary>
           {detailsOpen && (
             <div className="settings-secondary-stack">
-              <section className="settings-compact-group">
-                <div className="profile-menu-account settings-account">
-                  <BrandMark size="small" />
-                  <div>
-                    <span className="mini-label">{backupStatus}</span>
-                    <strong>{authUser?.email || profile.email || 'This device'}</strong>
-                    <p>{balanceMessage}</p>
-                  </div>
-                </div>
-
-                {!authUser?.id && (
-                  <div className="settings-backup-callout">
-                    <ShieldCheck size={18} />
-                    <div>
-                      <strong>Protect Your Data</strong>
-                      <p>Keep Your Data Safe Across Devices.</p>
-                    </div>
-                    <button
-                      className="ghost-button"
-                      type="button"
-                      onClick={() => {
-                        onClose()
-                        onEnableBackup?.()
-                      }}
-                    >
-                      Enable Cloud Backup
-                    </button>
-                  </div>
-                )}
-
-                <div className="settings-form-grid">
-                  <CurrencyPreference profile={profile} setProfile={setProfile} id="settings-currency" />
-                  <label>
-                    <span className="input-label">Salary day</span>
-                    <input
-                      className="plain-input"
-                      type="number"
-                      min="1"
-                      max="31"
-                      inputMode="numeric"
-                      value={profile.salaryDay || 1}
-                      onChange={(event) => setProfile((current) => ({
-                        ...current,
-                        salaryDay: Math.min(Math.max(Number(event.target.value || 1), 1), 31),
-                      }))}
-                    />
-                  </label>
-                </div>
-              </section>
-
               <section className="settings-compact-group">
                 <div className="profile-menu-section">
                   <span className="input-label">Planning style</span>

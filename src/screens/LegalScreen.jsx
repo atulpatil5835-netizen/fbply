@@ -1,18 +1,25 @@
 import { HeartHandshake, Mail, MessageCircle, ShieldCheck } from 'lucide-react'
 import { HeaderLogo } from '../components/AppPrimitives.jsx'
+import { qualityUpdatedDate } from '../lib/publicRouteContent.js'
 
-const legalUpdatedLabel = 'Updated May 2026'
+const legalUpdatedLabel = `Updated ${qualityUpdatedDate}`
 
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function LegalText({ text, supportEmail, founderLinkedInUrl, supportPaymentUrl }) {
+function LegalText({ text, supportEmail, founderLinkedInUrl, supportPaymentUrl, googlePartnerPrivacyUrl }) {
   const value = String(text)
   const links = [
     supportEmail && { token: supportEmail, href: `mailto:${supportEmail}`, label: supportEmail },
     founderLinkedInUrl && { token: founderLinkedInUrl, href: founderLinkedInUrl, label: 'LinkedIn', external: true },
     supportPaymentUrl && { token: supportPaymentUrl, href: supportPaymentUrl, label: 'Support FBPly', external: true },
+    googlePartnerPrivacyUrl && {
+      token: googlePartnerPrivacyUrl,
+      href: googlePartnerPrivacyUrl,
+      label: 'Google partner data policy',
+      external: true,
+    },
   ].filter(Boolean)
 
   if (!links.some((link) => value.includes(link.token))) {
@@ -46,7 +53,13 @@ function LegalText({ text, supportEmail, founderLinkedInUrl, supportPaymentUrl }
   )
 }
 
-export default function LegalScreen({ page, supportEmail, founderLinkedInUrl, supportPaymentUrl }) {
+export default function LegalScreen({
+  page,
+  supportEmail,
+  founderLinkedInUrl,
+  supportPaymentUrl,
+  googlePartnerPrivacyUrl,
+}) {
   const legalContactItems = [
     {
       title: 'Support',
@@ -89,6 +102,7 @@ export default function LegalScreen({ page, supportEmail, founderLinkedInUrl, su
                     supportEmail={supportEmail}
                     founderLinkedInUrl={founderLinkedInUrl}
                     supportPaymentUrl={supportPaymentUrl}
+                    googlePartnerPrivacyUrl={googlePartnerPrivacyUrl}
                   />
                 </p>
               ))}

@@ -14,17 +14,26 @@ export class ErrorBoundary extends Component {
     console.error('FBPly recovered from a render error.', error, info)
   }
 
+  retry = () => {
+    this.setState({ hasError: false })
+  }
+
   render() {
     if (this.state.hasError) {
       return (
-        <main className="error-boundary">
+        <main className="error-boundary" role="alert" aria-live="assertive">
           <div className="error-card">
-            <img src="/fbply-f-mark.png" alt="FBPly" />
+            <img src="/fbply-f-mark.png" alt="FBPly" decoding="async" />
             <h1>Something did not load smoothly.</h1>
             <p>Your information is still safe. Refresh the app and FBPly will try again calmly.</p>
-            <button type="button" onClick={() => window.location.reload()}>
-              Refresh app
-            </button>
+            <div className="error-actions">
+              <button type="button" onClick={this.retry}>
+                Try again
+              </button>
+              <button type="button" onClick={() => window.location.reload()}>
+                Refresh app
+              </button>
+            </div>
           </div>
         </main>
       )

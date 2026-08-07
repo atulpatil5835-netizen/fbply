@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calculator, CreditCard, Divide, Percent, Receipt } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Calculator, CreditCard, Divide, GripHorizontal, Maximize2, Palette, Percent, Receipt, Settings, X } from 'lucide-react'
 import {
   AmountInput,
-  BottomSheet,
-  MoneyCard,
   StatusBadge,
   TextInput,
 } from '../design-system'
@@ -25,51 +23,57 @@ const QUICK_TOOLS = [
     label: 'Calculator',
     detail: 'Add or total quickly',
     icon: Calculator,
-    tone: 'neutral',
   },
   {
     key: 'gst',
     label: 'GST',
     detail: 'Tax included or extra',
     icon: Receipt,
-    tone: 'neutral',
   },
   {
     key: 'percentage',
     label: 'Percent',
     detail: 'Discounts and shares',
     icon: Percent,
-    tone: 'neutral',
   },
   {
     key: 'split',
     label: 'Split',
     detail: 'Divide a bill',
     icon: Divide,
-    tone: 'neutral',
   },
   {
     key: 'emi',
     label: 'EMI',
     detail: 'Monthly estimate',
     icon: CreditCard,
-    tone: 'neutral',
   },
 ]
 
+const QUICK_TOOL_THEMES = [
+  { key: 'white', label: 'White', swatch: '#ffffff' },
+  { key: 'rose', label: 'Rose', swatch: '#f9a8d4' },
+  { key: 'ink', label: 'Ink', swatch: '#111827' },
+  { key: 'mint', label: 'Mint', swatch: '#99f6e4' },
+]
+
+const QUICK_TOOLS_THEME_STORAGE_KEY = 'fbply.quickTools.theme'
+const FLOATING_WINDOW_MIN_WIDTH = 320
+const FLOATING_WINDOW_MIN_HEIGHT = 360
+
 const CALCULATOR_KEYS = [
   'C',
-  '⌫',
+  'Del',
   '(',
   ')',
   '7',
   '8',
   '9',
-  '÷',
+  '/',
   '4',
   '5',
   '6',
-  '×',
+  '*',
   '1',
   '2',
   '3',
@@ -81,9 +85,9 @@ const CALCULATOR_KEYS = [
 ]
 
 function calculatorKeyClassName(key) {
-  const keyType = key === 'C' || key === '⌫'
+  const keyType = key === 'C' || key === 'Del'
     ? 'utility'
-    : ['+', '-', '×', '÷', '(', ')'].includes(key)
+    : ['+', '-', '*', '/', '(', ')'].includes(key)
       ? 'operator'
       : ''
 
@@ -95,15 +99,15 @@ function calculatorKeyAriaLabel(key) {
     return 'Clear calculation'
   }
 
-  if (key === '⌫') {
+  if (key === 'Del') {
     return 'Delete last character'
   }
 
-  if (key === '×') {
+  if (key === '*') {
     return 'Multiply'
   }
 
-  if (key === '÷') {
+  if (key === '/') {
     return 'Divide'
   }
 
@@ -112,6 +116,67 @@ function calculatorKeyAriaLabel(key) {
 
 function normalizeToolKey(value) {
   return QUICK_TOOLS.some((tool) => tool.key === value) ? value : 'calculator'
+}
+
+function normalizeInitialTool(value) {
+  return value === 'hub' ? null : normalizeToolKey(value)
+}
+
+function normalizeThemeKey(value) {
+  if (value === 'paper') {
+    return 'white'
+  }
+
+  return QUICK_TOOL_THEMES.some((theme) => theme.key === value) ? value : QUICK_TOOL_THEMES[0].key
+}
+
+function getStoredToolTheme() {
+  if (typeof window === 'undefined') {
+    return QUICK_TOOL_THEMES[0].key
+  }
+
+  try {
+    return normalizeThemeKey(window.localStorage.getItem(QUICK_TOOLS_THEME_STORAGE_KEY))
+  } catch {
+    return QUICK_TOOL_THEMES[0].key
+  }
+}
+
+function getViewportSize() {
+  if (typeof window === 'undefined') {
+    return { width: 1024, height: 760 }
+  }
+
+  return {
+    width: window.innerWidth || 1024,
+    height: window.innerHeight || 760,
+  }
+}
+
+function clampFloatingWindowState(state) {
+  const viewport = getViewportSize()
+  const maxWidth = Math.max(FLOATING_WINDOW_MIN_WIDTH, viewport.width - 24)
+  const maxHeight = Math.max(FLOATING_WINDOW_MIN_HEIGHT, viewport.height - 96)
+  const width = Math.min(Math.max(state.width, FLOATING_WINDOW_MIN_WIDTH), maxWidth)
+  const height = Math.min(Math.max(state.height, FLOATING_WINDOW_MIN_HEIGHT), maxHeight)
+  const x = Math.min(Math.max(state.x, 12), Math.max(12, viewport.width - width - 12))
+  const y = Math.min(Math.max(state.y, 82), Math.max(82, viewport.height - height - 12))
+
+  return { x, y, width, height }
+}
+
+function getDefaultFloatingWindowState() {
+  const viewport = getViewportSize()
+  const width = Math.min(430, Math.max(FLOATING_WINDOW_MIN_WIDTH, viewport.width - 24))
+  const height = Math.min(560, Math.max(FLOATING_WINDOW_MIN_HEIGHT, viewport.height - 128))
+  const x = viewport.width > 720 ? viewport.width - width - 24 : 12
+
+  return clampFloatingWindowState({
+    x,
+    y: viewport.width > 720 ? 104 : 132,
+    width,
+    height,
+  })
 }
 
 function numberLabel(value) {
@@ -143,6 +208,10 @@ function useToolAnalytics(open, activeTool, isReady) {
       return
     }
 
+    if (!activeTool) {
+      return
+    }
+
     trackEvent('quick_tool_opened', {
       surface: 'tools',
       tool: activeTool,
@@ -150,7 +219,7 @@ function useToolAnalytics(open, activeTool, isReady) {
   }, [activeTool, open])
 
   useEffect(() => {
-    if (!open || !isReady || trackedUseRef.current.has(activeTool)) {
+    if (!open || !activeTool || !isReady || trackedUseRef.current.has(activeTool)) {
       return
     }
 
@@ -172,7 +241,7 @@ function useCalculatorTool() {
       return
     }
 
-    if (token === '⌫') {
+    if (token === 'Del') {
       setExpression((current) => current.slice(0, -1))
       return
     }
@@ -375,59 +444,302 @@ function useActiveToolPanel({ activeTool, currencySymbol }) {
   return panels[activeTool] || calculatorTool
 }
 
-export default function QuickToolsSheet({ open = false, initialTool = 'calculator', onClose }) {
-  const [activeTool, setActiveTool] = useState(() => normalizeToolKey(initialTool))
+export default function QuickToolsSheet({ open = false, initialTool = 'calculator', requestId = 0, onClose }) {
+  const incomingActiveTool = normalizeInitialTool(initialTool)
+  const [activeToolState, setActiveToolState] = useState(() => ({
+    initialTool,
+    requestId,
+    tool: incomingActiveTool,
+  }))
+  const [drawerState, setDrawerState] = useState(() => ({
+    requestId,
+    open: initialTool === 'hub',
+  }))
+  const [showThemeSettings, setShowThemeSettings] = useState(false)
+  const [toolTheme, setToolTheme] = useState(getStoredToolTheme)
+  const [windowState, setWindowState] = useState(getDefaultFloatingWindowState)
+  const isCurrentActiveToolRequest = activeToolState.initialTool === initialTool && activeToolState.requestId === requestId
+  const drawerOpen = drawerState.requestId === requestId ? drawerState.open : initialTool === 'hub'
+  const activeTool = isCurrentActiveToolRequest
+    ? activeToolState.tool
+    : incomingActiveTool || activeToolState.tool
   const currencySymbol = getCurrencySymbol()
-  const activeMeta = QUICK_TOOLS.find((tool) => tool.key === activeTool) || QUICK_TOOLS[0]
-  const ActiveIcon = activeMeta.icon
-  const panel = useActiveToolPanel({ activeTool, currencySymbol })
+  const panel = useActiveToolPanel({ activeTool: activeTool || 'calculator', currencySymbol })
+  const activeMeta = QUICK_TOOLS.find((tool) => tool.key === activeTool)
+  const ActiveIcon = activeMeta?.icon || Calculator
 
   useToolAnalytics(open, activeTool, panel.isReady)
 
-  return (
-    <BottomSheet
-      open={open}
-      onClose={onClose}
-      title="Quick Calculators"
-      description="Fast local money calculations."
-      className="quick-tools-sheet"
-      bodyClassName="quick-tools-sheet__body"
-    >
-      <section className="quick-tools-shell" aria-label="Quick calculators">
-        <div className="quick-tools-tabs" role="tablist" aria-label="Quick calculators">
-          {QUICK_TOOLS.map((tool) => {
-            const ToolIcon = tool.icon
-            const selected = activeTool === tool.key
+  const selectActiveTool = useCallback((tool) => {
+    setActiveToolState({
+      initialTool,
+      requestId,
+      tool,
+    })
+  }, [initialTool, requestId])
 
-            return (
-              <button
-                className={selected ? 'quick-tools-tab active' : 'quick-tools-tab'}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                key={tool.key}
-                onClick={() => setActiveTool(tool.key)}
-              >
-                <span className="quick-tools-tab__icon" aria-hidden="true">
-                  <ToolIcon size={16} />
-                </span>
-                <span className="quick-tools-tab__label">{tool.label}</span>
-              </button>
-            )
-          })}
+  const openFloatingTool = useCallback((tool) => {
+    selectActiveTool(tool)
+    setShowThemeSettings(false)
+    setDrawerState({
+      requestId,
+      open: false,
+    })
+  }, [requestId, selectActiveTool])
+
+  const closeDrawer = useCallback(() => {
+    setShowThemeSettings(false)
+    setDrawerState({
+      requestId,
+      open: false,
+    })
+  }, [requestId])
+
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') {
+      return undefined
+    }
+
+    const handleResize = () => setWindowState((current) => clampFloatingWindowState(current))
+    window.addEventListener('resize', handleResize)
+
+    return () => window.removeEventListener('resize', handleResize)
+  }, [open])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(QUICK_TOOLS_THEME_STORAGE_KEY, toolTheme)
+    } catch {
+      // Local preferences are optional; the tools still work if storage is blocked.
+    }
+  }, [toolTheme])
+
+  const beginWindowMove = useCallback((event) => {
+    if (event.button !== undefined && event.button !== 0) {
+      return
+    }
+
+    if (event.target?.closest?.('button, input, select, textarea, a')) {
+      return
+    }
+
+    event.preventDefault()
+
+    const pointerId = event.pointerId
+    const startX = event.clientX
+    const startY = event.clientY
+    const startState = windowState
+
+    event.currentTarget.setPointerCapture?.(pointerId)
+
+    const handleMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) {
+        return
+      }
+
+      const nextState = {
+        ...startState,
+        x: startState.x + moveEvent.clientX - startX,
+        y: startState.y + moveEvent.clientY - startY,
+      }
+
+      setWindowState(clampFloatingWindowState(nextState))
+    }
+
+    const stopMove = () => {
+      document.removeEventListener('pointermove', handleMove)
+      document.removeEventListener('pointerup', stopMove)
+      document.removeEventListener('pointercancel', stopMove)
+    }
+
+    document.addEventListener('pointermove', handleMove)
+    document.addEventListener('pointerup', stopMove)
+    document.addEventListener('pointercancel', stopMove)
+  }, [windowState])
+
+  const beginWindowResize = useCallback((event) => {
+    if (event.button !== undefined && event.button !== 0) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const pointerId = event.pointerId
+    const startX = event.clientX
+    const startY = event.clientY
+    const startState = windowState
+
+    event.currentTarget.setPointerCapture?.(pointerId)
+
+    const handleResize = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) {
+        return
+      }
+
+      const nextState = {
+        ...startState,
+        width: startState.width + moveEvent.clientX - startX,
+        height: startState.height + moveEvent.clientY - startY,
+      }
+
+      setWindowState(clampFloatingWindowState(nextState))
+    }
+
+    const stopResize = () => {
+      document.removeEventListener('pointermove', handleResize)
+      document.removeEventListener('pointerup', stopResize)
+      document.removeEventListener('pointercancel', stopResize)
+    }
+
+    document.addEventListener('pointermove', handleResize)
+    document.addEventListener('pointerup', stopResize)
+    document.addEventListener('pointercancel', stopResize)
+  }, [windowState])
+
+  if (!open) {
+    return null
+  }
+
+  return (
+    <div
+      className="quick-tools-floating-layer"
+      data-drawer-open={drawerOpen ? 'true' : 'false'}
+      data-tool-theme={toolTheme}
+    >
+      <div className="quick-tools-soft-blur" aria-hidden="true" />
+
+      <section
+        className={drawerOpen ? 'quick-tools-floating-hub is-open' : 'quick-tools-floating-hub'}
+        aria-hidden={!drawerOpen}
+        inert={!drawerOpen}
+        aria-label="Calculation tools"
+      >
+        <div className="quick-tools-drawer-header">
+          <span>
+            <Calculator size={16} />
+            Tools
+          </span>
+          <button className="quick-tools-icon-action" type="button" aria-label="Close tools drawer" title="Close tools" onClick={closeDrawer}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="quick-tools-tabs" aria-label="Calculation tools">
+            {QUICK_TOOLS.map((tool) => {
+              const ToolIcon = tool.icon
+              const selected = activeTool === tool.key
+
+              return (
+                <button
+                  className={selected ? 'quick-tools-tab active' : 'quick-tools-tab'}
+                  type="button"
+                  aria-pressed={selected}
+                  title={tool.label}
+                  key={tool.key}
+                  onClick={() => openFloatingTool(tool.key)}
+                >
+                  <span className="quick-tools-tab__icon" aria-hidden="true">
+                    <ToolIcon size={17} />
+                  </span>
+                  <span className="quick-tools-tab__copy">
+                    <strong>{tool.label}</strong>
+                    <small>{tool.detail}</small>
+                  </span>
+                </button>
+              )
+            })}
+          <button
+            className={showThemeSettings ? 'quick-tools-tab quick-tools-tab--settings active' : 'quick-tools-tab quick-tools-tab--settings'}
+            type="button"
+            aria-expanded={showThemeSettings}
+            onClick={() => setShowThemeSettings((current) => !current)}
+          >
+            <span className="quick-tools-tab__icon" aria-hidden="true">
+              <Settings size={17} />
+            </span>
+            <span className="quick-tools-tab__copy">
+              <strong>Theme</strong>
+              <small>Change tool window color</small>
+            </span>
+          </button>
         </div>
 
-        <MoneyCard
-          title={activeMeta.label}
-          detail={activeMeta.detail}
-          icon={ActiveIcon}
-          tone={activeMeta.tone}
-          actions={<StatusBadge>{panel.isReady ? 'Ready' : 'Local'}</StatusBadge>}
-          className="quick-tools-card"
-        >
-          {panel.content}
-        </MoneyCard>
+        {showThemeSettings && (
+          <div className="quick-tools-theme-panel" role="radiogroup" aria-label="Tool theme">
+            <span className="quick-tools-theme-label">
+              <Palette size={14} />
+              Tool theme
+            </span>
+            <div className="quick-tools-theme-row">
+              {QUICK_TOOL_THEMES.map((theme) => (
+                <button
+                  className={theme.key === toolTheme ? 'quick-tools-theme-button active' : 'quick-tools-theme-button'}
+                  type="button"
+                  role="radio"
+                  aria-checked={theme.key === toolTheme}
+                  key={theme.key}
+                  onClick={() => setToolTheme(theme.key)}
+                >
+                  <span style={{ background: theme.swatch }} aria-hidden="true" />
+                  {theme.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
-    </BottomSheet>
+
+      {activeMeta && (
+        <section
+          className="quick-tools-floating-window"
+          aria-label={`${activeMeta.label} tool`}
+          style={{
+            left: `${windowState.x}px`,
+            top: `${windowState.y}px`,
+            width: `${windowState.width}px`,
+            height: `${windowState.height}px`,
+          }}
+        >
+          <div className="quick-tools-window-header" onPointerDown={beginWindowMove}>
+            <span className="quick-tools-window-grip" aria-hidden="true">
+              <GripHorizontal size={16} />
+            </span>
+            <span className="quick-tools-window-icon" aria-hidden="true">
+              <ActiveIcon size={17} />
+            </span>
+            <span className="quick-tools-window-title">
+              <strong>{activeMeta.label}</strong>
+              <small>{activeMeta.detail}</small>
+            </span>
+            <StatusBadge>{panel.isReady ? 'Ready' : 'Local'}</StatusBadge>
+            <button
+              className="quick-tools-icon-action"
+              type="button"
+              aria-label={`Close ${activeMeta.label}`}
+              title="Close window"
+              onClick={onClose}
+            >
+              <X size={17} />
+            </button>
+          </div>
+          <div className="quick-tools-window-body">
+            {panel.content}
+          </div>
+          <button
+            className="quick-tools-resize-handle"
+            type="button"
+            aria-label="Resize tool window"
+            title="Resize"
+            onPointerDown={beginWindowResize}
+          >
+            <Maximize2 size={15} />
+          </button>
+        </section>
+      )}
+    </div>
   )
 }

@@ -21,7 +21,6 @@ import {
   Mic,
   MoreVertical,
   Pencil,
-  Percent,
   PiggyBank,
   Plane,
   Plus,
@@ -366,6 +365,7 @@ const supportEmail = 'contact@fbply.com'
 const founderName = 'Atul Sadanand Hinge'
 const founderLinkedInUrl = 'https://www.linkedin.com/in/atul-hinge-304aab155/'
 const supportPaymentUrl = 'https://razorpay.me/@atulsadanandhinge'
+const googlePartnerPrivacyUrl = 'https://policies.google.com/technologies/partner-sites'
 const legalLinks = [
   { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Terms & Conditions', href: '/terms' },
@@ -526,6 +526,20 @@ const fixedExpenseSuggestions = ['Rent', 'Electricity', 'Internet', 'Petrol', 'S
 const QUICK_AMOUNT_PRESETS = [50, 100, 200, 500]
 
 const emiSuggestions = ['Bike EMI', 'Car EMI', 'Phone EMI', 'Education loan', 'Personal loan']
+const welcomeTrustHighlights = [
+  {
+    title: 'Public learning pages',
+    body: 'Guides, calculators, templates, and sample reports explain FBPly without requiring signup or private data.',
+  },
+  {
+    title: 'Review-first finance tools',
+    body: 'Reports and statement analysis are built around user review, clear limits, and practical monthly context.',
+  },
+  {
+    title: 'Visible trust details',
+    body: 'Privacy, terms, disclaimer, about, contact, and founder information are available from the public site.',
+  },
+]
 
 const legalPages = {
   '/privacy': {
@@ -556,7 +570,15 @@ const legalPages = {
         title: 'Cookies And Ads',
         body: [
           'FBPly may use local storage and similar browser features for app preferences and basic functionality.',
-          'If advertising is enabled, Google AdSense or related partners may use cookies or similar technologies to show, limit, and measure ads under their own policies.',
+          'If Google AdSense or similar advertising is enabled, third-party partners, including Google, may place and read cookies or use web beacons, IP addresses, and other identifiers to serve, limit, measure, protect, and improve ads.',
+          `Learn how Google uses information from sites and apps that use its services: ${googlePartnerPrivacyUrl}.`,
+        ],
+      },
+      {
+        title: 'Advertising Data Limits',
+        body: [
+          'FBPly does not intentionally pass raw statement files, PDF passwords, personal expense rows, shared payment notes, or detailed financial profile values to Google ad requests.',
+          'Public sample pages use illustrative data only. Private user records should stay inside the app experience and should not be treated as public publisher content.',
         ],
       },
       {
@@ -6399,6 +6421,7 @@ function App() {
             supportEmail={supportEmail}
             founderLinkedInUrl={founderLinkedInUrl}
             supportPaymentUrl={supportPaymentUrl}
+            googlePartnerPrivacyUrl={googlePartnerPrivacyUrl}
           />
         </Suspense>
         <CookieConsentBanner />
@@ -6695,7 +6718,7 @@ function CookieConsentBanner() {
     <section className="cookie-consent" role="dialog" aria-label="Cookie notice">
       <div>
         <strong>Cookie notice</strong>
-        <p>FBPly uses local storage for app preferences. If ads are enabled later, third-party ad partners may use cookies.</p>
+        <p>FBPly uses local storage for app preferences. If ads are enabled, third-party partners including Google may use cookies or similar technologies under their own policies.</p>
       </div>
       <button
         type="button"
@@ -6759,6 +6782,32 @@ function WelcomeScreen({ onStart }) {
           Start
           <ChevronRight size={18} />
         </button>
+        <section className="welcome-content-panel" aria-label="FBPly public resources">
+          <div>
+            <p className="eyebrow">Public resources</p>
+            <h2>Useful before you add private data.</h2>
+            <p>
+              Explore practical budgeting, expense tracking, trip splitting, statement review, and report examples
+              before opening the app workspace.
+            </p>
+          </div>
+          <div className="welcome-proof-grid">
+            {welcomeTrustHighlights.map((item) => (
+              <article key={item.title}>
+                <CheckCircle2 size={16} aria-hidden="true" />
+                <span>{item.title}</span>
+                <p>{item.body}</p>
+              </article>
+            ))}
+          </div>
+          <nav className="welcome-resource-links" aria-label="FBPly trust and sample pages">
+            <a href="/sample-monthly-financial-report">Sample Report</a>
+            <a href="/monthly-financial-report-template">Report Template</a>
+            <a href="/guides/how-to-create-monthly-budget">Budget Guide</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/contact">Contact</a>
+          </nav>
+        </section>
       </div>
     </main>
   )
@@ -7706,14 +7755,6 @@ function DailyCompanionEntry({
 
 const DAILY_FLOW_MAX_ITEMS = 20
 
-const HOME_QUICK_TOOLS = [
-  { key: 'calculator', label: 'Calculator', detail: 'Add or total quickly', icon: Calculator },
-  { key: 'gst', label: 'GST', detail: 'Tax included or extra', icon: Receipt },
-  { key: 'percentage', label: 'Percent', detail: 'Discounts and shares', icon: Percent },
-  { key: 'split', label: 'Split', detail: 'Divide a bill', icon: Plane },
-  { key: 'emi', label: 'EMI', detail: 'Monthly estimate', icon: CreditCard },
-]
-
 const HOME_CALENDAR_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const INDIAN_FIXED_HOLIDAYS = Object.freeze({
@@ -7931,7 +7972,6 @@ function parseDailyFlowInput(text) {
 function V12HomeScreen({
   todayTransactions = [],
   openAddSheet,
-  openQuickTools,
   requestReportExport,
   saveDailyFlowEntries,
   monthlyHisabItems = [],
@@ -8789,36 +8829,6 @@ function V12HomeScreen({
           {hisabMessage && <p className="monthly-hisab-message" role="status">{hisabMessage}</p>}
         </section>
         )}
-
-        <section className="v24-calculator-tools" aria-label="Quick calculator tools">
-          <div className="v24-calculator-tools-heading">
-            <span>Calculator Tools</span>
-            <small>Do quick math first, then write the expense line clearly.</small>
-          </div>
-          <div className="v24-tool-grid">
-            {HOME_QUICK_TOOLS.map((tool) => {
-              const ToolIcon = tool.icon
-
-              return (
-                <button
-                  className="v24-tool-button"
-                  type="button"
-                  key={tool.key}
-                  onClick={() => openQuickTools?.(tool.key)}
-                  aria-label={`Open ${tool.label}`}
-                >
-                  <span className="v24-tool-button-icon" aria-hidden="true">
-                    <ToolIcon size={15} />
-                  </span>
-                  <span className="v24-tool-button-copy">
-                    <strong>{tool.label}</strong>
-                    <small>{tool.detail}</small>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </section>
 
         <section className="v24-page-start-tools" aria-label="Start today's page">
           <div className="v24-page-start-header">
@@ -9979,12 +9989,15 @@ function MainApp(props) {
     setQuickIncomeInitialAmount('')
     closeAddSheet()
   }, [closeAddSheet])
-  const openQuickTools = useCallback((tool = 'calculator') => {
+  const openQuickTools = useCallback((tool = 'hub') => {
     if (isLegacyQuickTools()) {
       return
     }
 
-    setQuickToolsSheet(tool)
+    setQuickToolsSheet({
+      tool,
+      requestId: Date.now(),
+    })
   }, [])
   const closeQuickTools = useCallback(() => {
     setQuickToolsSheet(null)
@@ -10281,6 +10294,15 @@ function MainApp(props) {
         <span>FBPly</span>
       </div>
       <button
+        className="top-tools-button"
+        type="button"
+        aria-label="Open calculation tools"
+        title="Calculation tools"
+        onClick={() => openQuickTools('hub')}
+      >
+        <Calculator size={18} />
+      </button>
+      <button
         className="top-notification-button"
         type="button"
         aria-label="Open notifications"
@@ -10317,7 +10339,6 @@ function MainApp(props) {
           />
         </Suspense>
       )}
-      <QuickAddFab openAddSheet={openAddSheet} activeTab={activeNavigationTab} />
       <main className="screen-panel notebook-foundation">
         {activeNavigationTab === 'home' && (
           <>
@@ -10330,7 +10351,6 @@ function MainApp(props) {
                 nextBestAction={nextBestAction}
                 onNextActionClick={handleNextActionClick}
                 openAddSheet={openAddSheet}
-                openQuickTools={openQuickTools}
                 requestReportExport={requestReportExport}
                 saveDailyFlowEntries={saveDailyFlowEntries}
                 monthlyHisabItems={monthlyHisabItems}
@@ -10387,7 +10407,6 @@ function MainApp(props) {
               onEditExpense={editExpense}
               setActiveTab={setCompanionActiveTab}
               openAddSheet={openAddSheet}
-              openQuickTools={openQuickTools}
               requestReportExport={requestReportExport}
               moneyTheme={moneyTheme}
             />
@@ -10428,7 +10447,6 @@ function MainApp(props) {
                 onEditExpense={editExpense}
                 setActiveTab={setCompanionActiveTab}
                 openAddSheet={openAddSheet}
-                openQuickTools={openQuickTools}
                 requestReportExport={requestReportExport}
                 moneyTheme={moneyTheme}
               />
@@ -10692,9 +10710,9 @@ function MainApp(props) {
       {quickToolsSheet && !isLegacyQuickTools() && (
         <Suspense fallback={<FLoader fullPage label="Opening Quick Calculators" />}>
           <QuickToolsSheet
-            key={quickToolsSheet}
             open
-            initialTool={quickToolsSheet}
+            initialTool={quickToolsSheet.tool}
+            requestId={quickToolsSheet.requestId}
             onClose={closeQuickTools}
           />
         </Suspense>
@@ -10733,61 +10751,6 @@ function MainApp(props) {
       )}
       <BottomNav activeTab={activeNavigationTab} setActiveTab={setCompanionActiveTab} items={navigationItems} />
     </div>
-  )
-}
-
-function QuickAddFab({ openAddSheet, activeTab }) {
-  const longPressTimerRef = useRef(null)
-  const didLongPressRef = useRef(false)
-  const useLegacyAdd = isLegacyAddExperience()
-
-  const clearLongPressTimer = useCallback(() => {
-    if (longPressTimerRef.current) {
-      window.clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-  }, [])
-
-  const startLongPressTimer = useCallback(() => {
-    didLongPressRef.current = false
-    clearLongPressTimer()
-    longPressTimerRef.current = window.setTimeout(() => {
-      didLongPressRef.current = true
-      openAddSheet('menu')
-    }, 460)
-  }, [clearLongPressTimer, openAddSheet])
-
-  useEffect(() => clearLongPressTimer, [clearLongPressTimer])
-
-  if (activeTab === 'home') {
-    return null
-  }
-
-  return (
-    <button
-      className="top-quick-add-button"
-      type="button"
-      aria-label={useLegacyAdd ? 'Add expense' : 'Add money action'}
-      title={useLegacyAdd ? 'Add expense' : 'Add money action'}
-      onClick={() => {
-        if (didLongPressRef.current) {
-          didLongPressRef.current = false
-          return
-        }
-
-        openAddSheet(useLegacyAdd ? 'expense' : 'menu')
-      }}
-      onContextMenu={(event) => {
-        event.preventDefault()
-        openAddSheet('menu')
-      }}
-      onPointerDown={useLegacyAdd ? startLongPressTimer : undefined}
-      onPointerLeave={useLegacyAdd ? clearLongPressTimer : undefined}
-      onPointerCancel={useLegacyAdd ? clearLongPressTimer : undefined}
-      onPointerUp={useLegacyAdd ? clearLongPressTimer : undefined}
-    >
-      <Plus size={20} />
-    </button>
   )
 }
 

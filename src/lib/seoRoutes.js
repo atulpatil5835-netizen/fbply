@@ -1,10 +1,12 @@
+import { qualityUpdatedDate } from './publicRouteContent.js'
+
 export const siteOrigin = 'https://fbply.com'
 export const siteName = 'FBPly'
 export const supportEmail = 'contact@fbply.com'
 export const founderName = 'Atul Sadanand Hinge'
 export const founderLinkedInUrl = 'https://www.linkedin.com/in/atul-hinge-304aab155/'
 export const defaultSeoDescription =
-  'FBPly is a budget planner, expense tracker, trip expense splitter, financial report generator, and bank statement analyzer for clearer monthly money decisions.'
+  'FBPly is a budget planner, expense tracker, daily expense book, shared expense calculator, trip expense splitter, financial report generator, and bank statement analyzer for clearer monthly money decisions.'
 export const defaultSeoTitle = 'FBPly | Budget Planner, Expense Splitter & Reports'
 
 export const legalSeoPages = {
@@ -483,7 +485,7 @@ function webPageSchema(meta) {
       '@type': 'ImageObject',
       url: meta.image,
     },
-    dateModified: '2026-06-02',
+    dateModified: qualityUpdatedDate,
   }
 }
 
